@@ -7,7 +7,46 @@ services:
     volumes:
       - redis_data:/data
 
-  # ── Django web server ──────────────────────────────────────────────────────
+  # ── qBittorrent ────────────────────────────────────────────────────────────
+  # Web UI: http://localhost:8080
+  # First run: check logs for the temporary password →  docker compose logs qbittorrent
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - WEBUI_PORT=8080
+    ports:
+      - "8080:8080"       # Web UI
+      - "6881:6881"       # Torrent port TCP
+      - "6881:6881/udp"   # Torrent port UDP
+    volumes:
+      - qbt_config:/config
+      - downloads:/downloads  # In-progress downloads
+
+  # ── Plex Media Server ──────────────────────────────────────────────────────
+  # Web UI: http://localhost:32400/web
+  # First run: get a claim token from https://www.plex.tv/claim/ and set PLEX_CLAIM in .env
+  # After first successful start the token is no longer needed.
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
+    ports:
+      - "32400:32400"     # Web UI + API
+    volumes:
+      - plex_config:/config
+      - movies:/data/movies
+      - tv:/data/tv
+
+  # ── Daredevil web server ───────────────────────────────────────────────────
   web:
     build: .
     restart: unless-stopped
@@ -15,27 +54,18 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
+      # Override .env values to use Docker service names for internal networking
       - REDIS_URL=redis://redis:6379/0
+      - QBITTORRENT_HOST=qbittorrent
+      - QBITTORRENT_PORT=8080
     depends_on:
       - redis
+      - qbittorrent
     volumes:
       - db_data:/app/db.sqlite3
-      # Mount your media folders here so the file browser and file-mover can
-      # access them. Adjust the host paths to match your machine.
-      #
-      # Example — macOS with network shares:
-      #   - /Volumes/nas/downloads:/media/downloads
-      #   - /Volumes/nas/movies:/media/movies
-      #   - /Volumes/nas/tv:/media/tv
-      #
-      # Example — Windows (Docker Desktop) — use forward slashes:
-      #   - D:/Downloads:/media/downloads
-      #   - D:/Movies:/media/movies
-      #   - D:/TV:/media/tv
-      #
-      # Then set your category Download/Completed Paths to the container paths:
-      #   Download:   /media/downloads
-      #   Completed:  /media/movies  or  /media/tv
+      - downloads:/media/downloads  # Must match qBittorrent's /downloads
+      - movies:/media/movies        # Completed movies — also Plex source
+      - tv:/media/tv                # Completed TV    — also Plex source
 
   # ── Celery worker ──────────────────────────────────────────────────────────
   worker:
@@ -45,11 +75,16 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - QBITTORRENT_HOST=qbittorrent
+      - QBITTORRENT_PORT=8080
     depends_on:
       - redis
+      - qbittorrent
     volumes:
       - db_data:/app/db.sqlite3
-      # Add the same media volume mounts as the web service above
+      - downloads:/media/downloads
+      - movies:/media/movies
+      - tv:/media/tv
 
   # ── Celery beat scheduler ──────────────────────────────────────────────────
   beat:
@@ -67,3 +102,8 @@ services:
 volumes:
   redis_data:
   db_data:
+  qbt_config:       # qBittorrent settings and state
+  plex_config:      # Plex metadata and database
+  downloads:        # Shared: qBittorrent writes, Daredevil reads/moves from here
+  movies:           # Shared: Daredevil writes, Plex reads
+  tv:               # Shared: Daredevil writes, Plex reads

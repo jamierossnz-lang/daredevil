@@ -28,62 +28,121 @@ A self-hosted media manager that integrates [TMDB](https://www.themoviedb.org/) 
 
 ### Docker (recommended)
 
-The easiest way to run Daredevil on any OS. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+Docker Compose runs the full stack — Daredevil, qBittorrent, Plex, Redis, and Celery — in one command. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────┐
+│  Daredevil  │────▶│ qBittorrent  │     │   Plex   │
+│  :8000      │     │  :8080       │     │  :32400  │
+└──────┬──────┘     └──────┬───────┘     └────┬─────┘
+       │                   │                   │
+       │  downloads volume │                   │
+       │◀──────────────────┘                   │
+       │                                       │
+       │  movies + tv volumes                  │
+       └──────────────────────────────────────▶│
+```
+
+**Quick start:**
 
 ```bash
-# 1. Clone the repo
+# 1. Clone and configure
 git clone https://github.com/jamierossnz-lang/daredevil.git
 cd daredevil
-
-# 2. Create your .env file
 cp .env.example .env
-# Edit .env — set TMDB_API_KEY, QBITTORRENT_HOST/PORT/USER/PASS at minimum
+```
 
-# 3. (Optional) Mount your media folders
-# Edit docker-compose.yml and uncomment the volume lines under the web + worker services.
-# Point them at your actual download/movie/TV folders.
+Edit `.env` and set at minimum:
+- `TMDB_API_KEY` — get free at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+- `PLEX_CLAIM` — get a 4-minute token at [plex.tv/claim](https://www.plex.tv/claim/) (only needed for first run)
+- `TZ` — your timezone, e.g. `Pacific/Auckland`
 
-# 4. Start everything
+```bash
+# 2. Start everything
 docker compose up -d
 
-# 5. Create an admin user
+# 3. Get the qBittorrent temporary password (generated on first run)
+docker compose logs qbittorrent | grep "temporary password"
+
+# 4. Create a Daredevil admin user
 docker compose exec web python manage.py createsuperuser
 ```
 
-Open [http://localhost:8000](http://localhost:8000).
+| Service | URL |
+|---------|-----|
+| Daredevil | http://localhost:8000 |
+| qBittorrent | http://localhost:8080 |
+| Plex | http://localhost:32400/web |
+
+**Set up qBittorrent after first run:**
+
+1. Log in at http://localhost:8080 with username `admin` and the temporary password from the logs
+2. Go to Tools → Options → Web UI and set a permanent password
+3. Update `QBITTORRENT_PASSWORD` in `.env` to match, then `docker compose restart web worker`
+
+**Set up Daredevil categories:**
+
+In Daredevil → Categories, configure paths using the container-internal paths:
+
+| Field | Value |
+|-------|-------|
+| Download Path | `/media/downloads` |
+| Completed Path (movies) | `/media/movies` |
+| Completed Path (TV) | `/media/tv` |
+
+**Set up Plex libraries:**
+
+In Plex → Libraries → Add Library, point it at:
+- Movies → `/data/movies`
+- TV Shows → `/data/tv`
+
+---
 
 **Useful commands:**
 
 ```bash
-docker compose logs -f web          # live app logs
-docker compose logs -f worker       # Celery worker logs
-docker compose restart web          # restart after config change
-docker compose down                 # stop everything
-docker compose down -v              # stop + delete database (destructive!)
+docker compose logs -f web          # Daredevil logs
+docker compose logs -f qbittorrent  # qBittorrent logs
+docker compose logs -f plex         # Plex logs
+docker compose restart web          # restart after .env change
+docker compose pull                 # update qBT and Plex images
+docker compose build                # rebuild Daredevil after code change
+docker compose up -d                # apply changes
+docker compose down                 # stop all containers
+docker compose down -v              # ⚠ stop + delete all data volumes
 ```
 
-**Updating:**
+**Updating Daredevil:**
 
 ```bash
 git pull
-docker compose build
+docker compose build web worker beat
 docker compose up -d
 ```
 
-**Media folders on Windows (Docker Desktop):**
+**Using existing folders on the host (instead of Docker volumes):**
 
-In `docker-compose.yml`, uncomment and set the volume paths using forward slashes:
+By default, media is stored in Docker-managed named volumes. To use folders already on your machine, replace the volume references in `docker-compose.yml`:
 
 ```yaml
+# macOS / Linux
+volumes:
+  - /Volumes/nas/downloads:/media/downloads
+  - /Volumes/nas/movies:/media/movies
+  - /Volumes/nas/tv:/media/tv
+```
+
+```yaml
+# Windows (Docker Desktop) — forward slashes
 volumes:
   - D:/Downloads:/media/downloads
   - D:/Movies:/media/movies
   - D:/TV:/media/tv
 ```
 
-Then in Daredevil's Categories page, set paths to `/media/downloads`, `/media/movies`, `/media/tv`.
+Apply the same mounts to the `web`, `worker`, and `qbittorrent` services. qBittorrent's mount must use `/downloads` as the container path.
 
-> **Note on SQLite + Docker:** The database is stored in a named Docker volume (`db_data`). It's shared between the web, worker, and beat containers using file locking. This works fine for personal/single-user use. For high-concurrency production deployments, switch to PostgreSQL.
+> **Note on SQLite + Docker:** The database lives in the `db_data` named volume, shared between web/worker/beat via file locking. Works well for personal use. Switch to PostgreSQL for multi-user production deployments.
 
 ---
 

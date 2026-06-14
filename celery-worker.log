@@ -201,3 +201,5 @@ KeyError: 'execute_file_move'
 [2026-06-14 08:03:12,925: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[e60b7195-66f3-40c4-a8a5-81eba2b99c6f] succeeded in 0.00986300001386553s: None
 [2026-06-14 09:03:12,913: INFO/MainProcess] Task celery.backend_cleanup[9caff923-56d9-4c00-9920-8b5435f93842] received
 [2026-06-14 09:03:12,924: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[9caff923-56d9-4c00-9920-8b5435f93842] succeeded in 0.008095042081549764s: None
+[2026-06-14 10:03:12,912: INFO/MainProcess] Task celery.backend_cleanup[7c000f4e-c993-48b5-93a5-5106032a0b6e] received
+[2026-06-14 10:03:12,929: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[7c000f4e-c993-48b5-93a5-5106032a0b6e] succeeded in 0.012195749906823039s: None
