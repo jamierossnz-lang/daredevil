@@ -26,6 +26,25 @@ services:
       - qbt_config:/config
       - downloads:/downloads  # In-progress downloads
 
+  # ── Jackett ────────────────────────────────────────────────────────────────
+  # Web UI: http://localhost:9117
+  # Provides a unified API across hundreds of torrent indexers.
+  # After setup, connect it to qBittorrent's search using the Jackett plugin
+  # (see README for instructions).
+  jackett:
+    image: lscr.io/linuxserver/jackett:latest
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - AUTO_UPDATE=true
+    ports:
+      - "9117:9117"
+    volumes:
+      - jackett_config:/config
+      - downloads:/downloads    # Blackhole watch folder (optional)
+
   # ── Plex Media Server ──────────────────────────────────────────────────────
   # Web UI: http://localhost:32400/web
   # First run: get a claim token from https://www.plex.tv/claim/ and set PLEX_CLAIM in .env
@@ -103,6 +122,7 @@ volumes:
   redis_data:
   db_data:
   qbt_config:       # qBittorrent settings and state
+  jackett_config:   # Jackett indexer config and API key
   plex_config:      # Plex metadata and database
   downloads:        # Shared: qBittorrent writes, Daredevil reads/moves from here
   movies:           # Shared: Daredevil writes, Plex reads

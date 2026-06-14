@@ -72,6 +72,7 @@ docker compose exec web python manage.py createsuperuser
 |---------|-----|
 | Daredevil | http://localhost:8000 |
 | qBittorrent | http://localhost:8080 |
+| Jackett | http://localhost:9117 |
 | Plex | http://localhost:32400/web |
 
 **Set up qBittorrent after first run:**
@@ -79,6 +80,22 @@ docker compose exec web python manage.py createsuperuser
 1. Log in at http://localhost:8080 with username `admin` and the temporary password from the logs
 2. Go to Tools → Options → Web UI and set a permanent password
 3. Update `QBITTORRENT_PASSWORD` in `.env` to match, then `docker compose restart web worker`
+
+**Set up Jackett:**
+
+Jackett gives qBittorrent access to hundreds of torrent indexers through a single search interface.
+
+1. Open http://localhost:9117 and click **+ Add Indexer** to add your preferred sites (e.g. 1337x, YTS, RARBG mirrors, etc.)
+2. Copy your **API Key** from the top-right of the Jackett dashboard
+3. In qBittorrent → Tools → Options → **Search** → tick *Search enabled* 
+4. Install the Jackett search plugin for qBittorrent:
+   - Download [`jackett_qbittorrent.py`](https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins#jackett) (or use the `jack.py` one from the Jackett repo)
+   - In qBittorrent → Search → **Search Plugins** → Install a new one → select the `.py` file
+   - Configure the plugin with:
+     - URL: `http://jackett:9117` (Docker internal hostname)
+     - API Key: (from Jackett dashboard)
+5. Run a test search in qBittorrent to confirm Jackett is returning results
+6. Daredevil's auto-search and torrent search page will now use Jackett-backed results
 
 **Set up Daredevil categories:**
 
@@ -103,9 +120,10 @@ In Plex → Libraries → Add Library, point it at:
 ```bash
 docker compose logs -f web          # Daredevil logs
 docker compose logs -f qbittorrent  # qBittorrent logs
+docker compose logs -f jackett      # Jackett logs
 docker compose logs -f plex         # Plex logs
 docker compose restart web          # restart after .env change
-docker compose pull                 # update qBT and Plex images
+docker compose pull                 # update all third-party images
 docker compose build                # rebuild Daredevil after code change
 docker compose up -d                # apply changes
 docker compose down                 # stop all containers
