@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Files{% endblock %}
+{% block page_title %}File Browser{% endblock %}
+
+{% block content %}
+<div x-data="fileBrowser()" class="flex gap-4 h-[calc(100vh-9rem)]">
+
+  <!-- ── Left: category roots ──────────────────────────────────────── -->
+  <div class="w-56 flex-shrink-0 glass rounded-2xl p-3 flex flex-col gap-1 overflow-y-auto scrollbar-thin">
+    <p class="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Categories</p>
+
+    {% for cat in categories %}
+      {% if cat.download_path %}
+      <button @click="open('{{ cat.download_path|escapejs }}')"
+              :class="rootMatches('{{ cat.download_path|escapejs }}') ? 'bg-brand-600/30 text-brand-300 border border-brand-600/40' : 'text-gray-400 hover:bg-surface-700 hover:text-gray-100'"
+              class="w-full text-left flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-medium transition-all">
+        <i class="fa-solid fa-arrow-down text-blue-400 w-3 flex-shrink-0"></i>
+        <span class="truncate">{{ cat.category_name }} <span class="text-gray-600">(dl)</span></span>
+      </button>
+      {% endif %}
+      {% if cat.completed_path %}
+      <button @click="open('{{ cat.completed_path|escapejs }}')"
+              :class="rootMatches('{{ cat.completed_path|escapejs }}') ? 'bg-brand-600/30 text-brand-300 border border-brand-600/40' : 'text-gray-400 hover:bg-surface-700 hover:text-gray-100'"
+              class="w-full text-left flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-medium transition-all">
+        <i class="fa-solid fa-circle-check text-green-400 w-3 flex-shrink-0"></i>
+        <span class="truncate">{{ cat.category_name }} <span class="text-gray-600">(done)</span></span>
+      </button>
+      {% endif %}
+    {% empty %}
+      <p class="px-2 text-xs text-gray-600 py-4">No categories configured.<br>Add paths on the <a href="{% url 'qbt_categories' %}" class="text-brand-400 underline">Categories</a> page.</p>
+    {% endfor %}
+  </div>
+
+  <!-- ── Right: file listing ───────────────────────────────────────── -->
+  <div class="flex-1 glass rounded-2xl flex flex-col overflow-hidden min-w-0">
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-2 px-4 py-3 border-b border-white/5 flex-shrink-0">
+      <!-- Up button -->
+      <button @click="goUp()" :disabled="!parent"
+              :class="parent ? 'text-gray-300 hover:bg-surface-700' : 'text-gray-700 cursor-not-allowed'"
+              class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors flex-shrink-0">
+        <i class="fa-solid fa-arrow-up text-sm"></i>
+      </button>
+
+      <!-- Breadcrumb -->
+      <div class="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto scrollbar-thin">
+        <template x-for="(crumb, i) in breadcrumb" :key="crumb.path">
+          <span class="flex items-center gap-1 flex-shrink-0">
+            <span x-show="i > 0" class="text-gray-700 text-xs">/</span>
+            <button @click="open(crumb.path)"
+                    :class="i === breadcrumb.length - 1 ? 'text-gray-200 font-medium' : 'text-gray-500 hover:text-gray-300'"
+                    class="text-xs px-1 py-0.5 rounded transition-colors"
+                    x-text="crumb.name"></button>
+          </span>
+        </template>
+        <span x-show="!currentPath" class="text-xs text-gray-600 italic">Select a folder on the left</span>
+      </div>
+
+      <!-- Item count -->
+      <span x-show="currentPath" class="text-xs text-gray-600 flex-shrink-0" x-text="`${entries.length} item${entries.length !== 1 ? 's' : ''}`"></span>
+
+      <!-- Refresh -->
+      <button x-show="currentPath" @click="refresh()"
+              class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0">
+        <i class="fa-solid fa-rotate-right text-sm" :class="loading && 'animate-spin'"></i>
+      </button>
+    </div>
+
+    <!-- Error banner -->
+    <div x-show="error" x-cloak class="mx-4 mt-3 px-3 py-2.5 bg-red-900/30 border border-red-800/40 rounded-lg text-xs text-red-300 flex items-start gap-2">
+      <i class="fa-solid fa-circle-exclamation mt-0.5 flex-shrink-0"></i>
+      <div class="space-y-0.5">
+        <template x-for="line in error.split('\n')" :key="line">
+          <p x-text="line"></p>
+        </template>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="loading" class="flex-1 flex items-center justify-center">
+      <i class="fa-solid fa-circle-notch animate-spin text-brand-400 text-2xl"></i>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="!loading && !error && currentPath && entries.length === 0"
+         class="flex-1 flex flex-col items-center justify-center text-gray-600">
+      <i class="fa-solid fa-folder-open text-4xl mb-3"></i>
+      <p class="text-sm">Empty folder</p>
+    </div>
+
+    <!-- No selection state -->
+    <div x-show="!loading && !currentPath"
+         class="flex-1 flex flex-col items-center justify-center text-gray-700">
+      <i class="fa-solid fa-folder-tree text-4xl mb-3"></i>
+      <p class="text-sm">Select a category folder to browse</p>
+    </div>
+
+    <!-- File listing -->
+    <div x-show="!loading && entries.length > 0"
+         class="flex-1 overflow-y-auto scrollbar-thin">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 bg-surface-900/95 backdrop-blur-sm">
+          <tr class="border-b border-white/5 text-left">
+            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24 text-right">Size</th>
+            <th class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="entry in entries" :key="entry.path">
+            <tr @click="entry.type === 'dir' && open(entry.path)"
+                :class="entry.type === 'dir' ? 'cursor-pointer hover:bg-surface-700/50' : 'hover:bg-surface-800/30'"
+                class="border-b border-white/[0.03] transition-colors group">
+
+              <!-- Name -->
+              <td class="px-4 py-2.5">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <!-- Icon -->
+                  <span class="flex-shrink-0 w-5 text-center">
+                    <template x-if="entry.type === 'dir'">
+                      <i class="fa-solid fa-folder text-yellow-500/80 text-sm group-hover:text-yellow-400"></i>
+                    </template>
+                    <template x-if="entry.type === 'file'">
+                      <i :class="fileIcon(entry.ext)" class="text-sm"></i>
+                    </template>
+                  </span>
+                  <span class="truncate text-gray-200 group-hover:text-white text-sm" x-text="entry.name"></span>
+                </div>
+              </td>
+
+              <!-- Size -->
+              <td class="px-4 py-2.5 text-right text-xs text-gray-500 font-mono">
+                <span x-text="entry.type === 'file' ? fmtSize(entry.size) : ''"></span>
+              </td>
+
+              <!-- Type chip -->
+              <td class="px-4 py-2.5">
+                <span x-show="entry.type === 'dir'"
+                      class="text-xs px-1.5 py-0.5 rounded bg-yellow-900/20 text-yellow-600 border border-yellow-900/30">folder</span>
+                <span x-show="entry.type === 'file' && entry.ext"
+                      class="text-xs px-1.5 py-0.5 rounded font-mono"
+                      :class="extClass(entry.ext)"
+                      x-text="entry.ext"></span>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function fileBrowser() {
+  return {
+    currentPath: '',
+    parent: null,
+    breadcrumb: [],
+    entries: [],
+    loading: false,
+    error: '',
+    _activeRoot: '',
+
+    rootMatches(root) {
+      return this.currentPath === root || this.currentPath.startsWith(root + '/') || this.currentPath.startsWith(root + '\\');
+    },
+
+    async open(path) {
+      this.loading = true;
+      this.error   = '';
+      try {
+        const res  = await fetch(`/qbt/files/list/?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        if (!res.ok) { this.error = data.error || 'Failed to load'; this.loading = false; return; }
+        this.currentPath = data.path;
+        this.parent      = data.parent;
+        this.breadcrumb  = data.breadcrumb;
+        this.entries     = data.entries;
+      } catch (e) {
+        this.error = 'Network error: ' + e.message;
+      }
+      this.loading = false;
+    },
+
+    goUp() { if (this.parent) this.open(this.parent); },
+    refresh() { if (this.currentPath) this.open(this.currentPath); },
+
+    fmtSize(bytes) {
+      if (bytes == null) return '';
+      if (bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let b = bytes, i = 0;
+      while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+      return b.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+    },
+
+    fileIcon(ext) {
+      const video    = ['mkv','mp4','avi','m4v','mov','wmv','ts','m2ts','mpg','mpeg','flv','webm'];
+      const subtitle = ['srt','ass','ssa','sub','idx','vtt','sup'];
+      const image    = ['jpg','jpeg','png','gif','webp'];
+      const text     = ['txt','nfo','md','log'];
+      if (video.includes(ext))    return 'fa-solid fa-film text-brand-400';
+      if (subtitle.includes(ext)) return 'fa-solid fa-closed-captioning text-blue-400';
+      if (image.includes(ext))    return 'fa-solid fa-image text-green-400';
+      if (text.includes(ext))     return 'fa-solid fa-file-lines text-gray-400';
+      return 'fa-solid fa-file text-gray-600';
+    },
+
+    extClass(ext) {
+      const video    = ['mkv','mp4','avi','m4v','mov','wmv','ts','m2ts','mpg','mpeg','flv','webm'];
+      const subtitle = ['srt','ass','ssa','sub','idx','vtt','sup'];
+      if (video.includes(ext))    return 'bg-brand-900/30 text-brand-400 border border-brand-900/40';
+      if (subtitle.includes(ext)) return 'bg-blue-900/20 text-blue-400 border border-blue-900/30';
+      return 'bg-surface-700 text-gray-500 border border-white/5';
+    },
+  };
+}
+</script>
+{% endblock %}

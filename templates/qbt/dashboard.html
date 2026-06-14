@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Torrent Manager{% endblock %}
+{% block page_title %}Torrent Manager{% endblock %}
+
+{% block header_actions %}
+<div id="transfer-stats" class="hidden sm:flex items-center gap-4 text-xs text-gray-500">
+  <span><i class="fa-solid fa-arrow-down text-blue-400 mr-1"></i><span id="dl-speed">—</span></span>
+  <span><i class="fa-solid fa-arrow-up text-green-400 mr-1"></i><span id="ul-speed">—</span></span>
+</div>
+{% if version != 'Not connected' %}
+<span class="text-xs text-gray-600 hidden sm:block">qBT {{ version }}</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not connected %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-plug-circle-xmark text-6xl text-red-500/40 mb-4 block"></i>
+  <h3 class="text-xl font-bold text-red-400 mb-2">Not Connected</h3>
+  <p class="text-gray-500 mb-6">Unable to reach qBittorrent. Check your connection settings.</p>
+  <a href="{% url 'qbt_settings' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-sliders"></i> Open Settings
+  </a>
+</div>
+{% else %}
+
+<!-- Stats bar -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+  <div class="glass rounded-xl p-3 text-center">
+    <p class="text-2xl font-bold text-brand-300" id="stat-total">—</p>
+    <p class="text-xs text-gray-500 mt-0.5">Total</p>
+  </div>
+  <div class="glass rounded-xl p-3 text-center">
+    <p class="text-2xl font-bold text-blue-400" id="stat-downloading">—</p>
+    <p class="text-xs text-gray-500 mt-0.5">Downloading</p>
+  </div>
+  <div class="glass rounded-xl p-3 text-center">
+    <p class="text-2xl font-bold text-green-400" id="stat-seeding">—</p>
+    <p class="text-xs text-gray-500 mt-0.5">Seeding</p>
+  </div>
+  <div class="glass rounded-xl p-3 text-center">
+    <p class="text-2xl font-bold text-gray-400" id="stat-paused">—</p>
+    <p class="text-xs text-gray-500 mt-0.5">Paused</p>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div x-data="{ filter: 'all' }" class="mb-4 flex flex-wrap gap-2 items-center">
+  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl">
+    <button @click="filter = 'all'; applyFilter('all')"
+            :class="filter === 'all' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">All</button>
+    <button @click="filter = 'downloading'; applyFilter('downloading')"
+            :class="filter === 'downloading' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Downloading</button>
+    <button @click="filter = 'seeding'; applyFilter('seeding')"
+            :class="filter === 'seeding' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Seeding</button>
+    <button @click="filter = 'paused'; applyFilter('paused')"
+            :class="filter === 'paused' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Paused</button>
+    <button @click="filter = 'completed'; applyFilter('completed')"
+            :class="filter === 'completed' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Completed</button>
+  </div>
+  <div class="ml-auto flex items-center gap-2">
+    <span id="last-update" class="text-xs text-gray-600"></span>
+    <span id="live-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Live updates"></span>
+  </div>
+</div>
+
+<!-- Torrent table -->
+<div class="glass rounded-2xl overflow-hidden">
+  <div class="overflow-x-auto scrollbar-thin">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-white/5">
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/2">Name</th>
+          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Size</th>
+          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Progress</th>
+          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Speed</th>
+          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">ETA</th>
+          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Seeds/Peers</th>
+          <th class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">State / Actions</th>
+        </tr>
+      </thead>
+      <tbody id="torrent-tbody">
+        <tr>
+          <td colspan="7" class="px-4 py-12 text-center text-gray-600">
+            <i class="fa-solid fa-spinner fa-spin text-2xl mb-3 block"></i>
+            Loading torrents…
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Empty state (shown by JS when 0 results) -->
+<div id="empty-state" class="hidden glass rounded-2xl p-12 text-center mt-4">
+  <i class="fa-solid fa-seedling text-5xl text-gray-700 mb-4 block"></i>
+  <p class="text-gray-500">No torrents found</p>
+  <p class="text-sm text-gray-600 mt-1">Queue downloads from the TV Shows or Movies pages.</p>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if connected %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+let currentFilter = 'all';
+let allTorrents = [];
+
+function applyFilter(filter) {
+  currentFilter = filter;
+  renderTorrents();
+}
+
+function stateLabel(state) {
+  const map = {
+    downloading:  ['Downloading',  'text-blue-400'],
+    stalledDL:    ['Stalled',      'text-yellow-500'],
+    uploading:    ['Seeding',      'text-green-400'],
+    stalledUP:    ['Seeding',      'text-green-500'],
+    pausedDL:     ['Paused',       'text-gray-400'],
+    pausedUP:     ['Paused',       'text-gray-400'],
+    queuedDL:     ['Queued',       'text-purple-400'],
+    queuedUP:     ['Queued',       'text-purple-400'],
+    checkingDL:   ['Checking',     'text-cyan-400'],
+    checkingUP:   ['Checking',     'text-cyan-400'],
+    metaDL:       ['Fetching',     'text-orange-400'],
+    forcedDL:     ['Forced DL',    'text-blue-300'],
+    forcedUP:     ['Forced UP',    'text-green-300'],
+    error:        ['Error',        'text-red-400'],
+    missingFiles: ['Missing',      'text-red-500'],
+    moving:       ['Moving',       'text-cyan-500'],
+    unknown:      ['Unknown',      'text-gray-500'],
+  };
+  return map[state] || [state, 'text-gray-400'];
+}
+
+function matchFilter(t) {
+  if (currentFilter === 'all') return true;
+  if (currentFilter === 'downloading') return t.state.includes('DL') && !t.state.includes('paused') && !t.state.includes('queued');
+  if (currentFilter === 'seeding')     return t.state.includes('UP') || t.state === 'uploading';
+  if (currentFilter === 'paused')      return t.state.includes('paused');
+  if (currentFilter === 'completed')   return t.progress >= 100;
+  return true;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderTorrents() {
+  const filtered = allTorrents.filter(matchFilter);
+  const tbody = document.getElementById('torrent-tbody');
+  const empty = document.getElementById('empty-state');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = filtered.map(t => {
+    const [label, cls] = stateLabel(t.state);
+    const isPaused   = t.state.includes('paused');
+    const barClass   = t.progress >= 100 ? 'bg-green-500' : 'progress-bar';
+    const dotClass   = t.progress >= 100 ? 'bg-green-400' : isPaused ? 'bg-gray-500' : 'bg-blue-400 animate-pulse';
+    const pct        = Math.min(t.progress, 100).toFixed(1);
+
+    return `
+      <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+        <td class="px-4 py-3">
+          <div class="flex items-start gap-2.5">
+            <div class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${dotClass}"></div>
+            <div class="min-w-0">
+              <p class="font-medium text-gray-200 truncate max-w-xs lg:max-w-sm" title="${esc(t.name)}">${esc(t.name)}</p>
+              ${t.category ? `<p class="text-xs text-gray-600">${esc(t.category)}</p>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="px-3 py-3 text-gray-500 text-xs hidden sm:table-cell whitespace-nowrap">${t.size}</td>
+        <td class="px-3 py-3">
+          <div class="flex items-center gap-2">
+            <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden w-20 lg:w-28 flex-shrink-0">
+              <div class="${barClass} h-full rounded-full" style="width:${pct}%"></div>
+            </div>
+            <span class="text-xs text-gray-400 tabular-nums">${pct}%</span>
+          </div>
+        </td>
+        <td class="px-3 py-3 text-xs hidden md:table-cell whitespace-nowrap">
+          <span class="text-blue-400">${t.dlspeed}</span>
+          ${t.upspeed !== '0.0 B/s' ? `<br><span class="text-green-400">${t.upspeed}</span>` : ''}
+        </td>
+        <td class="px-3 py-3 text-xs text-gray-500 hidden lg:table-cell whitespace-nowrap">${t.eta}</td>
+        <td class="px-3 py-3 text-xs hidden lg:table-cell whitespace-nowrap">
+          <span class="text-green-400">${t.seeds}</span><span class="text-gray-600 mx-1">/</span><span class="text-red-400">${t.peers}</span>
+        </td>
+        <td class="px-3 py-3">
+          <div class="flex flex-col items-end gap-1.5">
+            <span class="text-xs ${cls}">${label}</span>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              ${isPaused
+                ? `<button onclick="resumeTorrent('${esc(t.hash)}')" class="w-7 h-7 rounded bg-green-900/40 hover:bg-green-900/80 flex items-center justify-center text-green-400 transition-colors" title="Resume">
+                     <i class="fa-solid fa-play text-xs"></i>
+                   </button>`
+                : `<button onclick="pauseTorrent('${esc(t.hash)}')" class="w-7 h-7 rounded bg-yellow-900/40 hover:bg-yellow-900/80 flex items-center justify-center text-yellow-400 transition-colors" title="Pause">
+                     <i class="fa-solid fa-pause text-xs"></i>
+                   </button>`
+              }
+              <button onclick="deleteTorrent('${esc(t.hash)}', '${esc(t.name).replace(/'/g,"\\\'")}')"
+                      class="w-7 h-7 rounded bg-red-900/40 hover:bg-red-900/80 flex items-center justify-center text-red-400 transition-colors" title="Delete">
+                <i class="fa-solid fa-trash text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function pauseTorrent(hash) {
+  await fetch(`/qbt/torrent/${hash}/pause/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  // qBT needs a moment to update state before we re-fetch
+  setTimeout(fetchTorrents, 600);
+}
+
+async function resumeTorrent(hash) {
+  await fetch(`/qbt/torrent/${hash}/resume/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  setTimeout(fetchTorrents, 600);
+}
+
+async function deleteTorrent(hash, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  const delFiles = confirm('Also delete downloaded files?\n\nOK = delete files too\nCancel = keep files');
+  const fd = new FormData();
+  fd.append('delete_files', delFiles ? 'true' : 'false');
+  await fetch(`/qbt/torrent/${hash}/delete/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  fetchTorrents();
+}
+
+async function fetchTorrents() {
+  try {
+    const res = await fetch('/qbt/torrents.json');
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-red-500';
+      return;
+    }
+    allTorrents = data.torrents;
+
+    const stats = { total: allTorrents.length, downloading: 0, seeding: 0, paused: 0 };
+    allTorrents.forEach(t => {
+      if (t.state.includes('DL') && !t.state.includes('paused') && !t.state.includes('queued')) stats.downloading++;
+      else if (t.state.includes('UP') || t.state === 'uploading') stats.seeding++;
+      if (t.state.includes('paused')) stats.paused++;
+    });
+    document.getElementById('stat-total').textContent       = stats.total;
+    document.getElementById('stat-downloading').textContent = stats.downloading;
+    document.getElementById('stat-seeding').textContent     = stats.seeding;
+    document.getElementById('stat-paused').textContent      = stats.paused;
+
+    renderTorrents();
+    document.getElementById('last-update').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+  } catch(e) {
+    document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-red-500';
+  }
+}
+
+async function fetchTransfer() {
+  try {
+    const res = await fetch('/qbt/transfer.json');
+    const d = await res.json();
+    document.getElementById('dl-speed').textContent = d.dl_speed;
+    document.getElementById('ul-speed').textContent = d.up_speed;
+  } catch(e) {}
+}
+
+fetchTorrents();
+fetchTransfer();
+setInterval(fetchTorrents, 3000);
+setInterval(fetchTransfer, 5000);
+</script>
+{% endif %}
+{% endblock %}

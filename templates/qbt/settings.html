@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}qBittorrent Settings{% endblock %}
+{% block page_title %}qBittorrent Settings{% endblock %}
+
+{% block content %}
+{% if not connected %}
+<div class="glass rounded-2xl p-8 text-center border border-red-500/20 mb-6">
+  <i class="fa-solid fa-plug-circle-xmark text-4xl text-red-400 mb-3 block"></i>
+  <p class="text-gray-400">Cannot connect to qBittorrent — settings shown below may be from last connection.</p>
+</div>
+{% endif %}
+
+<!-- Connection Config (from .env) -->
+<div class="glass rounded-2xl p-6 mb-6">
+  <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">Connection (configured in .env)</h2>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+    <div>
+      <p class="text-xs text-gray-600 mb-1">Host</p>
+      <p class="text-gray-300 font-mono">{{ request.META|default:"" }}QBITTORRENT_HOST</p>
+    </div>
+    <div>
+      <p class="text-xs text-gray-600 mb-1">Port</p>
+      <p class="text-gray-300 font-mono">QBITTORRENT_PORT</p>
+    </div>
+  </div>
+  <p class="text-xs text-gray-600 mt-3">Edit <code class="text-brand-400">.env</code> to change the host/port/credentials, then restart the server.</p>
+</div>
+
+{% if prefs %}
+<!-- qBittorrent App Preferences -->
+<form id="settingsForm" class="space-y-6">
+  {% csrf_token %}
+
+  <!-- Download Settings -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-download text-brand-400"></i> Download Settings
+    </h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Default Save Path</label>
+        <input type="text" name="save_path" value="{{ prefs.save_path|default:'' }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Temp Path</label>
+        <input type="text" name="temp_path" value="{{ prefs.temp_path|default:'' }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="tempPathEnabled" name="temp_path_enabled" {% if prefs.temp_path_enabled %}checked{% endif %}
+               class="w-4 h-4 rounded text-brand-500">
+        <label for="tempPathEnabled" class="text-sm text-gray-300">Use temporary path for incomplete downloads</label>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="createSubfolder" name="create_subfolder_enabled" {% if prefs.create_subfolder_enabled %}checked{% endif %}
+               class="w-4 h-4 rounded text-brand-500">
+        <label for="createSubfolder" class="text-sm text-gray-300">Create subfolder for multi-file torrents</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Speed Limits -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-gauge-high text-cyan-400"></i> Speed Limits
+    </h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Global DL Limit (bytes/s, 0=∞)</label>
+        <input type="number" name="dl_limit" value="{{ prefs.dl_limit|default:0 }}" min="0"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Global UL Limit (bytes/s, 0=∞)</label>
+        <input type="number" name="up_limit" value="{{ prefs.up_limit|default:0 }}" min="0"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Active Torrents</label>
+        <input type="number" name="max_active_torrents" value="{{ prefs.max_active_torrents|default:3 }}" min="-1"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Active Downloads</label>
+        <input type="number" name="max_active_downloads" value="{{ prefs.max_active_downloads|default:3 }}" min="-1"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-network-wired text-green-400"></i> Connection
+    </h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Listening Port</label>
+        <input type="number" name="listen_port" value="{{ prefs.listen_port|default:6881 }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Connections</label>
+        <input type="number" name="max_connec" value="{{ prefs.max_connec|default:500 }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Connections per Torrent</label>
+        <input type="number" name="max_connec_per_torrent" value="{{ prefs.max_connec_per_torrent|default:100 }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="upnpEnabled" name="upnp" {% if prefs.upnp %}checked{% endif %}
+               class="w-4 h-4 rounded text-brand-500">
+        <label for="upnpEnabled" class="text-sm text-gray-300">Enable UPnP / NAT-PMP</label>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="dhtEnabled" name="dht" {% if prefs.dht %}checked{% endif %}
+               class="w-4 h-4 rounded text-brand-500">
+        <label for="dhtEnabled" class="text-sm text-gray-300">Enable DHT</label>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="pexEnabled" name="pex" {% if prefs.pex %}checked{% endif %}
+               class="w-4 h-4 rounded text-brand-500">
+        <label for="pexEnabled" class="text-sm text-gray-300">Enable PeX</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seeding -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-seedling text-green-400"></i> Seeding
+    </h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Ratio (–1 = disabled)</label>
+        <input type="number" name="max_ratio" value="{{ prefs.max_ratio|default:-1 }}" step="0.1"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Max Seeding Time (min, –1 = disabled)</label>
+        <input type="number" name="max_seeding_time" value="{{ prefs.max_seeding_time|default:-1 }}"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Button -->
+  <div class="flex justify-end gap-3">
+    <button type="button" onclick="location.reload()"
+            class="px-5 py-2.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-xl text-sm font-medium transition-colors">
+      Reset
+    </button>
+    <button type="submit"
+            class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2">
+      <i class="fa-solid fa-floppy-disk"></i>
+      Save Settings
+    </button>
+  </div>
+</form>
+
+{% else %}
+<div class="glass rounded-2xl p-8 text-center">
+  <i class="fa-solid fa-sliders text-4xl text-gray-700 mb-4 block"></i>
+  <p class="text-gray-500">Connect to qBittorrent to manage settings</p>
+</div>
+{% endif %}
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden px-4 py-3 glass rounded-xl text-sm border animate-slide-in"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+document.getElementById('settingsForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.target;
+  const data = {};
+
+  form.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
+    if (input.name) {
+      const v = input.type === 'number' ? Number(input.value) : input.value;
+      data[input.name] = v;
+    }
+  });
+  form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    if (cb.name) data[cb.name] = cb.checked;
+  });
+
+  const res = await fetch('/qbt/settings/save/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+  });
+
+  const toast = document.getElementById('toast');
+  if (res.ok) {
+    toast.className = 'fixed bottom-6 right-6 z-50 px-4 py-3 glass rounded-xl text-sm border border-green-500/30 text-green-400 animate-slide-in';
+    toast.innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i>Settings saved successfully';
+  } else {
+    toast.className = 'fixed bottom-6 right-6 z-50 px-4 py-3 glass rounded-xl text-sm border border-red-500/30 text-red-400 animate-slide-in';
+    toast.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-2"></i>Failed to save settings';
+  }
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 3500);
+});
+</script>
+{% endblock %}

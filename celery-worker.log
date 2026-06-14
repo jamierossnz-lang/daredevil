@@ -1,0 +1,203 @@
+[2026-06-13 02:36:52,718: INFO/MainProcess] Connected to redis://localhost:6379/0
+[2026-06-13 02:36:52,721: INFO/MainProcess] mingle: searching for neighbors
+[2026-06-13 02:36:53,777: INFO/MainProcess] mingle: all alone
+[2026-06-13 02:36:53,804: INFO/MainProcess] celery@Jamies-MBP ready.
+[2026-06-13 02:55:55,669: INFO/MainProcess] Task sync_download_progress[63082879-ff05-4446-8a50-d56077039d34] received
+[2026-06-13 02:55:55,878: INFO/ForkPoolWorker-8] Task sync_download_progress[63082879-ff05-4446-8a50-d56077039d34] succeeded in 0.20715695805847645s: None
+[2026-06-13 02:56:08,317: INFO/MainProcess] Task check_movie_releases[3bb9847e-fbfd-430f-be46-3ed22a476cef] received
+[2026-06-13 02:56:08,323: INFO/ForkPoolWorker-8] Task check_movie_releases[3bb9847e-fbfd-430f-be46-3ed22a476cef] succeeded in 0.004647625028155744s: None
+[2026-06-13 03:10:40,750: INFO/MainProcess] Task search_and_download[2cca1d9e-b1c0-4f31-a7a8-54e0c1c311b4] received
+[2026-06-13 03:10:42,113: INFO/ForkPoolWorker-8] Task search_and_download[2cca1d9e-b1c0-4f31-a7a8-54e0c1c311b4] succeeded in 1.3607983329566196s: None
+[2026-06-13 03:12:55,325: INFO/MainProcess] Task sync_download_progress[86eaf813-bc5e-4a90-a7d9-a28279b56b2b] received
+[2026-06-13 03:12:55,439: INFO/ForkPoolWorker-8] Task sync_download_progress[86eaf813-bc5e-4a90-a7d9-a28279b56b2b] succeeded in 0.11121812497731298s: None
+[2026-06-13 03:30:36,271: INFO/MainProcess] Task search_and_download[4e096b2a-d9c5-41a9-b59e-db37cd1813eb] received
+[2026-06-13 03:30:37,737: INFO/ForkPoolWorker-8] Task search_and_download[4e096b2a-d9c5-41a9-b59e-db37cd1813eb] succeeded in 1.4630935830064118s: None
+[2026-06-13 03:31:16,362: INFO/MainProcess] Task sync_download_progress[484b2fc6-a01c-4913-a4db-832adfd73bcb] received
+[2026-06-13 03:31:16,458: INFO/ForkPoolWorker-8] Task sync_download_progress[484b2fc6-a01c-4913-a4db-832adfd73bcb] succeeded in 0.09382129192817956s: None
+[2026-06-13 03:31:21,008: INFO/MainProcess] Task check_movie_releases[3423f543-eb31-4c52-a7c6-7c6b56cf00f7] received
+[2026-06-13 03:31:21,013: INFO/ForkPoolWorker-8] Task check_movie_releases[3423f543-eb31-4c52-a7c6-7c6b56cf00f7] succeeded in 0.0039450000040233135s: None
+[2026-06-13 03:36:52,429: INFO/MainProcess] Task celery.backend_cleanup[9adc774a-c8dd-4f77-af76-ec1593c21646] received
+[2026-06-13 03:36:52,443: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[9adc774a-c8dd-4f77-af76-ec1593c21646] succeeded in 0.010574333020485938s: None
+[2026-06-13 03:38:37,610: INFO/MainProcess] Task search_and_download[7f4d2d1e-ced2-46f0-868f-1bae561a6c77] received
+[2026-06-13 03:38:39,137: INFO/ForkPoolWorker-8] Task search_and_download[7f4d2d1e-ced2-46f0-868f-1bae561a6c77] succeeded in 1.5240815420402214s: None
+[2026-06-13 03:41:08,921: INFO/MainProcess] Task search_and_download[35e44bbf-4427-4274-b45f-fb44024f2768] received
+[2026-06-13 03:41:10,347: INFO/ForkPoolWorker-8] Task search_and_download[35e44bbf-4427-4274-b45f-fb44024f2768] succeeded in 1.4236242920160294s: None
+[2026-06-13 03:49:25,625: INFO/MainProcess] Task search_and_download[6e092287-6502-4dd9-a4c5-7694a181172d] received
+[2026-06-13 03:49:26,995: INFO/ForkPoolWorker-8] Task search_and_download[6e092287-6502-4dd9-a4c5-7694a181172d] succeeded in 1.3691210000542924s: None
+[2026-06-13 03:52:10,343: INFO/MainProcess] Task search_and_download[63010568-9d65-421f-834f-03448c676df3] received
+[2026-06-13 03:52:11,527: INFO/ForkPoolWorker-8] Task search_and_download[63010568-9d65-421f-834f-03448c676df3] succeeded in 1.1829505829373375s: None
+[2026-06-13 03:54:26,308: INFO/MainProcess] Task search_and_download[b0cd484a-7126-4fa9-9c3d-d97baa83bc96] received
+[2026-06-13 03:54:27,787: INFO/ForkPoolWorker-8] Task search_and_download[b0cd484a-7126-4fa9-9c3d-d97baa83bc96] succeeded in 1.4779598749009892s: None
+[2026-06-13 03:54:51,502: INFO/MainProcess] Task search_and_download[dae148fa-9a3a-4f93-9d73-25eadcedd95a] received
+[2026-06-13 03:54:52,680: INFO/ForkPoolWorker-8] Task search_and_download[dae148fa-9a3a-4f93-9d73-25eadcedd95a] succeeded in 1.1773202090989798s: None
+[2026-06-13 03:55:47,588: INFO/MainProcess] Task search_and_download[c29b07c7-0162-496f-bf53-db4a088133bf] received
+[2026-06-13 03:55:48,922: INFO/ForkPoolWorker-8] Task search_and_download[c29b07c7-0162-496f-bf53-db4a088133bf] succeeded in 1.3338923749979585s: None
+[2026-06-13 03:59:15,483: INFO/MainProcess] Task search_and_download[d63953f0-edb3-4ef7-ab28-b13af934e81c] received
+[2026-06-13 03:59:16,843: INFO/ForkPoolWorker-8] Task search_and_download[d63953f0-edb3-4ef7-ab28-b13af934e81c] succeeded in 1.3587020409759134s: None
+[2026-06-13 04:02:29,095: INFO/MainProcess] Task search_and_download[b369c431-34cb-4d71-b13f-e3c605c7e15c] received
+[2026-06-13 04:02:30,269: INFO/ForkPoolWorker-8] Task search_and_download[b369c431-34cb-4d71-b13f-e3c605c7e15c] succeeded in 1.1732115830527619s: None
+[2026-06-13 04:03:31,901: INFO/MainProcess] Task search_and_download[9225ed26-0acd-45ad-bd29-6fe7f2d120b9] received
+[2026-06-13 04:03:33,111: INFO/ForkPoolWorker-8] Task search_and_download[9225ed26-0acd-45ad-bd29-6fe7f2d120b9] succeeded in 1.209057042025961s: None
+[2026-06-13 04:10:29,945: INFO/MainProcess] Task search_and_download[af8fea42-74ba-45b2-93e4-84610c004d87] received
+[2026-06-13 04:10:31,295: INFO/ForkPoolWorker-8] Task search_and_download[af8fea42-74ba-45b2-93e4-84610c004d87] succeeded in 1.3493320409907028s: None
+[2026-06-13 04:10:38,959: INFO/MainProcess] Task search_and_download[94d8056f-a4b3-4de4-8cc8-fb21e1dfa362] received
+[2026-06-13 04:10:40,320: INFO/ForkPoolWorker-8] Task search_and_download[94d8056f-a4b3-4de4-8cc8-fb21e1dfa362] succeeded in 1.3599420000100508s: None
+[2026-06-13 04:16:48,072: INFO/MainProcess] Task search_and_download[6ed6a310-7390-4185-8f0b-c4feef2363a8] received
+[2026-06-13 04:16:50,191: INFO/ForkPoolWorker-8] Task search_and_download[6ed6a310-7390-4185-8f0b-c4feef2363a8] succeeded in 2.1176308339927346s: None
+[2026-06-13 04:19:02,124: INFO/MainProcess] Task search_and_download[f2b2c013-e1d4-4adb-9f20-bd84d20c24e2] received
+[2026-06-13 04:19:03,607: INFO/ForkPoolWorker-8] Task search_and_download[f2b2c013-e1d4-4adb-9f20-bd84d20c24e2] succeeded in 1.4817872500279918s: None
+[2026-06-13 04:20:37,657: INFO/MainProcess] Task search_and_download[62ae124d-3742-4af4-bb19-a3a3bc8fad31] received
+[2026-06-13 04:20:39,078: INFO/ForkPoolWorker-8] Task search_and_download[62ae124d-3742-4af4-bb19-a3a3bc8fad31] succeeded in 1.4200648750411347s: None
+[2026-06-13 04:23:55,000: INFO/MainProcess] Task search_and_download[db1830f3-8bcc-47c3-ae9c-29d169d85d71] received
+[2026-06-13 04:23:56,381: INFO/ForkPoolWorker-8] Task search_and_download[db1830f3-8bcc-47c3-ae9c-29d169d85d71] succeeded in 1.3786874579964206s: None
+[2026-06-13 04:27:50,835: INFO/MainProcess] Task search_and_download[6064550a-9869-4fc6-a21a-a1ccaa12669a] received
+[2026-06-13 04:27:52,305: INFO/ForkPoolWorker-8] Task search_and_download[6064550a-9869-4fc6-a21a-a1ccaa12669a] succeeded in 1.4696822499390692s: None
+[2026-06-13 04:34:24,517: INFO/MainProcess] Task search_and_download[db0be60e-14cf-4ab9-8536-d633c1a4bfde] received
+[2026-06-13 04:34:25,896: INFO/ForkPoolWorker-8] Task search_and_download[db0be60e-14cf-4ab9-8536-d633c1a4bfde] succeeded in 1.3745451669674367s: None
+[2026-06-13 04:36:52,396: INFO/MainProcess] Task celery.backend_cleanup[296f2c5f-cb9e-41f3-98b3-9df4425d626d] received
+[2026-06-13 04:36:52,412: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[296f2c5f-cb9e-41f3-98b3-9df4425d626d] succeeded in 0.0106715839356184s: None
+[2026-06-13 05:36:52,397: INFO/MainProcess] Task celery.backend_cleanup[afb660e3-7268-42cf-9425-533a09f034db] received
+[2026-06-13 05:36:52,413: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[afb660e3-7268-42cf-9425-533a09f034db] succeeded in 0.011362917022779584s: None
+[2026-06-13 06:36:52,396: INFO/MainProcess] Task celery.backend_cleanup[49a6619c-2592-422f-afd5-7d9fc0cbf154] received
+[2026-06-13 06:36:52,413: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[49a6619c-2592-422f-afd5-7d9fc0cbf154] succeeded in 0.01356645894702524s: None
+[2026-06-13 07:37:40,363: INFO/MainProcess] Task celery.backend_cleanup[a4f92679-e22d-4ece-841b-98a12b87dcea] received
+[2026-06-13 07:37:40,378: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[a4f92679-e22d-4ece-841b-98a12b87dcea] succeeded in 0.010506667080335319s: None
+[2026-06-13 08:42:50,422: INFO/MainProcess] Task celery.backend_cleanup[365d9303-3974-4fa6-ab62-e3326da95a6c] received
+[2026-06-13 08:42:50,431: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[365d9303-3974-4fa6-ab62-e3326da95a6c] succeeded in 0.007124959025532007s: None
+[2026-06-13 09:43:50,601: INFO/MainProcess] Task celery.backend_cleanup[433534b9-4d30-459b-8ac7-785552179b7e] received
+[2026-06-13 09:43:50,614: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[433534b9-4d30-459b-8ac7-785552179b7e] succeeded in 0.0100856670178473s: None
+[2026-06-13 10:44:50,577: INFO/MainProcess] Task celery.backend_cleanup[c138b8d6-e8ca-48cf-bd72-d4f0f9eb0946] received
+[2026-06-13 10:44:50,588: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[c138b8d6-e8ca-48cf-bd72-d4f0f9eb0946] succeeded in 0.007782750064507127s: None
+[2026-06-13 11:45:50,673: INFO/MainProcess] Task celery.backend_cleanup[9b52d242-5050-47c1-96be-473bac681c1e] received
+[2026-06-13 11:45:50,680: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[9b52d242-5050-47c1-96be-473bac681c1e] succeeded in 0.002712624962441623s: None
+[2026-06-13 12:46:52,191: INFO/MainProcess] Task celery.backend_cleanup[45ae4a38-dd23-4ae8-a5f1-de13acf6fd2a] received
+[2026-06-13 12:46:52,207: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[45ae4a38-dd23-4ae8-a5f1-de13acf6fd2a] succeeded in 0.01191466604359448s: None
+[2026-06-13 13:47:51,034: INFO/MainProcess] Task celery.backend_cleanup[fc47bf30-0dd0-484c-858e-fcf7fad031dc] received
+[2026-06-13 13:47:51,040: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[fc47bf30-0dd0-484c-858e-fcf7fad031dc] succeeded in 0.004534458043053746s: None
+[2026-06-13 14:51:42,283: INFO/MainProcess] Task celery.backend_cleanup[018ed782-8cb1-47ed-b617-3ff6185039ff] received
+[2026-06-13 14:51:42,298: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[018ed782-8cb1-47ed-b617-3ff6185039ff] succeeded in 0.010317457956261933s: None
+[2026-06-13 15:52:07,447: INFO/MainProcess] Task celery.backend_cleanup[a6f0d155-556e-4e56-a426-f8e187c96b76] received
+[2026-06-13 15:52:07,453: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[a6f0d155-556e-4e56-a426-f8e187c96b76] succeeded in 0.004501499934121966s: None
+[2026-06-13 17:02:03,471: INFO/MainProcess] Task celery.backend_cleanup[8fa4124c-c7c1-433f-9abe-640e27f4513d] received
+[2026-06-13 17:02:03,480: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[8fa4124c-c7c1-433f-9abe-640e27f4513d] succeeded in 0.006677833967842162s: None
+[2026-06-13 18:02:03,477: INFO/MainProcess] Task celery.backend_cleanup[01819153-57a5-472e-8957-7a3bea2f4a9e] received
+[2026-06-13 18:02:03,493: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[01819153-57a5-472e-8957-7a3bea2f4a9e] succeeded in 0.01115120796021074s: None
+[2026-06-13 19:07:28,509: INFO/MainProcess] Task celery.backend_cleanup[46a5b154-5ba1-4e07-8b09-1b3b4c7e7ce3] received
+[2026-06-13 19:07:28,512: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[46a5b154-5ba1-4e07-8b09-1b3b4c7e7ce3] succeeded in 0.0026801659259945154s: None
+[2026-06-13 20:08:34,828: INFO/MainProcess] Task celery.backend_cleanup[8424372e-cee5-4293-83fc-4801d21508b3] received
+[2026-06-13 20:08:34,845: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[8424372e-cee5-4293-83fc-4801d21508b3] succeeded in 0.011040333076380193s: None
+[2026-06-13 21:18:13,577: INFO/MainProcess] Task celery.backend_cleanup[013466a7-8775-4880-a63a-cb7fe916c1f0] received
+[2026-06-13 21:18:13,584: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[013466a7-8775-4880-a63a-cb7fe916c1f0] succeeded in 0.0053587909787893295s: None
+[2026-06-13 22:19:16,096: INFO/MainProcess] Task celery.backend_cleanup[a6dd6d9c-680c-4a07-b593-2046bd41c48f] received
+[2026-06-13 22:19:16,136: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[a6dd6d9c-680c-4a07-b593-2046bd41c48f] succeeded in 0.03558441693894565s: None
+[2026-06-13 23:28:50,084: INFO/MainProcess] Task celery.backend_cleanup[1598f741-c6cf-4cee-a647-e0d7baab3935] received
+[2026-06-13 23:28:50,090: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[1598f741-c6cf-4cee-a647-e0d7baab3935] succeeded in 0.005079417023807764s: None
+[2026-06-14 00:43:04,100: INFO/MainProcess] Task celery.backend_cleanup[ba12b6e5-67c8-42c4-83cd-e578fb966f02] received
+[2026-06-14 00:43:04,124: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[ba12b6e5-67c8-42c4-83cd-e578fb966f02] succeeded in 0.013810375006869435s: None
+[2026-06-14 01:10:07,185: INFO/MainProcess] Task search_and_download[01b3276b-46ef-4ce3-b3a5-a814798005c2] received
+[2026-06-14 01:10:08,595: INFO/ForkPoolWorker-8] Task search_and_download[01b3276b-46ef-4ce3-b3a5-a814798005c2] succeeded in 1.4076029169373214s: None
+[2026-06-14 01:16:11,161: INFO/MainProcess] Task search_and_download[3ed1f162-8c69-4175-9b74-99deec4404b2] received
+[2026-06-14 01:16:12,545: INFO/ForkPoolWorker-8] Task search_and_download[3ed1f162-8c69-4175-9b74-99deec4404b2] succeeded in 1.3813465839484707s: None
+[2026-06-14 01:18:27,285: INFO/MainProcess] Task search_and_download[1473f251-51ac-4a3d-80d8-2bb94725d715] received
+[2026-06-14 01:18:28,457: INFO/ForkPoolWorker-8] Task search_and_download[1473f251-51ac-4a3d-80d8-2bb94725d715] succeeded in 1.1706196250161156s: None
+[2026-06-14 01:18:38,591: INFO/MainProcess] Task search_and_download[a6ac912c-27a0-4868-a531-9dba8d43ab53] received
+[2026-06-14 01:18:39,772: INFO/ForkPoolWorker-8] Task search_and_download[a6ac912c-27a0-4868-a531-9dba8d43ab53] succeeded in 1.179570166976191s: None
+[2026-06-14 01:20:50,826: INFO/MainProcess] Task search_and_download[874ba857-2aba-4abb-82cb-3df3723bc474] received
+[2026-06-14 01:20:51,989: INFO/ForkPoolWorker-8] Task search_and_download[874ba857-2aba-4abb-82cb-3df3723bc474] succeeded in 1.1616525419522077s: None
+[2026-06-14 01:21:46,681: INFO/MainProcess] Task search_and_download[1382023a-5fbc-4894-a386-86187b1bcd24] received
+[2026-06-14 01:21:48,063: INFO/ForkPoolWorker-8] Task search_and_download[1382023a-5fbc-4894-a386-86187b1bcd24] succeeded in 1.3814514169935137s: None
+[2026-06-14 01:26:37,253: INFO/MainProcess] Task search_and_download[e775b38d-7f72-48ea-95b4-1d69ae60493d] received
+[2026-06-14 01:26:38,428: INFO/ForkPoolWorker-8] Task search_and_download[e775b38d-7f72-48ea-95b4-1d69ae60493d] succeeded in 1.1738313339883462s: None
+[2026-06-14 01:27:04,254: INFO/MainProcess] Task search_and_download[91d56152-de30-4be4-bb90-36678cec18fb] received
+[2026-06-14 01:27:05,595: INFO/ForkPoolWorker-8] Task search_and_download[91d56152-de30-4be4-bb90-36678cec18fb] succeeded in 1.3404833750100806s: None
+[2026-06-14 01:29:48,672: INFO/MainProcess] Task search_and_download[9e1e0e97-32ed-4dfd-b12c-c39a1d156065] received
+[2026-06-14 01:29:49,845: INFO/ForkPoolWorker-8] Task search_and_download[9e1e0e97-32ed-4dfd-b12c-c39a1d156065] succeeded in 1.1722114579752088s: None
+[2026-06-14 01:29:51,777: INFO/MainProcess] Task search_and_download[1852ecb2-63e1-447f-9879-58f0850d872c] received
+[2026-06-14 01:29:52,952: INFO/ForkPoolWorker-8] Task search_and_download[1852ecb2-63e1-447f-9879-58f0850d872c] succeeded in 1.174292083014734s: None
+[2026-06-14 01:29:56,499: INFO/MainProcess] Task search_and_download[fc2e7cfb-730d-40b4-bba7-966244804966] received
+[2026-06-14 01:29:57,668: INFO/ForkPoolWorker-8] Task search_and_download[fc2e7cfb-730d-40b4-bba7-966244804966] succeeded in 1.1684852500911802s: None
+[2026-06-14 01:43:04,088: INFO/MainProcess] Task celery.backend_cleanup[304fe565-d77d-479e-ab5b-eab859eb0afa] received
+[2026-06-14 01:43:04,098: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[304fe565-d77d-479e-ab5b-eab859eb0afa] succeeded in 0.0068399159936234355s: None
+[2026-06-14 02:46:56,748: INFO/MainProcess] Task celery.backend_cleanup[2208675f-47b2-438f-b472-290c0b8c5511] received
+[2026-06-14 02:46:56,755: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[2208675f-47b2-438f-b472-290c0b8c5511] succeeded in 0.005180374952033162s: None
+[2026-06-14 03:58:43,819: INFO/MainProcess] Task celery.backend_cleanup[7beb21d1-a5ab-45a5-8859-c97af5c9cff4] received
+[2026-06-14 03:58:43,828: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[7beb21d1-a5ab-45a5-8859-c97af5c9cff4] succeeded in 0.006784208002500236s: None
+[2026-06-14 05:03:12,945: INFO/MainProcess] Task celery.backend_cleanup[44fe0d85-0c68-452c-b5d0-f2aa2368995a] received
+[2026-06-14 05:03:12,951: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[44fe0d85-0c68-452c-b5d0-f2aa2368995a] succeeded in 0.00470554200001061s: None
+[2026-06-14 06:03:12,908: INFO/MainProcess] Task celery.backend_cleanup[c1867807-6839-4977-a657-c12ae790de47] received
+[2026-06-14 06:03:12,922: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[c1867807-6839-4977-a657-c12ae790de47] succeeded in 0.010328040923923254s: None
+[2026-06-14 07:03:12,908: INFO/MainProcess] Task celery.backend_cleanup[7151c8ba-d7be-44b3-8ef3-1969c40f73d8] received
+[2026-06-14 07:03:12,928: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[7151c8ba-d7be-44b3-8ef3-1969c40f73d8] succeeded in 0.013841417036019266s: None
+[2026-06-14 07:37:17,267: ERROR/MainProcess] Received unregistered task of type 'execute_file_move'.
+The message has been ignored and discarded.
+
+Did you remember to import the module containing this task?
+Or maybe you're using relative imports?
+
+Please see
+https://docs.celeryq.dev/en/latest/internals/protocol.html
+for more information.
+
+The full contents of the message body was:
+b'[[1], {}, {"callbacks": null, "errbacks": null, "chain": null, "chord": null}]' (78b)
+
+The full contents of the message headers:
+{'lang': 'py', 'task': 'execute_file_move', 'id': '6c0294f2-28ac-47c4-a391-4856e7e06144', 'shadow': None, 'eta': None, 'expires': None, 'group': None, 'group_index': None, 'retries': 0, 'timelimit': [None, None], 'root_id': '6c0294f2-28ac-47c4-a391-4856e7e06144', 'parent_id': None, 'argsrepr': '(1,)', 'kwargsrepr': '{}', 'origin': 'gen59710@Jamies-MBP', 'ignore_result': False, 'replaced_task_nesting': 0, 'stamped_headers': None, 'stamps': {}}
+
+The delivery info for this task is:
+{'exchange': '', 'routing_key': 'celery'}
+Traceback (most recent call last):
+  File "/Users/hairy-moore/Documents/daredevil/venv/lib/python3.13/site-packages/celery/worker/consumer/consumer.py", line 668, in on_task_received
+    strategy = strategies[type_]
+               ~~~~~~~~~~^^^^^^^
+KeyError: 'execute_file_move'
+[2026-06-14 07:37:59,325: ERROR/MainProcess] Received unregistered task of type 'execute_file_move'.
+The message has been ignored and discarded.
+
+Did you remember to import the module containing this task?
+Or maybe you're using relative imports?
+
+Please see
+https://docs.celeryq.dev/en/latest/internals/protocol.html
+for more information.
+
+The full contents of the message body was:
+b'[[1], {}, {"callbacks": null, "errbacks": null, "chain": null, "chord": null}]' (78b)
+
+The full contents of the message headers:
+{'lang': 'py', 'task': 'execute_file_move', 'id': '27d01680-1def-490d-a188-583accde8476', 'shadow': None, 'eta': None, 'expires': None, 'group': None, 'group_index': None, 'retries': 0, 'timelimit': [None, None], 'root_id': '27d01680-1def-490d-a188-583accde8476', 'parent_id': None, 'argsrepr': '(1,)', 'kwargsrepr': '{}', 'origin': 'gen59710@Jamies-MBP', 'ignore_result': False, 'replaced_task_nesting': 0, 'stamped_headers': None, 'stamps': {}}
+
+The delivery info for this task is:
+{'exchange': '', 'routing_key': 'celery'}
+Traceback (most recent call last):
+  File "/Users/hairy-moore/Documents/daredevil/venv/lib/python3.13/site-packages/celery/worker/consumer/consumer.py", line 668, in on_task_received
+    strategy = strategies[type_]
+               ~~~~~~~~~~^^^^^^^
+KeyError: 'execute_file_move'
+[2026-06-14 07:38:20,840: ERROR/MainProcess] Received unregistered task of type 'execute_file_move'.
+The message has been ignored and discarded.
+
+Did you remember to import the module containing this task?
+Or maybe you're using relative imports?
+
+Please see
+https://docs.celeryq.dev/en/latest/internals/protocol.html
+for more information.
+
+The full contents of the message body was:
+b'[[1], {}, {"callbacks": null, "errbacks": null, "chain": null, "chord": null}]' (78b)
+
+The full contents of the message headers:
+{'lang': 'py', 'task': 'execute_file_move', 'id': '8a17df84-2e0a-4384-bbfd-b16003fde6e3', 'shadow': None, 'eta': None, 'expires': None, 'group': None, 'group_index': None, 'retries': 0, 'timelimit': [None, None], 'root_id': '8a17df84-2e0a-4384-bbfd-b16003fde6e3', 'parent_id': None, 'argsrepr': '(1,)', 'kwargsrepr': '{}', 'origin': 'gen59710@Jamies-MBP', 'ignore_result': False, 'replaced_task_nesting': 0, 'stamped_headers': None, 'stamps': {}}
+
+The delivery info for this task is:
+{'exchange': '', 'routing_key': 'celery'}
+Traceback (most recent call last):
+  File "/Users/hairy-moore/Documents/daredevil/venv/lib/python3.13/site-packages/celery/worker/consumer/consumer.py", line 668, in on_task_received
+    strategy = strategies[type_]
+               ~~~~~~~~~~^^^^^^^
+KeyError: 'execute_file_move'
+[2026-06-14 08:03:12,910: INFO/MainProcess] Task celery.backend_cleanup[e60b7195-66f3-40c4-a8a5-81eba2b99c6f] received
+[2026-06-14 08:03:12,925: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[e60b7195-66f3-40c4-a8a5-81eba2b99c6f] succeeded in 0.00986300001386553s: None
+[2026-06-14 09:03:12,913: INFO/MainProcess] Task celery.backend_cleanup[9caff923-56d9-4c00-9920-8b5435f93842] received
+[2026-06-14 09:03:12,924: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[9caff923-56d9-4c00-9920-8b5435f93842] succeeded in 0.008095042081549764s: None

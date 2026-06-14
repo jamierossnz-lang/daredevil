@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Search Movies{% endblock %}
+{% block page_title %}Add Movie{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="glass rounded-2xl p-6 mb-6">
+    <form id="searchForm" class="flex gap-3">
+      {% csrf_token %}
+      <div class="relative flex-1">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+        <input type="text" id="searchInput" name="q" value="{{ query }}" autofocus
+               placeholder="Search TMDB for movies…"
+               class="w-full pl-10 pr-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors">
+      </div>
+      <button type="submit" class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-medium transition-colors">
+        Search
+      </button>
+    </form>
+  </div>
+
+  <div id="results">
+    {% if results %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+      {% for movie in results %}
+      <div class="glass rounded-xl overflow-hidden card-hover animate-slide-in"
+           style="animation-delay: {{ forloop.counter0 }}0ms">
+        {% if movie.poster_path %}
+        <img src="https://image.tmdb.org/t/p/w342{{ movie.poster_path }}" alt="{{ movie.title }}" class="w-full aspect-[2/3] object-cover">
+        {% else %}
+        <div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center">
+          <i class="fa-solid fa-film text-3xl text-gray-600"></i>
+        </div>
+        {% endif %}
+        <div class="p-3">
+          <p class="text-sm font-medium text-gray-200 truncate mb-1">{{ movie.title }}</p>
+          <p class="text-xs text-gray-500 mb-3">{% if movie.release_date %}{{ movie.release_date|slice:":4" }}{% endif %}</p>
+          {% if movie.already_added %}
+          <span class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
+            <i class="fa-solid fa-circle-check mr-1"></i>Already Added
+          </span>
+          {% else %}
+          <button onclick="addMovie({{ movie.id }}, '{{ movie.title|escapejs }}', this)"
+                  class="w-full px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+            <i class="fa-solid fa-plus mr-1"></i>Add Movie
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif query %}
+    <div class="text-center py-16">
+      <i class="fa-solid fa-film text-4xl text-gray-700 mb-4"></i>
+      <p class="text-gray-500">No results for "{{ query }}"</p>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-gray-500">
+      <i class="fa-solid fa-film text-5xl text-gray-700 mb-4 block"></i>
+      <p>Search TMDB to find a movie to add</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+document.getElementById('searchForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  const res = await fetch(`?q=${encodeURIComponent(q)}`, { headers: {'HX-Request': 'true'} });
+  const html = await res.text();
+  document.getElementById('results').innerHTML = html;
+  history.replaceState({}, '', `?q=${encodeURIComponent(q)}`);
+});
+
+async function addMovie(tmdbId, title, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Adding…';
+  const fd = new FormData();
+  fd.append('tmdb_id', tmdbId);
+  try {
+    const res = await fetch('/movies/add/', { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+    const data = await res.json();
+    if (data.status === 'added' || data.status === 'exists') {
+      btn.outerHTML = `<a href="/movies/${data.pk}/" class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
+        <i class="fa-solid fa-circle-check mr-1"></i>Added! View →</a>`;
+    } else {
+      btn.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i>Failed';
+      btn.disabled = false;
+    }
+  } catch(err) {
+    btn.innerHTML = 'Error';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

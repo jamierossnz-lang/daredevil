@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}{{ movie.title }}{% endblock %}
+{% block page_title %}{{ movie.title }}{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="relative rounded-2xl overflow-hidden mb-8" style="min-height: 280px;">
+  {% if movie.backdrop_url %}
+  <img src="{{ movie.backdrop_url }}" alt="{{ movie.title }}" class="absolute inset-0 w-full h-full object-cover opacity-25">
+  {% endif %}
+  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/75 to-transparent"></div>
+  <div class="relative flex gap-6 p-6 lg:p-10">
+    {% if movie.poster_url %}
+    <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="hidden sm:block w-36 lg:w-48 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-cyan-600/30">
+    {% endif %}
+    <div class="flex-1 min-w-0">
+      <h1 class="text-2xl lg:text-4xl font-bold text-white mb-2">{{ movie.title }}</h1>
+
+      <div class="flex flex-wrap items-center gap-3 mb-3 text-sm">
+        {% if movie.release_date %}<span class="text-gray-400">{{ movie.release_date|date:"Y" }}</span>{% endif %}
+        {% if movie.runtime %}<span class="text-gray-500">·</span><span class="text-gray-400">{{ movie.runtime }}m</span>{% endif %}
+        {% if movie.vote_average > 0 %}
+        <span class="text-gray-500">·</span>
+        <span class="text-yellow-400"><i class="fa-solid fa-star mr-1"></i>{{ movie.vote_average|floatformat:1 }}</span>
+        {% endif %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium
+          {% if movie.status == 'released' %}bg-green-500/20 text-green-400{% elif movie.status == 'upcoming' %}bg-yellow-500/20 text-yellow-400{% else %}bg-blue-500/20 text-blue-400{% endif %}">
+          {{ movie.get_status_display }}
+        </span>
+      </div>
+
+      {% if movie.genres %}<p class="text-sm text-cyan-400 mb-3">{{ movie.genres }}</p>{% endif %}
+      <p class="text-sm text-gray-300 leading-relaxed max-w-2xl mb-5">{{ movie.overview }}</p>
+
+      <!-- Download status card -->
+      <div class="inline-flex items-center gap-4 glass rounded-xl px-4 py-3 mb-4">
+        <div>
+          <p class="text-xs text-gray-500 mb-0.5">Download Status</p>
+          <p class="text-sm font-semibold
+            {% if movie.download_status == 'downloaded' %}text-green-400
+            {% elif movie.download_status == 'downloading' %}text-blue-400
+            {% elif movie.download_status == 'queued' %}text-yellow-400
+            {% elif movie.download_status == 'waiting_release' %}text-gray-400
+            {% else %}text-gray-500{% endif %}">
+            {% if movie.download_status == 'none' %}Not queued
+            {% elif movie.download_status == 'waiting_release' %}Waiting for Digital Release
+            {% else %}{{ movie.get_download_status_display }}{% endif %}
+          </p>
+        </div>
+        {% if movie.digital_release_date %}
+        <div class="border-l border-surface-600 pl-4">
+          <p class="text-xs text-gray-500 mb-0.5">Digital Release</p>
+          <p class="text-sm font-medium text-gray-300">{{ movie.digital_release_date|date:"M d, Y" }}</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button onclick="toggleFav({{ movie.pk }})"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                       {% if movie.is_favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
+          <i class="fa-{% if movie.is_favourite %}solid{% else %}regular{% endif %} fa-star"></i>
+          Favourite
+        </button>
+        {% if movie.download_status == 'none' or movie.download_status == 'failed' %}
+        <button onclick="openQualityModal()"
+                class="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-download"></i>
+          Queue Download
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quality selection modal -->
+<div id="quality-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70" onclick="closeQualityModal()"></div>
+  <div class="relative glass rounded-2xl p-6 w-full max-w-sm shadow-2xl" x-data="{ quality: '1080p' }">
+    <h3 class="text-lg font-bold text-gray-100 mb-1">
+      <i class="fa-solid fa-film text-cyan-400 mr-2"></i>Queue Download
+    </h3>
+    <p class="text-sm text-gray-500 mb-5">{{ movie.title }}</p>
+
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Select Quality</p>
+    <div class="grid grid-cols-2 gap-3 mb-6">
+      <label class="cursor-pointer">
+        <input type="radio" name="quality" value="1080p" x-model="quality" class="sr-only">
+        <div :class="quality === '1080p' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-white/10 text-gray-400 hover:border-white/20'"
+             class="border-2 rounded-xl p-4 text-center transition-all">
+          <i class="fa-solid fa-display text-2xl mb-2 block"></i>
+          <p class="font-bold text-sm">1080p</p>
+          <p class="text-xs opacity-60 mt-0.5">Full HD</p>
+        </div>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="quality" value="2160p" x-model="quality" class="sr-only">
+        <div :class="quality === '2160p' ? 'border-purple-500 bg-purple-500/10 text-purple-300' : 'border-white/10 text-gray-400 hover:border-white/20'"
+             class="border-2 rounded-xl p-4 text-center transition-all">
+          <i class="fa-solid fa-tv text-2xl mb-2 block"></i>
+          <p class="font-bold text-sm">4K / 2160p</p>
+          <p class="text-xs opacity-60 mt-0.5">Ultra HD</p>
+        </div>
+      </label>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="closeQualityModal()"
+              class="flex-1 px-4 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium transition-colors">
+        Cancel
+      </button>
+      <button @click="queueMovie({{ movie.pk }}, quality)"
+              class="flex-1 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors">
+        <i class="fa-solid fa-download mr-1"></i>Queue
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function openQualityModal() {
+  document.getElementById('quality-modal').classList.remove('hidden');
+}
+function closeQualityModal() {
+  document.getElementById('quality-modal').classList.add('hidden');
+}
+
+async function queueMovie(pk, quality) {
+  closeQualityModal();
+  const fd = new FormData();
+  fd.append('quality', quality);
+  await fetch(`/movies/${pk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  location.reload();
+}
+
+async function toggleFav(pk) {
+  await fetch(`/movies/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  location.reload();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeQualityModal(); });
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+from django.db import models
+
+
+class CategoryConfig(models.Model):
+    """Singleton that stores which qBittorrent categories Daredevil uses for each media type."""
+    tv_category = models.CharField(max_length=200, default='tv-shows')
+    movie_category = models.CharField(max_length=200, default='movies')
+
+    class Meta:
+        verbose_name = 'Category Config'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={
+            'tv_category': 'tv-shows',
+            'movie_category': 'movies',
+        })
+        return obj
+
+
+class CategoryPath(models.Model):
+    """Per-category path configuration stored in Daredevil."""
+    category_name = models.CharField(max_length=200, unique=True)
+    download_path = models.CharField(max_length=1000, blank=True,
+        help_text='Where qBittorrent saves files while downloading. Sent as save_path when adding a torrent.')
+    completed_path = models.CharField(max_length=1000, blank=True,
+        help_text='Where Daredevil moves files after the download finishes.')
+
+    class Meta:
+        ordering = ['category_name']
+        verbose_name = 'Category Path'
+
+    def __str__(self):
+        return self.category_name

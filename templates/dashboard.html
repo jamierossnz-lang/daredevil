@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  {% with stats=forloop %}
+  <div class="glass rounded-2xl p-5 animate-slide-in">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">TV Shows</span>
+      <div class="w-8 h-8 rounded-lg bg-brand-700/40 flex items-center justify-center">
+        <i class="fa-solid fa-tv text-brand-400 text-sm"></i>
+      </div>
+    </div>
+    <p class="text-3xl font-bold text-gradient">{{ show_count }}</p>
+    <a href="{% url 'tv_shows' %}" class="text-xs text-gray-500 hover:text-brand-400 transition-colors mt-1 block">View all →</a>
+  </div>
+
+  <div class="glass rounded-2xl p-5 animate-slide-in" style="animation-delay:0.05s">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Movies</span>
+      <div class="w-8 h-8 rounded-lg bg-cyan-700/40 flex items-center justify-center">
+        <i class="fa-solid fa-film text-cyan-400 text-sm"></i>
+      </div>
+    </div>
+    <p class="text-3xl font-bold" style="background:linear-gradient(135deg,#00d4ff,#0080ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">{{ movie_count }}</p>
+    <a href="{% url 'movies' %}" class="text-xs text-gray-500 hover:text-cyan-400 transition-colors mt-1 block">View all →</a>
+  </div>
+
+  <div class="glass rounded-2xl p-5 animate-slide-in" style="animation-delay:0.1s">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Downloading</span>
+      <div class="w-8 h-8 rounded-lg bg-yellow-700/40 flex items-center justify-center">
+        <i class="fa-solid fa-arrow-down text-yellow-400 text-sm"></i>
+      </div>
+    </div>
+    <p class="text-3xl font-bold text-yellow-400">{{ downloading_count }}</p>
+    <a href="{% url 'download_queue' %}" class="text-xs text-gray-500 hover:text-yellow-400 transition-colors mt-1 block">View queue →</a>
+  </div>
+
+  <div class="glass rounded-2xl p-5 animate-slide-in" style="animation-delay:0.15s">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Downloaded</span>
+      <div class="w-8 h-8 rounded-lg bg-green-700/40 flex items-center justify-center">
+        <i class="fa-solid fa-circle-check text-green-400 text-sm"></i>
+      </div>
+    </div>
+    <p class="text-3xl font-bold text-green-400">{{ downloaded_count }}</p>
+    <p class="text-xs text-gray-500 mt-1">Total completed</p>
+  </div>
+  {% endwith %}
+</div>
+
+<!-- Recently Added Shows -->
+{% if recent_shows %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-gray-100">Recently Added Shows</h2>
+    <a href="{% url 'tv_shows' %}" class="text-sm text-brand-400 hover:text-brand-300 transition-colors">View all</a>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    {% for show in recent_shows %}
+    <a href="{% url 'tv_show_detail' show.pk %}" class="group card-hover">
+      <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+        {% if show.poster_url %}
+        <img src="{{ show.poster_url }}" alt="{{ show.name }}" class="w-full aspect-[2/3] object-cover">
+        {% else %}
+        <div class="w-full aspect-[2/3] flex items-center justify-center bg-surface-700">
+          <i class="fa-solid fa-tv text-3xl text-gray-600"></i>
+        </div>
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+          <p class="text-xs font-medium text-white leading-tight">{{ show.name }}</p>
+        </div>
+        {% if show.is_favourite %}
+        <div class="absolute top-1.5 right-1.5 w-5 h-5 bg-yellow-500/90 rounded-full flex items-center justify-center">
+          <i class="fa-solid fa-star text-black text-xs"></i>
+        </div>
+        {% endif %}
+      </div>
+      <p class="mt-2 text-xs text-gray-400 truncate">{{ show.name }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Recently Added Movies -->
+{% if recent_movies %}
+<section class="mb-8">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-gray-100">Recently Added Movies</h2>
+    <a href="{% url 'movies' %}" class="text-sm text-cyan-400 hover:text-cyan-300 transition-colors">View all</a>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    {% for movie in recent_movies %}
+    <a href="{% url 'movie_detail' movie.pk %}" class="group card-hover">
+      <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+        {% if movie.poster_url %}
+        <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full aspect-[2/3] object-cover">
+        {% else %}
+        <div class="w-full aspect-[2/3] flex items-center justify-center bg-surface-700">
+          <i class="fa-solid fa-film text-3xl text-gray-600"></i>
+        </div>
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+          <p class="text-xs font-medium text-white leading-tight">{{ movie.title }}</p>
+        </div>
+        {% if movie.is_favourite %}
+        <div class="absolute top-1.5 right-1.5 w-5 h-5 bg-yellow-500/90 rounded-full flex items-center justify-center">
+          <i class="fa-solid fa-star text-black text-xs"></i>
+        </div>
+        {% endif %}
+        <!-- Download badge -->
+        {% if movie.download_status == 'downloaded' %}
+        <div class="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-green-600/90 rounded text-xs text-white font-medium">
+          <i class="fa-solid fa-check text-xs"></i>
+        </div>
+        {% elif movie.download_status == 'downloading' %}
+        <div class="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-blue-600/90 rounded text-xs text-white font-medium">
+          <i class="fa-solid fa-spinner fa-spin text-xs"></i>
+        </div>
+        {% endif %}
+      </div>
+      <p class="mt-2 text-xs text-gray-400 truncate">{{ movie.title }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Empty state -->
+{% if not recent_shows and not recent_movies %}
+<div class="flex flex-col items-center justify-center py-24 text-center">
+  <div class="w-20 h-20 rounded-2xl bg-surface-800 flex items-center justify-center mb-6 animate-glow">
+    <i class="fa-solid fa-tornado text-4xl text-brand-500"></i>
+  </div>
+  <h2 class="text-2xl font-bold text-white mb-2">Welcome to Daredevil</h2>
+  <p class="text-gray-500 max-w-md mb-8">Your personal media manager. Start by adding some TV shows or movies from TMDB.</p>
+  <div class="flex gap-4">
+    <a href="{% url 'tmdb_search_tv' %}" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
+      <i class="fa-solid fa-plus"></i> Add TV Show
+    </a>
+    <a href="{% url 'tmdb_search_movie' %}" class="px-5 py-2.5 bg-surface-700 hover:bg-surface-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
+      <i class="fa-solid fa-plus"></i> Add Movie
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

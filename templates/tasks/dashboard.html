@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}Background Tasks{% endblock %}
+{% block page_title %}Background Tasks{% endblock %}
+
+{% block content %}
+{% if not beat_configured %}
+<div class="glass rounded-2xl p-5 mb-6 border border-yellow-500/20 flex items-start gap-4">
+  <div class="w-9 h-9 rounded-xl bg-yellow-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+    <i class="fa-solid fa-triangle-exclamation text-yellow-400"></i>
+  </div>
+  <div>
+    <p class="text-sm font-semibold text-yellow-300 mb-1">Scheduled tasks not configured yet</p>
+    <p class="text-sm text-gray-400">
+      Run <code class="px-1.5 py-0.5 bg-surface-700 rounded text-brand-300 text-xs">python manage.py setup_schedules</code>
+      to register defaults, then start Celery + Beat with <code class="px-1.5 py-0.5 bg-surface-700 rounded text-brand-300 text-xs">./start.sh</code>.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<div x-data="{ tab: 'tasks' }">
+  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit mb-6">
+    <button @click="tab = 'tasks'"
+            :class="tab === 'tasks' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+      <i class="fa-solid fa-bolt"></i> Tasks
+    </button>
+    <button @click="tab = 'schedules'"
+            :class="tab === 'schedules' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+      <i class="fa-solid fa-calendar-days"></i> Schedules
+      <span class="px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ all_schedules|length }}</span>
+    </button>
+    <button @click="tab = 'history'"
+            :class="tab === 'history' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+      <i class="fa-solid fa-clock-rotate-left"></i> History
+    </button>
+  </div>
+
+  <!-- ── TASKS TAB ── -->
+  <div x-show="tab === 'tasks'">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {% for task in tasks %}
+      <div class="glass rounded-2xl p-5 animate-slide-in" style="animation-delay:{{ forloop.counter0 }}5ms"
+           x-data="taskCard('{{ task.name }}')" id="card-{{ task.name|slugify }}">
+
+        <div class="flex items-start gap-4 mb-4">
+          <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center
+                      {% if task.color == 'brand' %}bg-brand-600/30{% elif task.color == 'cyan' %}bg-cyan-600/30{% else %}bg-yellow-600/30{% endif %}">
+            <i class="fa-solid {{ task.icon }}
+                      {% if task.color == 'brand' %}text-brand-400{% elif task.color == 'cyan' %}text-cyan-400{% else %}text-yellow-400{% endif %}"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-gray-100 mb-0.5">{{ task.label }}</p>
+            <p class="text-xs text-gray-500 leading-relaxed">{{ task.description }}</p>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-3 mb-4 text-xs">
+          <div class="bg-surface-800/60 rounded-lg p-2.5">
+            <p class="text-gray-600 mb-0.5 uppercase tracking-wide">Schedule</p>
+            <p class="text-gray-300 font-medium">{{ task.schedule }}</p>
+          </div>
+          <div class="bg-surface-800/60 rounded-lg p-2.5">
+            <p class="text-gray-600 mb-0.5 uppercase tracking-wide">Last Run</p>
+            <p class="text-gray-300 font-medium">
+              {% if task.last_run %}{{ task.last_run|timesince }} ago{% else %}Never{% endif %}
+            </p>
+          </div>
+          <div class="bg-surface-800/60 rounded-lg p-2.5">
+            <p class="text-gray-600 mb-0.5 uppercase tracking-wide">Total Runs</p>
+            <p class="text-gray-300 font-medium">{{ task.run_count }}</p>
+          </div>
+        </div>
+
+        <!-- Last result pill -->
+        {% if task.last_result %}
+        <div class="mb-4 px-3 py-2 rounded-lg text-xs flex items-center gap-2
+                    {% if task.last_result.status == 'SUCCESS' %}bg-green-500/10 border border-green-500/20
+                    {% elif task.last_result.status == 'FAILURE' %}bg-red-500/10 border border-red-500/20
+                    {% else %}bg-surface-700 border border-surface-600{% endif %}">
+          <i class="fa-solid {% if task.last_result.status == 'SUCCESS' %}fa-circle-check text-green-400{% elif task.last_result.status == 'FAILURE' %}fa-circle-exclamation text-red-400{% else %}fa-clock text-gray-400{% endif %}"></i>
+          <span class="font-medium {% if task.last_result.status == 'SUCCESS' %}text-green-400{% elif task.last_result.status == 'FAILURE' %}text-red-400{% else %}text-gray-400{% endif %}">
+            {{ task.last_result.status }}
+          </span>
+          <span class="text-gray-500">·</span>
+          <span class="text-gray-400">{{ task.last_result.date_done|timesince }} ago</span>
+          {% if task.last_result.status == 'FAILURE' and task.last_result.traceback %}
+          <button @click="showError = !showError" class="ml-auto text-red-400 hover:text-red-300 transition-transform duration-150" :class="showError ? 'rotate-180' : ''">
+            <i class="fa-solid fa-chevron-down text-xs"></i>
+          </button>
+          {% endif %}
+        </div>
+        {% if task.last_result.status == 'FAILURE' and task.last_result.traceback %}
+        <div x-show="showError" x-cloak class="mb-4 p-3 bg-red-950/40 rounded-lg border border-red-500/20 overflow-auto max-h-32">
+          <pre class="text-xs text-red-300 whitespace-pre-wrap font-mono">{{ task.last_result.traceback }}</pre>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Action row -->
+        <div class="flex items-center gap-3">
+          <button @click="run()" :disabled="running"
+                  class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed
+                         {% if task.color == 'brand' %}bg-brand-600 hover:bg-brand-500{% elif task.color == 'cyan' %}bg-cyan-600 hover:bg-cyan-500{% else %}bg-yellow-600 hover:bg-yellow-500{% endif %}">
+            <i class="fa-solid" :class="running ? 'fa-spinner fa-spin' : 'fa-play'"></i>
+            <span x-text="running ? 'Running…' : 'Run Now'"></span>
+          </button>
+
+          <div x-show="runStatus" x-cloak class="flex items-center gap-2 text-xs animate-slide-in">
+            <i class="fa-solid"
+               :class="{ 'fa-circle-check text-green-400': runStatus==='SUCCESS', 'fa-circle-exclamation text-red-400': runStatus==='FAILURE', 'fa-spinner fa-spin text-yellow-400': runStatus==='PENDING'||runStatus==='STARTED' }"></i>
+            <span x-text="runStatus"
+                  :class="{ 'text-green-400': runStatus==='SUCCESS', 'text-red-400': runStatus==='FAILURE', 'text-yellow-400': runStatus==='PENDING'||runStatus==='STARTED' }"
+                  class="font-semibold uppercase"></span>
+            <span x-show="runDuration" class="text-gray-500" x-text="`(${runDuration}s)`"></span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── SCHEDULES TAB ── -->
+  <div x-show="tab === 'schedules'" x-cloak>
+    {% if all_schedules %}
+    <div class="space-y-3">
+      {% for pt in all_schedules %}
+      <div class="glass rounded-2xl px-5 py-4 flex flex-wrap items-center gap-4 animate-slide-in"
+           x-data="scheduleRow({{ pt.pk }}, {{ pt.enabled|yesno:'true,false' }}, '{{ pt.interval.every|default:'' }}', '{{ pt.interval.period|default:'hours' }}')"
+           id="schedule-{{ pt.pk }}">
+
+        <!-- Enabled toggle -->
+        <button @click="toggle()"
+                :class="enabled ? 'bg-brand-600' : 'bg-surface-600'"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none">
+          <span :class="enabled ? 'translate-x-4' : 'translate-x-0.5'"
+                class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200"></span>
+        </button>
+
+        <!-- Name + task -->
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-200 truncate">{{ pt.name }}</p>
+          <p class="text-xs text-gray-500 truncate font-mono">{{ pt.task }}</p>
+        </div>
+
+        <!-- Current schedule pill -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-700 text-gray-300 border border-surface-600"
+                x-text="currentSchedule">
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs
+                       {% if pt.enabled %}bg-green-500/15 text-green-400{% else %}bg-gray-500/15 text-gray-500{% endif %}">
+            {{ pt.enabled|yesno:"Enabled,Disabled" }}
+          </span>
+        </div>
+
+        <!-- Edit interval inline -->
+        <div class="flex items-center gap-2 flex-shrink-0" x-data="{ editing: false }">
+          <div x-show="!editing" class="flex items-center gap-2">
+            <button @click="editing = true"
+                    class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-brand-400 transition-colors">
+              <i class="fa-solid fa-pen text-xs"></i>
+            </button>
+          </div>
+          <div x-show="editing" x-cloak class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">Every</span>
+            <input type="number" x-model="editEvery" min="1"
+                   class="w-14 bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-sm text-gray-200 text-center focus:outline-none focus:border-brand-500">
+            <select x-model="editPeriod"
+                    class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-sm text-gray-300 focus:outline-none focus:border-brand-500">
+              {% for val, label in period_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button @click="save(); editing = false"
+                    class="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors">
+              Save
+            </button>
+            <button @click="editing = false"
+                    class="px-2 py-1 bg-surface-700 hover:bg-surface-600 text-gray-400 rounded-lg text-xs transition-colors">
+              Cancel
+            </button>
+          </div>
+
+          <!-- Delete -->
+          <button @click="del()"
+                  class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors ml-1">
+            <i class="fa-solid fa-trash text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Last run + count -->
+        <div class="text-xs text-gray-600 flex-shrink-0 hidden lg:block text-right">
+          <p>Runs: {{ pt.total_run_count }}</p>
+          {% if pt.last_run_at %}<p>Last: {{ pt.last_run_at|timesince }} ago</p>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-calendar-xmark text-5xl text-gray-700 mb-4 block"></i>
+      <p class="text-gray-500 mb-2">No scheduled tasks registered</p>
+      <p class="text-xs text-gray-600">Run <code class="text-brand-400">python manage.py setup_schedules</code> to create defaults</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── HISTORY TAB ── -->
+  <div x-show="tab === 'history'" x-cloak>
+    <div class="glass rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-surface-700/50">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-brand-400"></i> Recent Executions
+        </h2>
+        <button onclick="refreshHistory()"
+                class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors">
+          <i class="fa-solid fa-rotate-right text-xs" id="refreshIcon"></i>
+        </button>
+      </div>
+      <div id="historyTable" class="overflow-x-auto scrollbar-thin">
+        {% include 'tasks/_recent_results.html' %}
+      </div>
+    </div>
+  </div>
+
+</div><!-- end x-data tabs -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function taskCard(taskName) {
+  return {
+    running: false,
+    runStatus: null,
+    runDuration: null,
+    showError: false,
+    taskId: null,
+    startedAt: null,
+    pollTimer: null,
+
+    async run() {
+      this.running = true;
+      this.runStatus = 'PENDING';
+      this.runDuration = null;
+      this.startedAt = Date.now();
+      const fd = new FormData();
+      fd.append('task', taskName);
+      try {
+        const res = await fetch('/tasks/trigger/', {
+          method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await res.json();
+        if (data.error) {
+          this.runStatus = 'FAILURE';
+          this.running = false;
+          return;
+        }
+        this.taskId = data.task_id;
+        this.pollTimer = setInterval(async () => {
+          try {
+            const r = await fetch(`/tasks/poll/${this.taskId}/`);
+            const d = await r.json();
+            this.runStatus = d.status;
+            if (d.status !== 'PENDING' && d.status !== 'STARTED') {
+              clearInterval(this.pollTimer);
+              this.running = false;
+              this.runDuration = ((Date.now() - this.startedAt) / 1000).toFixed(1);
+              refreshHistory();
+            }
+          } catch(e) { clearInterval(this.pollTimer); this.running = false; }
+        }, 1000);
+      } catch(e) {
+        this.runStatus = 'FAILURE';
+        this.running = false;
+      }
+    },
+  };
+}
+
+function scheduleRow(pk, initialEnabled, initialEvery, initialPeriod) {
+  return {
+    enabled: initialEnabled,
+    editEvery: initialEvery || 1,
+    editPeriod: initialPeriod || 'hours',
+    currentSchedule: initialEvery ? `Every ${initialEvery} ${initialPeriod}` : 'Cron / custom',
+
+    async toggle() {
+      const res = await fetch(`/tasks/schedule/${pk}/toggle/`, {
+        method: 'POST', headers: { 'X-CSRFToken': csrfToken }
+      });
+      const d = await res.json();
+      this.enabled = d.enabled;
+    },
+
+    async save() {
+      const res = await fetch(`/tasks/schedule/${pk}/update/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ every: this.editEvery, period: this.editPeriod }),
+      });
+      const d = await res.json();
+      if (d.ok) this.currentSchedule = d.schedule;
+    },
+
+    async del() {
+      if (!confirm('Delete this scheduled task?')) return;
+      await fetch(`/tasks/schedule/${pk}/delete/`, {
+        method: 'POST', headers: { 'X-CSRFToken': csrfToken }
+      });
+      document.getElementById(`schedule-${pk}`)?.remove();
+    },
+  };
+}
+
+async function refreshHistory() {
+  const icon = document.getElementById('refreshIcon');
+  if (icon) icon.classList.add('fa-spin');
+  try {
+    const res = await fetch('/tasks/recent/');
+    document.getElementById('historyTable').innerHTML = await res.text();
+  } finally {
+    if (icon) icon.classList.remove('fa-spin');
+  }
+}
+
+setInterval(refreshHistory, 15000);
+</script>
+{% endblock %}

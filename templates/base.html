@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Daredevil{% endblock %} — Daredevil</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0e7ff',
+              100: '#d9c3ff',
+              200: '#b98dff',
+              300: '#9957ff',
+              400: '#7c21ff',
+              500: '#6600ff',
+              600: '#5500d4',
+              700: '#4400aa',
+              800: '#330080',
+              900: '#220055',
+            },
+            surface: {
+              50:  '#e8e8f4',
+              100: '#c5c5e8',
+              200: '#9d9dcc',
+              300: '#7777b0',
+              400: '#55559a',
+              500: '#333370',
+              600: '#25255a',
+              700: '#181840',
+              800: '#0e0e2e',
+              900: '#07071a',
+              950: '#030310',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          backgroundImage: {
+            'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+          },
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    body { background-color: #07071a; }
+    .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #0e0e2e; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #5500d4; border-radius: 2px; }
+    .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(102,0,255,0.3); }
+    .poster-glow:hover { box-shadow: 0 0 30px rgba(102,0,255,0.5); }
+    .nav-glow { box-shadow: 0 0 60px rgba(102,0,255,0.1); }
+    .progress-bar { background: linear-gradient(90deg, #6600ff, #00d4ff); }
+    .status-downloading { color: #00d4ff; }
+    .status-completed  { color: #00ff88; }
+    .status-failed     { color: #ff4444; }
+    .status-pending    { color: #ffaa00; }
+    .status-waiting    { color: #888; }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(102,0,255,0.4); }
+      50%       { box-shadow: 0 0 20px rgba(102,0,255,0.8); }
+    }
+    .animate-glow { animation: pulse-glow 2s infinite; }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-in { animation: slide-in 0.3s ease forwards; }
+    .glass {
+      background: rgba(14,14,46,0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(102,0,255,0.15);
+    }
+    .glass-dark {
+      background: rgba(7,7,26,0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(102,0,255,0.2);
+    }
+    .text-gradient {
+      background: linear-gradient(135deg, #9957ff, #00d4ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="font-sans text-gray-100 h-full overflow-x-hidden" x-data="{ sidebarOpen: false }">
+
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 z-50 w-64 glass-dark flex flex-col transition-transform duration-300"
+         :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
+
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-purple-900/40">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow">
+        <i class="fa-solid fa-tornado text-white text-sm"></i>
+      </div>
+      <span class="text-xl font-bold text-gradient">Daredevil</span>
+    </div>
+
+    <!-- Nav Links -->
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+      {% url 'dashboard' as url_dashboard %}
+      {% url 'tv_shows' as url_shows %}
+      {% url 'movies' as url_movies %}
+      {% url 'download_queue' as url_queue %}
+      {% url 'moves_page' as url_moves %}
+      {% url 'qbt_dashboard' as url_qbt %}
+      {% url 'qbt_search' as url_qbt_search %}
+      {% url 'qbt_settings' as url_qbt_settings %}
+      {% url 'qbt_categories' as url_qbt_categories %}
+      {% url 'qbt_files' as url_qbt_files %}
+      {% url 'tasks_dashboard' as url_tasks %}
+
+      {% with request.path as p %}
+      <a href="{{ url_dashboard }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if p == url_dashboard %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-gauge-high w-4 text-center"></i>
+        Dashboard
+      </a>
+
+      <a href="{{ url_shows }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_shows in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-tv w-4 text-center"></i>
+        TV Shows
+      </a>
+
+      <a href="{{ url_movies }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_movies in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-film w-4 text-center"></i>
+        Movies
+      </a>
+
+      <div class="pt-3 pb-1">
+        <p class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-600">Downloads</p>
+      </div>
+
+      <a href="{{ url_queue }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_queue in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-download w-4 text-center"></i>
+        Download Queue
+      </a>
+
+      <a href="{{ url_moves }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_moves in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-file-export w-4 text-center"></i>
+        File Moves
+      </a>
+
+      <a href="{{ url_tasks }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_tasks in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-gears w-4 text-center"></i>
+        Background Tasks
+      </a>
+
+      <div class="pt-3 pb-1">
+        <p class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-600">qBittorrent</p>
+      </div>
+
+      <a href="{{ url_qbt }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if p == url_qbt %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-seedling w-4 text-center"></i>
+        Torrent Manager
+      </a>
+
+      <a href="{{ url_qbt_search }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_qbt_search in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-magnifying-glass w-4 text-center"></i>
+        Torrent Search
+      </a>
+
+      <a href="{{ url_qbt_categories }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_qbt_categories in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-folder-tree w-4 text-center"></i>
+        Categories
+      </a>
+
+      <a href="{{ url_qbt_files }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_qbt_files in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-folder-open w-4 text-center"></i>
+        File Browser
+      </a>
+
+      <a href="{{ url_qbt_settings }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_qbt_settings in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-sliders w-4 text-center"></i>
+        qBT Settings
+      </a>
+      {% endwith %}
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-4 border-t border-purple-900/30">
+      <a href="/admin/" class="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+        <i class="fa-solid fa-user-shield"></i>
+        Django Admin
+      </a>
+    </div>
+  </aside>
+
+  <!-- Overlay (mobile) -->
+  <div class="fixed inset-0 z-40 bg-black/60 lg:hidden" x-show="sidebarOpen" x-cloak @click="sidebarOpen = false"></div>
+
+  <!-- Main Content -->
+  <div class="lg:pl-64 min-h-full flex flex-col">
+
+    <!-- Top Bar -->
+    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-4">
+      <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-400 hover:text-white">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+      <div class="flex-1">
+        <h1 class="text-lg font-semibold text-gray-100">{% block page_title %}{% endblock %}</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        {% block header_actions %}{% endblock %}
+      </div>
+    </header>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="px-4 lg:px-6 pt-4">
+      {% for msg in messages %}
+      <div class="mb-2 px-4 py-3 rounded-xl glass text-sm flex items-center gap-3
+                  {% if msg.tags == 'error' %}border-red-500/30 text-red-400{% else %}border-green-500/30 text-green-400{% endif %}"
+           x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0">
+        <i class="fa-solid {% if msg.tags == 'error' %}fa-circle-exclamation{% else %}fa-circle-check{% endif %}"></i>
+        {{ msg }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Page Content -->
+    <main class="flex-1 px-4 lg:px-6 py-6">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

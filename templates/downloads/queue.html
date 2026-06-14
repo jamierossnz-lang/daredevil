@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+{% block title %}Download Queue{% endblock %}
+{% block page_title %}Download Queue{% endblock %}
+
+{% block content %}
+<!-- Single Alpine scope wraps BOTH the tabs and the panels -->
+<div x-data="{ tab: 'active' }">
+
+  <!-- Tab bar -->
+  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit mb-6">
+    <button @click="tab = 'active'"
+            :class="tab === 'active' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+      Active
+      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ active|length }}</span>
+    </button>
+    <button @click="tab = 'waiting'"
+            :class="tab === 'waiting' ? 'bg-surface-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+      Awaiting Release
+      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ waiting|length }}</span>
+    </button>
+    <button @click="tab = 'completed'"
+            :class="tab === 'completed' ? 'bg-green-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+      Completed
+      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ completed|length }}</span>
+    </button>
+    <button @click="tab = 'failed'"
+            :class="tab === 'failed' ? 'bg-red-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+      Failed
+      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ failed|length }}</span>
+    </button>
+  </div>
+
+  <!-- ── Active Downloads ── -->
+  <div x-show="tab === 'active'">
+    {% if active %}
+    <div class="space-y-3" id="activeList">
+      {% for item in active %}
+      <div class="glass rounded-2xl p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
+           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}>
+        <div class="flex items-start gap-4">
+          {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
+          {% else %}
+          <div class="w-12 h-16 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid {% if item.media_type == 'episode' %}fa-tv{% else %}fa-film{% endif %} text-gray-600"></i>
+          </div>
+          {% endif %}
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-100 truncate">{{ item.title }}</p>
+                {% if item.subtitle %}<p class="text-xs text-gray-500 truncate">{{ item.subtitle }}</p>{% endif %}
+              </div>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                  {% if item.status == 'downloading' %}bg-blue-500/20 text-blue-400
+                  {% elif item.status == 'searching' %}bg-yellow-500/20 text-yellow-400
+                  {% elif item.status == 'pending' %}bg-gray-500/20 text-gray-400
+                  {% else %}bg-purple-500/20 text-purple-400{% endif %}">
+                  {{ item.get_status_display }}
+                </span>
+                {% if item.torrent_hash %}
+                <button onclick="pauseItem('{{ item.torrent_hash }}')"
+                        class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-yellow-800/40 flex items-center justify-center text-gray-400 hover:text-yellow-400 transition-colors" title="Pause">
+                  <i class="fa-solid fa-pause text-xs"></i>
+                </button>
+                {% endif %}
+                <button onclick="removeItem({{ item.pk }}, false)"
+                        class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors" title="Remove">
+                  <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+              </div>
+            </div>
+
+            {% if item.status == 'downloading' %}
+            <div class="mb-2">
+              <div class="flex justify-between text-xs text-gray-500 mb-1">
+                <span class="text-blue-400 font-medium" id="pct-{{ item.pk }}">{{ item.progress|floatformat:1 }}%</span>
+                <span id="spd-{{ item.pk }}">{{ item.speed_formatted }}</span>
+              </div>
+              <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                <div class="progress-bar h-full rounded-full transition-all duration-1000"
+                     id="bar-{{ item.pk }}" style="width:{{ item.progress|floatformat:0 }}%"></div>
+              </div>
+            </div>
+            {% elif item.status == 'searching' %}
+            <div class="mb-2 space-y-1.5" id="search-info-{{ item.pk }}">
+              <!-- Status line -->
+              <div class="flex items-center gap-2 text-xs text-yellow-400">
+                <i class="fa-solid fa-spinner fa-spin flex-shrink-0" id="search-icon-{{ item.pk }}"></i>
+                <span class="font-mono" id="search-stage-{{ item.pk }}">{% if item.search_query %}Searching…{% else %}Ready — enter query and press Search{% endif %}</span>
+              </div>
+              <!-- Editable query + button -->
+              <div class="flex gap-1.5 pl-5">
+                <input type="text"
+                       id="search-q-{{ item.pk }}"
+                       value="{{ item.search_query }}"
+                       placeholder="e.g. Show S01E11 1080p"
+                       class="flex-1 min-w-0 px-2 py-1 text-xs bg-surface-700 border border-white/10 rounded text-gray-300 font-mono focus:outline-none focus:border-yellow-500/40">
+                <button onclick="manualSearch({{ item.pk }})"
+                        class="px-2.5 py-1 bg-yellow-600/30 hover:bg-yellow-600/60 text-yellow-300 rounded text-xs font-medium transition-colors whitespace-nowrap">
+                  <i class="fa-solid fa-magnifying-glass mr-1"></i>Search
+                </button>
+              </div>
+              <!-- Result count -->
+              <p class="text-xs pl-5" id="search-count-{{ item.pk }}">
+                {% if item.result_count >= 0 %}
+                  <span class="{% if item.result_count > 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                    {{ item.result_count }} result{{ item.result_count|pluralize }} found
+                  </span>
+                {% else %}
+                  <span class="text-gray-600">{% if item.search_query %}Waiting for results…{% else %}No query set{% endif %}</span>
+                {% endif %}
+              </p>
+            </div>
+            {% elif item.status == 'pending' %}
+            <div class="mb-2 flex items-center gap-2 text-xs text-gray-500">
+              <i class="fa-solid fa-clock"></i> Waiting to start…
+            </div>
+            {% endif %}
+
+            <div class="flex items-center gap-3 text-xs text-gray-600">
+              <span><i class="fa-solid fa-{% if item.media_type == 'episode' %}tv{% else %}film{% endif %} mr-1"></i>{{ item.get_media_type_display }}</span>
+              {% if item.size_bytes > 0 %}<span>{{ item.size_formatted }}</span>{% endif %}
+              <span>Added {{ item.added_at|date:"M d H:i" }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-download text-5xl text-gray-700 mb-4 block"></i>
+      <p class="text-gray-500">No active downloads</p>
+      <p class="text-sm text-gray-600 mt-1">Queue episodes or movies from the TV Shows and Movies pages.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Awaiting Digital Release ── -->
+  <div x-show="tab === 'waiting'" x-cloak>
+    {% if waiting %}
+    <div class="space-y-3">
+      {% for item in waiting %}
+      <div class="glass rounded-2xl p-4 flex items-center gap-4 animate-slide-in">
+        {% if item.poster_url %}
+        <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
+        {% else %}
+        <div class="w-12 h-16 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-film text-gray-600"></i>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-200 truncate">{{ item.title }}</p>
+          {% if item.release_date %}
+          <p class="text-xs text-gray-400 mt-0.5">
+            <i class="fa-solid fa-calendar mr-1 text-gray-500"></i>
+            Digital release: <span class="text-brand-300 font-medium">{{ item.release_date|date:"M d, Y" }}</span>
+          </p>
+          {% else %}
+          <p class="text-xs text-gray-500 mt-0.5"><i class="fa-solid fa-calendar-xmark mr-1"></i>Release date TBD</p>
+          {% endif %}
+          <p class="text-xs text-gray-600 mt-0.5">Added {{ item.added_at|date:"M d, Y" }}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="px-2.5 py-1 bg-gray-500/20 text-gray-400 rounded-full text-xs font-medium border border-gray-500/20">
+            <i class="fa-solid fa-hourglass-half mr-1"></i>Waiting
+          </span>
+          <button onclick="removeItem({{ item.pk }}, false)"
+                  class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors">
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-calendar-days text-5xl text-gray-700 mb-4 block"></i>
+      <p class="text-gray-500">No movies waiting for digital release</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Completed ── -->
+  <div x-show="tab === 'completed'" x-cloak>
+    {% if completed %}
+    <div class="space-y-2">
+      {% for item in completed %}
+      <div class="glass rounded-xl p-3 flex items-center gap-3 animate-slide-in">
+        <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-circle-check text-green-400 text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-200 truncate">{{ item.title }}</p>
+          {% if item.subtitle %}<p class="text-xs text-gray-500 truncate">{{ item.subtitle }}</p>{% endif %}
+        </div>
+        <div class="text-xs text-gray-600 flex-shrink-0 text-right">
+          {% if item.completed_at %}{{ item.completed_at|date:"M d H:i" }}{% endif %}
+        </div>
+        <button onclick="removeItem({{ item.pk }}, false)"
+                class="w-6 h-6 rounded flex items-center justify-center text-gray-600 hover:text-red-400 transition-colors">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-circle-check text-5xl text-gray-700 mb-4 block"></i>
+      <p class="text-gray-500">Nothing downloaded yet</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Failed ── -->
+  <div x-show="tab === 'failed'" x-cloak>
+    {% if failed %}
+    <div class="space-y-3">
+      {% for item in failed %}
+      <div class="glass rounded-2xl p-4 border border-red-500/20 animate-slide-in">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <i class="fa-solid fa-circle-exclamation text-red-400 text-sm"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-200">{{ item.title }}</p>
+            {% if item.subtitle %}<p class="text-xs text-gray-500">{{ item.subtitle }}</p>{% endif %}
+            {% if item.error_message %}
+            <p class="text-xs text-red-400 mt-1 bg-red-900/20 rounded px-2 py-1 font-mono">{{ item.error_message }}</p>
+            {% endif %}
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="retryItem({{ item.pk }})"
+                    class="px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
+              <i class="fa-solid fa-rotate-right mr-1"></i>Retry
+            </button>
+            <button onclick="removeItem({{ item.pk }}, false)"
+                    class="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors">
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-circle-check text-5xl text-gray-700 mb-4 block"></i>
+      <p class="text-gray-500">No failed downloads</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div><!-- end single Alpine scope -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+const activeSearches = new Set(); // prevent duplicate concurrent searches
+
+// ── Search a single queued item via the browser (same endpoint as search UI) ──
+
+async function searchItem(pk, query) {
+  if (activeSearches.has(pk)) return;
+  activeSearches.add(pk);
+
+  setStage(pk, 'Searching…', 'fa-spinner fa-spin');
+  setQuery(pk, query);
+  setCount(pk, null, 'Querying search plugins…');
+
+  try {
+    const fd = new FormData();
+    fd.append('q', query);
+    const res = await fetch('/qbt/search/run/', {
+      method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken}
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      await failItem(pk, `Search error: ${data.error}`, 0);
+      return;
+    }
+
+    const results = data.results || [];
+    setCount(pk, results.length, null);
+
+    if (results.length === 0) {
+      // Retry without quality suffix (strip last word)
+      const bare = query.replace(/\s+\S+$/, '').trim();
+      if (bare && bare !== query) {
+        setStage(pk, 'Retrying without quality…', 'fa-spinner fa-spin');
+        setQuery(pk, bare + ' (any quality)');
+        setCount(pk, null, 'Retrying…');
+
+        const fd2 = new FormData();
+        fd2.append('q', bare);
+        const res2 = await fetch('/qbt/search/run/', {
+          method: 'POST', body: fd2, headers: {'X-CSRFToken': csrfToken}
+        });
+        const data2 = await res2.json();
+        const results2 = data2.results || [];
+        setCount(pk, results2.length, null);
+
+        if (results2.length === 0) {
+          await failItem(pk, `No results — tried "${query}" and "${bare}"`, 0);
+          return;
+        }
+        await addBest(pk, results2, results2.length);
+      } else {
+        await failItem(pk, `No results found for "${query}"`, 0);
+      }
+      return;
+    }
+
+    await addBest(pk, results, results.length);
+  } catch(err) {
+    await failItem(pk, `Error: ${err}`, 0);
+  } finally {
+    activeSearches.delete(pk);
+  }
+}
+
+async function addBest(pk, results, total) {
+  // results already sorted by seeds descending
+  // Prefer a result with decent seeds; fall back to best available
+  const seeded = results.filter(r => (r.seeds || 0) >= MIN_SEEDS);
+  const pool = seeded.length > 0 ? seeded : results;
+  const best = pool[0];
+
+  const seedWarning = best.seeds < MIN_SEEDS ? ` ⚠ only ${best.seeds} seed(s)` : '';
+  setStage(pk, `Found ${total} results — adding best (${best.seeds} seeds${seedWarning})…`, 'fa-circle-notch fa-spin');
+  setQuery(pk, best.name);
+
+  const fd = new FormData();
+  fd.append('magnet', best.url);
+  fd.append('name', best.name);
+  fd.append('result_count', total);
+  const res = await fetch(`/downloads/${pk}/begin-download/`, {
+    method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken}
+  });
+  const data = await res.json();
+  if (data.ok) {
+    setStage(pk, 'Added — starting download…', 'fa-circle-check');
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    await failItem(pk, data.error || 'Failed to add torrent', total);
+  }
+}
+
+async function failItem(pk, error, resultCount) {
+  const fd = new FormData();
+  fd.append('error', error);
+  fd.append('result_count', resultCount);
+  await fetch(`/downloads/${pk}/search-failed/`, {
+    method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken}
+  });
+  setStage(pk, 'Failed', 'fa-circle-exclamation', 'text-red-400');
+  setCount(pk, resultCount, error, true);
+  setTimeout(() => location.reload(), 2000);
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function setStage(pk, text, iconClass, colorClass) {
+  const el = document.getElementById(`search-stage-${pk}`);
+  const ic = document.getElementById(`search-icon-${pk}`);
+  if (el) { el.textContent = text; if (colorClass) el.className = `text-xs ${colorClass}`; }
+  if (ic) ic.className = `fa-solid ${iconClass} flex-shrink-0 text-xs`;
+}
+
+function setQuery(pk, text) {
+  const el = document.getElementById(`search-q-${pk}`);
+  if (el) el.value = text; // it's now an <input>
+}
+
+function setCount(pk, count, fallbackText, isError) {
+  const el = document.getElementById(`search-count-${pk}`);
+  if (!el) return;
+  if (count !== null) {
+    const cls = isError ? 'text-red-400' : count > 0 ? 'text-green-400' : 'text-red-400';
+    const label = fallbackText || `${count} ${count === 1 ? 'result' : 'results'} found`;
+    el.innerHTML = `<span class="${cls}">${label}</span>`;
+  } else {
+    el.innerHTML = `<span class="text-gray-600">${fallbackText || '…'}</span>`;
+  }
+}
+
+// ── Manual search trigger (Search button in card) ────────────────────────────
+
+function manualSearch(pk) {
+  const input = document.getElementById(`search-q-${pk}`);
+  const query = (input ? input.value : '').trim();
+  if (!query) { alert('Enter a search query first'); return; }
+  console.log(`[daredevil] manualSearch pk=${pk} query="${query}"`);
+  searchItem(pk, query);
+}
+
+// ── Trigger auto-search on page load for any SEARCHING items ─────────────────
+
+(async () => {
+  const items = document.querySelectorAll('[data-item-pk]'); // all SEARCHING items
+  console.log(`[daredevil] auto-search: found ${items.length} searching item(s)`);
+  for (const el of items) {
+    const pk = el.dataset.itemPk;
+    // Prefer pre-filled server-side query; fall back to value of the input (which may be empty)
+    const query = (el.dataset.autoSearch || '').trim();
+    if (pk && query) {
+      console.log(`[daredevil] auto-searching pk=${pk} query="${query}"`);
+      await searchItem(pk, query);
+    } else {
+      console.log(`[daredevil] pk=${pk} has no auto-search query — showing manual input`);
+    }
+  }
+})();
+
+// ── Existing actions ──────────────────────────────────────────────────────────
+
+async function pauseItem(hash) {
+  await fetch(`/qbt/torrent/${hash}/pause/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+}
+
+async function removeItem(pk, deleteFiles) {
+  if (!confirm('Remove from queue?\n\nThis will reset the item so it can be re-queued.')) return;
+  const fd = new FormData();
+  fd.append('delete_files', deleteFiles ? 'true' : 'false');
+  await fetch(`/downloads/${pk}/delete/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  const el = document.getElementById(`dl-item-${pk}`);
+  if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.2s'; setTimeout(() => location.reload(), 200); }
+  else location.reload();
+}
+
+async function retryItem(pk) {
+  const res = await fetch(`/downloads/${pk}/retry/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  const data = await res.json();
+  console.log(`[daredevil] retryItem pk=${pk} search_query="${data.search_query || ''}"`);
+  location.reload();
+}
+
+const MIN_SEEDS = 3; // minimum seeds before we'll auto-download
+
+// ── qBT connection status banner ─────────────────────────────────────────────
+const qbtBanner = (() => {
+  const el = document.createElement('div');
+  el.id = 'qbt-offline-banner';
+  el.className = 'hidden fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-red-900/90 border border-red-600/50 rounded-xl text-sm text-red-200 shadow-lg backdrop-blur';
+  el.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-400"></i> qBittorrent unreachable — progress paused';
+  document.body.appendChild(el);
+  return {
+    show() { el.classList.remove('hidden'); },
+    hide() { el.classList.add('hidden'); },
+  };
+})();
+
+// Progress polling for active downloads
+let reloadPending = false;
+async function pollProgress() {
+  try {
+    const res = await fetch('/downloads/status/');
+    const data = await res.json();
+
+    if (!data.qbt_connected) {
+      qbtBanner.show();
+    } else {
+      qbtBanner.hide();
+    }
+
+    data.items.forEach(item => {
+      const bar = document.getElementById(`bar-${item.id}`);
+      if (bar) bar.style.width = item.progress + '%';
+      const pct = document.getElementById(`pct-${item.id}`);
+      if (pct) pct.textContent = item.progress + '%';
+      const spd = document.getElementById(`spd-${item.id}`);
+      if (spd) {
+        let label = item.speed;
+        if (item.eta && item.eta !== '—') label += ` · ${item.eta}`;
+        if (item.qbt_state && item.qbt_state !== 'downloading') label += ` [${item.qbt_state}]`;
+        spd.textContent = label;
+      }
+      if ((item.status === 'completed' || item.status === 'failed') && !reloadPending) {
+        reloadPending = true;
+        setTimeout(() => location.reload(), 1500);
+      }
+    });
+  } catch(e) {}
+}
+setInterval(pollProgress, 3000);
+</script>
+{% endblock %}

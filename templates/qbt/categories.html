@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}Categories{% endblock %}
+{% block page_title %}qBittorrent Categories{% endblock %}
+
+{% block content %}
+{% if not connected %}
+<div class="glass rounded-2xl p-6 border border-red-500/30 mb-6 flex items-center gap-4">
+  <i class="fa-solid fa-circle-exclamation text-red-400 text-xl"></i>
+  <p class="text-red-300">qBittorrent is not reachable. Categories cannot be loaded.</p>
+</div>
+{% endif %}
+
+<div x-data="categoriesApp()" class="space-y-6">
+
+  <!-- ── Daredevil Defaults ── -->
+  <div class="glass rounded-2xl p-6">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-9 h-9 rounded-xl bg-brand-600/20 flex items-center justify-center">
+        <i class="fa-solid fa-tornado text-brand-400"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-gray-100">Daredevil Defaults</h2>
+        <p class="text-xs text-gray-500">Which qBittorrent category to use when adding TV episodes and movies</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-surface-800/60 rounded-xl p-4 border border-white/5">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-tv text-blue-400 text-sm"></i>
+          <span class="text-sm font-medium text-gray-200">TV Shows category</span>
+        </div>
+        <select id="tv-category-select"
+                class="w-full px-3 py-2 bg-surface-700 border border-white/10 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500/50">
+          {% for name, cat in categories.items %}
+          <option value="{{ name }}" {% if name == config.tv_category %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+          <option value="">— none —</option>
+        </select>
+        <p class="text-xs text-gray-600 mt-2">Current: <span class="text-brand-300 font-mono">{{ config.tv_category }}</span></p>
+      </div>
+
+      <div class="bg-surface-800/60 rounded-xl p-4 border border-white/5">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-film text-purple-400 text-sm"></i>
+          <span class="text-sm font-medium text-gray-200">Movies category</span>
+        </div>
+        <select id="movie-category-select"
+                class="w-full px-3 py-2 bg-surface-700 border border-white/10 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500/50">
+          {% for name, cat in categories.items %}
+          <option value="{{ name }}" {% if name == config.movie_category %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+          <option value="">— none —</option>
+        </select>
+        <p class="text-xs text-gray-600 mt-2">Current: <span class="text-brand-300 font-mono">{{ config.movie_category }}</span></p>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between mt-4">
+      <p x-show="defaultsSaved" x-cloak class="text-sm text-green-400 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check"></i> Saved
+      </p>
+      <div class="ml-auto">
+        <button @click="saveDefaults()"
+                class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+          <i class="fa-solid fa-floppy-disk mr-2"></i>Save Defaults
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Folder Structure Reference ── -->
+  <div class="glass rounded-2xl p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-9 h-9 rounded-xl bg-green-600/15 flex items-center justify-center">
+        <i class="fa-solid fa-folder-tree text-green-400"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-gray-100">Folder Structure</h2>
+        <p class="text-xs text-gray-500">Files are organised like this after moving — optimised for Plex</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Movies -->
+      <div class="bg-surface-800/50 rounded-xl border border-purple-500/15 p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-film text-purple-400 text-sm"></i>
+          <span class="text-sm font-semibold text-gray-200">Movies</span>
+        </div>
+        <div class="font-mono text-xs leading-relaxed text-gray-400 space-y-0.5">
+          <div><span class="text-green-400/80">completed path</span><span class="text-gray-600">/</span></div>
+          <div class="pl-4"><span class="text-purple-300">Movie Title (Year)</span><span class="text-gray-600">/</span></div>
+          <div class="pl-8 text-gray-500">Movie.Title.Year.1080p.mkv</div>
+        </div>
+        <p class="text-xs text-gray-600 mt-3 border-t border-white/5 pt-2">Example: <span class="text-gray-400 font-mono">Inception (2010)/</span></p>
+      </div>
+
+      <!-- TV -->
+      <div class="bg-surface-800/50 rounded-xl border border-blue-500/15 p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-tv text-blue-400 text-sm"></i>
+          <span class="text-sm font-semibold text-gray-200">TV Shows</span>
+        </div>
+        <div class="font-mono text-xs leading-relaxed text-gray-400 space-y-0.5">
+          <div><span class="text-green-400/80">completed path</span><span class="text-gray-600">/</span></div>
+          <div class="pl-4"><span class="text-blue-300">Show Name (Year)</span><span class="text-gray-600">/</span></div>
+          <div class="pl-8"><span class="text-blue-200/70">Season 01</span><span class="text-gray-600">/</span></div>
+          <div class="pl-12"><span class="text-blue-200/50">E01-Episode Name</span><span class="text-gray-600">/</span></div>
+          <div class="pl-16 text-gray-500">episode.mkv</div>
+        </div>
+        <p class="text-xs text-gray-600 mt-3 border-t border-white/5 pt-2">Example: <span class="text-gray-400 font-mono">Breaking Bad (2008)/Season 01/E01-Pilot/</span></p>
+      </div>
+    </div>
+
+    <div class="mt-3 flex items-start gap-2 px-3 py-2 bg-yellow-500/5 rounded-lg border border-yellow-500/10">
+      <i class="fa-solid fa-broom text-yellow-500/70 text-xs mt-0.5 flex-shrink-0"></i>
+      <p class="text-xs text-gray-500">
+        Junk files <span class="text-gray-400 font-mono">.nfo .txt .jpg .png .url</span> etc. are deleted after the move.
+        Video and subtitle files are kept.
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Category List ── -->
+  <div class="glass rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
+          <i class="fa-solid fa-folder-open text-yellow-400"></i>
+        </div>
+        <div>
+          <h2 class="text-base font-semibold text-gray-100">Categories</h2>
+          <p class="text-xs text-gray-500">{{ categories|length }} categor{{ categories|length|pluralize:"y,ies" }} · Download Path is sent to qBittorrent · Completed Path is where Daredevil moves files after finishing</p>
+        </div>
+      </div>
+      <button @click="showCreate = true"
+              class="px-3 py-2 bg-brand-600/30 hover:bg-brand-600/60 text-brand-300 border border-brand-600/30 rounded-xl text-sm font-medium transition-colors">
+        <i class="fa-solid fa-plus mr-1.5"></i>New Category
+      </button>
+    </div>
+
+    <!-- Create form -->
+    <div x-show="showCreate" x-cloak
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="mb-5 p-4 bg-surface-800/80 rounded-xl border border-brand-600/20">
+      <p class="text-sm font-medium text-gray-200 mb-3">New Category</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <input type="text" x-model="newName" placeholder="Name (e.g. tv-shows)"
+               class="px-3 py-2 bg-surface-700 border border-white/10 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500/50"
+               @keydown.escape="showCreate = false; newName = ''; newDlPath = ''; newCompPath = ''">
+        <input type="text" x-model="newDlPath" placeholder="Download path (optional)"
+               class="px-3 py-2 bg-surface-700 border border-white/10 rounded-lg text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500/50">
+        <input type="text" x-model="newCompPath" placeholder="Completed path (optional)"
+               class="px-3 py-2 bg-surface-700 border border-white/10 rounded-lg text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500/50">
+      </div>
+      <div class="flex gap-2">
+        <button @click="createCategory()"
+                class="px-3 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-medium transition-colors">
+          Create
+        </button>
+        <button @click="showCreate = false; newName = ''; newDlPath = ''; newCompPath = ''"
+                class="px-3 py-2 bg-surface-700 hover:bg-surface-600 text-gray-400 rounded-lg text-sm transition-colors">
+          Cancel
+        </button>
+      </div>
+      <p x-show="createError" x-text="createError" class="text-xs text-red-400 mt-2"></p>
+    </div>
+
+    {% if categories %}
+    <div class="space-y-3">
+      {% for name, cat in categories.items %}
+      <div class="bg-surface-800/40 rounded-xl border border-white/5 overflow-hidden">
+        <!-- Header row -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-folder text-yellow-500/70 text-sm flex-shrink-0"></i>
+            <span class="font-medium text-gray-100">{{ name }}</span>
+            {% if name == config.tv_category %}
+            <span class="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs flex-shrink-0">TV</span>
+            {% endif %}
+            {% if name == config.movie_category %}
+            <span class="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs flex-shrink-0">Movies</span>
+            {% endif %}
+            {% if cat.qbt_save_path %}
+            <span class="text-xs text-gray-600 font-mono truncate hidden md:block">qBT: {{ cat.qbt_save_path }}</span>
+            {% endif %}
+          </div>
+          <button @click="deleteCategory('{{ name }}')"
+                  class="ml-3 flex-shrink-0 px-2.5 py-1 bg-red-900/20 hover:bg-red-900/50 text-red-500 hover:text-red-400 rounded-lg text-xs transition-colors">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+
+        <!-- Path fields — single Alpine scope so both inputs share state -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 md:divide-x divide-white/5"
+             x-data="{ dlPath: '{{ cat.download_path|escapejs }}', compPath: '{{ cat.completed_path|escapejs }}', saved: false }"
+             @keydown.enter="savePaths('{{ name }}', dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)">
+
+          <!-- Download path -->
+          <div class="px-4 py-3">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-down text-blue-400"></i> Download Path
+              <span class="normal-case font-normal text-gray-600">sent to qBittorrent as save location</span>
+            </p>
+            <input type="text" x-model="dlPath"
+                   placeholder="e.g. /media/downloads/tv"
+                   class="w-full px-2.5 py-1.5 bg-surface-700 border border-white/10 rounded-lg text-xs font-mono text-gray-300 focus:outline-none focus:border-blue-500/40">
+          </div>
+
+          <!-- Completed path -->
+          <div class="px-4 py-3">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check text-green-400"></i> Completed Path
+              <span class="normal-case font-normal text-gray-600">Daredevil moves files here when done</span>
+            </p>
+            <input type="text" x-model="compPath"
+                   placeholder="e.g. /media/tv"
+                   class="w-full px-2.5 py-1.5 bg-surface-700 border border-white/10 rounded-lg text-xs font-mono text-gray-300 focus:outline-none focus:border-green-500/40">
+          </div>
+
+          <!-- Save row spanning both columns -->
+          <div class="col-span-full px-4 pb-3 flex items-center gap-3">
+            <button @click="savePaths('{{ name }}', dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)"
+                    class="px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/60 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium transition-colors">
+              <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Paths
+            </button>
+            <span x-show="saved" x-cloak class="text-xs text-green-400 flex items-center gap-1">
+              <i class="fa-solid fa-check"></i> Saved
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="py-12 text-center">
+      <i class="fa-solid fa-folder-open text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm">No categories yet</p>
+      <p class="text-gray-600 text-xs mt-1">Create one above to organise your downloads.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function categoriesApp() {
+  return {
+    showCreate: false,
+    newName: '',
+    newDlPath: '',
+    newCompPath: '',
+    createError: '',
+    defaultsSaved: false,
+
+    async saveDefaults() {
+      const tv    = document.getElementById('tv-category-select').value;
+      const movie = document.getElementById('movie-category-select').value;
+      const fd = new FormData();
+      fd.append('tv_category', tv);
+      fd.append('movie_category', movie);
+      const res = await fetch('/qbt/categories/defaults/', {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+      });
+      if (res.ok) {
+        this.defaultsSaved = true;
+        setTimeout(() => { this.defaultsSaved = false; location.reload(); }, 1200);
+      }
+    },
+
+    async createCategory() {
+      this.createError = '';
+      const name = this.newName.trim();
+      if (!name) { this.createError = 'Name is required'; return; }
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('save_path', this.newDlPath.trim());
+      const res = await fetch('/qbt/categories/create/', {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+      });
+      const data = await res.json();
+      if (!data.ok) { this.createError = data.error || 'Failed'; return; }
+      // Also save paths if provided
+      if (this.newDlPath.trim() || this.newCompPath.trim()) {
+        await this.savePaths(name, this.newDlPath.trim(), this.newCompPath.trim());
+      }
+      location.reload();
+    },
+
+    async savePaths(name, dlPath, compPath) {
+      const fd = new FormData();
+      fd.append('download_path', dlPath);
+      fd.append('completed_path', compPath);
+      await fetch(`/qbt/categories/${encodeURIComponent(name)}/paths/`, {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+      });
+    },
+
+    async deleteCategory(name) {
+      if (!confirm(`Delete category "${name}"?\n\nTorrents in this category will be uncategorised — they won't be deleted.`)) return;
+      const fd = new FormData();
+      const res = await fetch(`/qbt/categories/${encodeURIComponent(name)}/delete/`, {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+      });
+      const data = await res.json();
+      if (data.ok) location.reload();
+      else alert(data.error || 'Failed to delete');
+    },
+  };
+}
+</script>
+{% endblock %}
