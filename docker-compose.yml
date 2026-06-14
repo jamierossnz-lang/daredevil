@@ -1,0 +1,69 @@
+services:
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  # ── Django web server ──────────────────────────────────────────────────────
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - db_data:/app/db.sqlite3
+      # Mount your media folders here so the file browser and file-mover can
+      # access them. Adjust the host paths to match your machine.
+      #
+      # Example — macOS with network shares:
+      #   - /Volumes/nas/downloads:/media/downloads
+      #   - /Volumes/nas/movies:/media/movies
+      #   - /Volumes/nas/tv:/media/tv
+      #
+      # Example — Windows (Docker Desktop) — use forward slashes:
+      #   - D:/Downloads:/media/downloads
+      #   - D:/Movies:/media/movies
+      #   - D:/TV:/media/tv
+      #
+      # Then set your category Download/Completed Paths to the container paths:
+      #   Download:   /media/downloads
+      #   Completed:  /media/movies  or  /media/tv
+
+  # ── Celery worker ──────────────────────────────────────────────────────────
+  worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency 2
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - db_data:/app/db.sqlite3
+      # Add the same media volume mounts as the web service above
+
+  # ── Celery beat scheduler ──────────────────────────────────────────────────
+  beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - db_data:/app/db.sqlite3
+
+volumes:
+  redis_data:
+  db_data:

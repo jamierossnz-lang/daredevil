@@ -18,13 +18,74 @@ A self-hosted media manager that integrates [TMDB](https://www.themoviedb.org/) 
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| Python | 3.11+ | |
-| Redis | 7+ | Required for background tasks (Celery) |
+| Python | 3.11+ | Not needed if using Docker |
+| Redis | 7+ | Required for background tasks (Celery) — included in Docker |
 | qBittorrent | 4.6+ | Web UI must be enabled |
 
 ---
 
 ## Installation
+
+### Docker (recommended)
+
+The easiest way to run Daredevil on any OS. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/jamierossnz-lang/daredevil.git
+cd daredevil
+
+# 2. Create your .env file
+cp .env.example .env
+# Edit .env — set TMDB_API_KEY, QBITTORRENT_HOST/PORT/USER/PASS at minimum
+
+# 3. (Optional) Mount your media folders
+# Edit docker-compose.yml and uncomment the volume lines under the web + worker services.
+# Point them at your actual download/movie/TV folders.
+
+# 4. Start everything
+docker compose up -d
+
+# 5. Create an admin user
+docker compose exec web python manage.py createsuperuser
+```
+
+Open [http://localhost:8000](http://localhost:8000).
+
+**Useful commands:**
+
+```bash
+docker compose logs -f web          # live app logs
+docker compose logs -f worker       # Celery worker logs
+docker compose restart web          # restart after config change
+docker compose down                 # stop everything
+docker compose down -v              # stop + delete database (destructive!)
+```
+
+**Updating:**
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+**Media folders on Windows (Docker Desktop):**
+
+In `docker-compose.yml`, uncomment and set the volume paths using forward slashes:
+
+```yaml
+volumes:
+  - D:/Downloads:/media/downloads
+  - D:/Movies:/media/movies
+  - D:/TV:/media/tv
+```
+
+Then in Daredevil's Categories page, set paths to `/media/downloads`, `/media/movies`, `/media/tv`.
+
+> **Note on SQLite + Docker:** The database is stored in a named Docker volume (`db_data`). It's shared between the web, worker, and beat containers using file locking. This works fine for personal/single-user use. For high-concurrency production deployments, switch to PostgreSQL.
+
+---
 
 ### macOS / Linux
 
@@ -64,7 +125,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 #### Option A — WSL2 (recommended)
 
-1. Install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and a Linux distro (Ubuntu 22.04 works well)
+1. Install [WSL2](https://learn.mic rosoft.com/en-us/windows/wsl/install) and a Linux distro (Ubuntu 22.04 works well)
 2. Inside WSL, follow the **macOS / Linux** steps above
 3. Redis: `sudo apt install redis-server && sudo service redis-server start`
 4. Access Daredevil at `http://localhost:8000` from your Windows browser
