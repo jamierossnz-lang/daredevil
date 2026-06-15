@@ -11,6 +11,17 @@ class TMDBClient:
         resp.raise_for_status()
         return resp.json()
 
+    # ── Discover ────────────────────────────────────────────────────────────
+
+    def discover_tv(self, **params):
+        return self._get('/discover/tv', **params)
+
+    def discover_movie(self, **params):
+        return self._get('/discover/movie', **params)
+
+    def tv_on_the_air(self, page=1):
+        return self._get('/tv/on_the_air', page=page)
+
     # ── Search ──────────────────────────────────────────────────────────────
 
     def search_tv(self, query, page=1):

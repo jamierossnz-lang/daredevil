@@ -4,6 +4,7 @@ from . import task_views
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('discover/', views.dashboard_discover, name='dashboard_discover'),
 
     # TV Shows
     path('shows/', views.tv_shows, name='tv_shows'),

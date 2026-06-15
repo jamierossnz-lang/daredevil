@@ -232,8 +232,8 @@
       <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-400 hover:text-white">
         <i class="fa-solid fa-bars text-lg"></i>
       </button>
-      <div class="flex-1">
-        <h1 class="text-lg font-semibold text-gray-100">{% block page_title %}{% endblock %}</h1>
+      <div class="flex-1 min-w-0">
+        <h1 class="text-lg font-semibold text-gray-100 truncate">{% block page_title %}{% endblock %}</h1>
       </div>
       <div class="flex items-center gap-3">
         {% block header_actions %}{% endblock %}
@@ -258,11 +258,47 @@
     {% endif %}
 
     <!-- Page Content -->
-    <main class="flex-1 px-4 lg:px-6 py-6">
+    <main class="flex-1 px-4 lg:px-6 pt-6 pb-24 lg:pb-8">
       {% block content %}{% endblock %}
     </main>
 
   </div>
+
+  <!-- Mobile bottom navigation -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 lg:hidden glass-dark border-t border-purple-900/30">
+    <div class="flex h-16">
+      <a href="{{ url_dashboard }}"
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
+                {% if request.path == url_dashboard %}text-brand-400{% else %}text-gray-500{% endif %}">
+        <i class="fa-solid fa-gauge-high text-lg"></i>
+        <span class="text-[10px] font-medium">Home</span>
+      </a>
+      <a href="{{ url_shows }}"
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
+                {% if url_shows in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+        <i class="fa-solid fa-tv text-lg"></i>
+        <span class="text-[10px] font-medium">Shows</span>
+      </a>
+      <a href="{{ url_movies }}"
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
+                {% if url_movies in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+        <i class="fa-solid fa-film text-lg"></i>
+        <span class="text-[10px] font-medium">Movies</span>
+      </a>
+      <a href="{{ url_queue }}"
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
+                {% if url_queue in request.path or url_moves in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+        <i class="fa-solid fa-download text-lg"></i>
+        <span class="text-[10px] font-medium">Queue</span>
+      </a>
+      <a href="{{ url_qbt }}"
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
+                {% if url_qbt in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+        <i class="fa-solid fa-seedling text-lg"></i>
+        <span class="text-[10px] font-medium">Torrents</span>
+      </a>
+    </div>
+  </nav>
 
   {% block extra_js %}{% endblock %}
 </body>

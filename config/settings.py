@@ -109,6 +109,8 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TIMEZONE = TIME_ZONE
+# Schedules are stored in the database (DatabaseScheduler) and managed via the
+# Background Tasks UI.  Run `python manage.py setup_schedules` to seed defaults.
 
 LOGGING = {
     'version': 1,

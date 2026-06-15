@@ -6,15 +6,15 @@ class Command(BaseCommand):
     help = 'Create default Celery Beat periodic tasks'
 
     def handle(self, *args, **options):
-        hourly, _ = IntervalSchedule.objects.get_or_create(every=1, period=IntervalSchedule.HOURS)
-        daily, _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
-        every5min, _ = IntervalSchedule.objects.get_or_create(every=5, period=IntervalSchedule.MINUTES)
+        hourly,   _ = IntervalSchedule.objects.get_or_create(every=1,  period=IntervalSchedule.HOURS)
+        daily,    _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
+        every30m, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.MINUTES)
 
         tasks = [
-            ('Sync all TV shows from TMDB', 'sync_all_shows', daily),
-            ('Queue new episodes for monitored shows', 'queue_new_episodes', hourly),
-            ('Check movie digital release dates', 'check_movie_releases', hourly),
-            ('Sync download progress', 'sync_download_progress', every5min),
+            ('Sync all TV shows from TMDB',           'sync_all_shows',           daily),
+            ('Queue new episodes for monitored shows', 'queue_new_episodes',       every30m),
+            ('Check movie digital release dates',      'check_movie_releases',     hourly),
+            ('Clean up non-video files',               'cleanup_non_video_files',  daily),
         ]
 
         for name, task_name, schedule in tasks:

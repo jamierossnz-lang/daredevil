@@ -28,6 +28,109 @@ def dashboard(request):
     return render(request, 'dashboard.html', context)
 
 
+def dashboard_discover(request):
+    """AJAX — all 8 discover sliders, 30-min cached, fetched in parallel."""
+    from django.core.cache import cache
+    from datetime import date, timedelta
+    import concurrent.futures
+
+    today = date.today()
+    this_week_start = today - timedelta(days=today.weekday())
+    last_week_start = this_week_start - timedelta(days=7)
+    last_week_end   = last_week_start + timedelta(days=6)
+
+    IMG_BASE  = 'https://image.tmdb.org/t/p/w300'
+    STREAMING = '8|9|337|350|15|1899'   # Netflix|Prime|Disney+|Apple TV+|Hulu|Max
+    CACHE_TTL = 1800
+
+    def _raw(key, method, **kwargs):
+        cache_key = f'disc_{key}_{today}'
+        hit = cache.get(cache_key)
+        if hit is not None:
+            return hit
+        try:
+            results = method(**kwargs).get('results', [])
+        except Exception:
+            results = []
+        cache.set(cache_key, results, CACHE_TTL)
+        return results
+
+    def _fmt(results, is_tv):
+        items = []
+        for r in results[:20]:
+            poster = r.get('poster_path')
+            items.append({
+                'tmdb_id': r.get('id'),
+                'title':   r.get('name') if is_tv else r.get('title'),
+                'poster':  f'{IMG_BASE}{poster}' if poster else None,
+                'year':    (r.get('first_air_date') or r.get('release_date') or '')[:4],
+                'rating':  round(r.get('vote_average', 0), 1),
+            })
+        return items
+
+    spec = [
+        ('tv_new_this_week', tmdb.discover_tv, True, {
+            'first_air_date.gte': this_week_start.isoformat(),
+            'first_air_date.lte': today.isoformat(),
+            'sort_by': 'popularity.desc',
+        }),
+        ('tv_new_last_week', tmdb.discover_tv, True, {
+            'first_air_date.gte': last_week_start.isoformat(),
+            'first_air_date.lte': last_week_end.isoformat(),
+            'sort_by': 'popularity.desc',
+        }),
+        ('tv_returning_this_week', tmdb.discover_tv, True, {
+            'air_date.gte': this_week_start.isoformat(),
+            'air_date.lte': today.isoformat(),
+            'with_status': 0,
+            'sort_by': 'popularity.desc',
+        }),
+        ('tv_returning_last_week', tmdb.discover_tv, True, {
+            'air_date.gte': last_week_start.isoformat(),
+            'air_date.lte': last_week_end.isoformat(),
+            'with_status': 0,
+            'sort_by': 'popularity.desc',
+        }),
+        ('movies_streaming_this_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': this_week_start.isoformat(),
+            'primary_release_date.lte': today.isoformat(),
+            'with_watch_providers': STREAMING,
+            'watch_region': 'US',
+            'sort_by': 'popularity.desc',
+        }),
+        ('movies_streaming_last_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': last_week_start.isoformat(),
+            'primary_release_date.lte': last_week_end.isoformat(),
+            'with_watch_providers': STREAMING,
+            'watch_region': 'US',
+            'sort_by': 'popularity.desc',
+        }),
+        ('movies_digital_this_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': this_week_start.isoformat(),
+            'primary_release_date.lte': today.isoformat(),
+            'with_release_type': 4,
+            'sort_by': 'popularity.desc',
+        }),
+        ('movies_digital_last_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': last_week_start.isoformat(),
+            'primary_release_date.lte': last_week_end.isoformat(),
+            'with_release_type': 4,
+            'sort_by': 'popularity.desc',
+        }),
+    ]
+
+    def _fetch(entry):
+        key, method, is_tv, kwargs = entry
+        return key, _fmt(_raw(key, method, **kwargs), is_tv)
+
+    result = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        for key, items in pool.map(_fetch, spec):
+            result[key] = items
+
+    return JsonResponse(result)
+
+
 # ── TV Shows ─────────────────────────────────────────────────────────────────
 
 def tv_shows(request):

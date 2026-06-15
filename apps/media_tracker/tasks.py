@@ -1,9 +1,55 @@
+import os
 import re
 import logging
 from celery import shared_task
 from django.utils import timezone
 
 log = logging.getLogger('daredevil.tasks')
+
+_VIDEO_EXTENSIONS = {
+    '.mkv', '.mp4', '.avi', '.mov', '.m4v', '.wmv',
+    '.ts', '.m2ts', '.mpg', '.mpeg', '.webm', '.flv', '.3gp',
+}
+
+
+@shared_task(name='cleanup_non_video_files')
+def cleanup_non_video_files():
+    """
+    Walk every completed_path configured in CategoryPath and delete any file
+    whose extension is not a recognised video format.
+    Directories are never deleted — only files.
+    """
+    from apps.qbt.models import CategoryPath
+
+    paths = [
+        cp.completed_path
+        for cp in CategoryPath.objects.all()
+        if cp.completed_path
+    ]
+
+    if not paths:
+        log.info('cleanup_non_video_files: no completed_path configured, nothing to do')
+        return
+
+    deleted = 0
+    for base_path in paths:
+        if not os.path.isdir(base_path):
+            log.warning('cleanup_non_video_files: path %r does not exist, skipping', base_path)
+            continue
+
+        for root, _dirs, files in os.walk(base_path):
+            for fname in files:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in _VIDEO_EXTENSIONS:
+                    fpath = os.path.join(root, fname)
+                    try:
+                        os.remove(fpath)
+                        log.info('cleanup_non_video_files: deleted %r', fpath)
+                        deleted += 1
+                    except Exception as e:
+                        log.warning('cleanup_non_video_files: could not delete %r — %s', fpath, e)
+
+    log.info('cleanup_non_video_files: done — deleted %d file(s)', deleted)
 
 
 @shared_task(name='sync_all_shows')
@@ -95,46 +141,46 @@ def search_and_download(download_item_id):
         # queue page can pick this up when the user visits.
         return
 
-    query, fallback_query, quality = _build_query(item)
-    log.info('search_and_download pk=%s: query=%r fallback=%r quality=%s', download_item_id, query, fallback_query, quality)
+    queries, quality = _build_queries(item)
+    log.info('search_and_download pk=%s: queries=%r quality=%s', download_item_id, queries, quality)
 
     item.status = DownloadItem.Status.SEARCHING
-    item.search_query = query
+    item.search_query = queries[0]
     item.result_count = -1
     item.save(update_fields=['status', 'search_query', 'result_count'])
 
-    try:
-        results = search_torrents(query)
-        log.info('search_and_download pk=%s: primary search returned %d results', download_item_id, len(results))
-    except Exception as e:
-        log.error('search_and_download pk=%s: search_torrents raised %s: %s', download_item_id, type(e).__name__, e)
+    episode_code = None
+    if item.media_type == DownloadItem.MediaType.EPISODE:
+        m = re.search(r'S\d+E\d+', queries[0], re.IGNORECASE)
+        if m:
+            episode_code = m.group(0).upper()
+
+    best = None
+    tried = []
+    for query in queries:
+        tried.append(query)
+        item.search_query = query
+        item.save(update_fields=['search_query'])
+        try:
+            results = search_torrents(query)
+            log.info('search_and_download pk=%s: query=%r → %d results', download_item_id, query, len(results))
+        except Exception as e:
+            log.error('search_and_download pk=%s: search_torrents raised %s: %s', download_item_id, type(e).__name__, e)
+            continue
+        if not results:
+            continue
+        best = _pick_best(results, quality, media_type=item.media_type, episode_code=episode_code, show_name=item.title)
+        if best:
+            item.result_count = len(results)
+            item.save(update_fields=['result_count'])
+            break
+
+    if not best:
+        log.warning('search_and_download pk=%s: no suitable torrent found after %d queries', download_item_id, len(tried))
         item.status = DownloadItem.Status.FAILED
-        item.error_message = f'Search failed: {e}'
+        item.error_message = f'No results — tried: {", ".join(repr(q) for q in tried)}'
         item.result_count = 0
         item.save(update_fields=['status', 'error_message', 'result_count'])
-        return
-
-    # If primary query (with quality) returned nothing, retry with bare query
-    if not results and fallback_query != query:
-        log.info('search_and_download pk=%s: no results, retrying with fallback %r', download_item_id, fallback_query)
-        try:
-            results = search_torrents(fallback_query)
-            log.info('search_and_download pk=%s: fallback returned %d results', download_item_id, len(results))
-            if results:
-                item.search_query = f'{fallback_query} (any quality)'
-                item.save(update_fields=['search_query'])
-        except Exception as e:
-            log.error('search_and_download pk=%s: fallback search failed: %s', download_item_id, e)
-
-    item.result_count = len(results) if results else 0
-    item.save(update_fields=['result_count'])
-
-    best = _pick_best(results, quality, media_type=item.media_type)
-    if not best:
-        log.warning('search_and_download pk=%s: no suitable torrent found', download_item_id)
-        item.status = DownloadItem.Status.FAILED
-        item.error_message = f'No results found — tried "{query}" and "{fallback_query}"'
-        item.save(update_fields=['status', 'error_message'])
         return
 
     magnet = best.get('fileUrl', '')
@@ -199,10 +245,17 @@ _QUALITY_KEYWORDS = {
 }
 
 
-def _build_query(item):
+def _build_queries(item):
     """
-    Return (primary_query, fallback_query, quality_string).
-    Primary includes quality suffix; fallback is the same without it.
+    Return (queries, quality) where queries is an ordered list from most to least specific.
+
+    For TV episodes the 4-tier strategy is:
+      1. {Show} SxxExx {quality}
+      2. {Show} SxxExx {episode name} {quality}  (if name available)
+      3. {Show} SxxExx
+      4. {Show} SxxExx {episode name}             (if name available)
+
+    For movies: [{title} {year} {quality}, {title} {year}]
     """
     from apps.downloads.models import DownloadItem
     from apps.media_tracker.models import Episode
@@ -211,16 +264,26 @@ def _build_query(item):
         try:
             ep = Episode.objects.select_related('season').get(pk=item.episode_id)
             base = f'{item.title} S{ep.season.season_number:02d}E{ep.episode_number:02d}'
+            ep_name = (ep.name or '').strip()
         except Episode.DoesNotExist:
-            # Strip trailing " - Episode Name" from subtitle if present
-            base = item.subtitle.split(' - ')[0] if ' - ' in item.subtitle else item.subtitle
-        return f'{base} 1080p', base, '1080p'
+            subtitle = item.subtitle or ''
+            base = subtitle.split(' - ')[0].strip() if ' - ' in subtitle else subtitle or item.title
+            ep_name = ''
+
+        quality = '1080p'
+        queries = [f'{base} {quality}']
+        if ep_name:
+            queries.append(f'{base} {ep_name} {quality}')
+        queries.append(base)
+        if ep_name:
+            queries.append(f'{base} {ep_name}')
+        return queries, quality
 
     else:
         year = str(item.release_date.year) if item.release_date else ''
         quality = item.quality or '1080p'
         base = ' '.join(filter(None, [item.title, year]))
-        return f'{base} {quality}', base, quality
+        return [f'{base} {quality}', base], quality
 
 
 _MIN_SEEDS = 3  # don't pick a torrent with fewer seeds than this
@@ -229,18 +292,60 @@ _TV_SIZE_MIN = 1 * 1024 ** 3      # 1 GB — lower bound of preferred range
 _TV_SIZE_MAX = 2 * 1024 ** 3      # 2 GB — upper bound of preferred range
 
 
-def _pick_best(results, quality=None, media_type=None):
+def _norm_title(s):
+    """Lowercase, replace punctuation/separators with spaces, collapse whitespace."""
+    return re.sub(r'\s+', ' ', re.sub(r'[^a-z0-9 ]', ' ', (s or '').lower())).strip()
+
+
+def _pick_best(results, quality=None, media_type=None, episode_code=None, show_name=None):
     """
     Pick the best torrent from search results.
 
-    For TV episodes: prefer 1–2 GB files (typical 1080p episode).
-    If nothing fits, escalate to larger files before falling back to anything.
+    For TV episodes: filter to results where:
+      1. The filename starts with the (normalised) show name
+      2. The filename contains the expected SxxExx code
+    Both are hard gates — returning the wrong show/episode is worse than failing.
     For movies: pick the best-seeded match regardless of size.
     """
     from apps.downloads.models import DownloadItem
 
     if not results:
         return None
+
+    # ── Show name prefix filter (TV only) ────────────────────────────────────
+    if show_name and media_type == DownloadItem.MediaType.EPISODE:
+        show_norm = _norm_title(show_name)
+        if show_norm:
+            name_filtered = [
+                r for r in results
+                if _norm_title(r.get('fileName') or '').startswith(show_norm)
+            ]
+            if name_filtered:
+                log.info('_pick_best: show-name filter %r → %d of %d results kept',
+                         show_name, len(name_filtered), len(results))
+                results = name_filtered
+            else:
+                log.warning('_pick_best: 0 results start with show name %r — skipping this query tier',
+                            show_name)
+                return None
+
+    # ── Episode code filter (hard gate — wrong episode is worse than no download) ──
+    if episode_code:
+        m = re.match(r'S(\d+)E(\d+)', episode_code, re.IGNORECASE)
+        if m:
+            season = int(m.group(1))
+            ep     = int(m.group(2))
+            # Matches S01E03, S1E3, S001E003 but NOT S04E03 or S01E30
+            pat = re.compile(rf'S0*{season}E0*{ep}(?!\d)', re.IGNORECASE)
+            ep_filtered = [r for r in results if pat.search(r.get('fileName') or '')]
+            if ep_filtered:
+                log.info('_pick_best: episode filter %r → %d of %d results kept',
+                         episode_code, len(ep_filtered), len(results))
+                results = ep_filtered
+            else:
+                log.warning('_pick_best: 0 results contain %r — refusing to pick wrong episode',
+                            episode_code)
+                return None
 
     # ── Quality filter ────────────────────────────────────────────────────────
     if quality:

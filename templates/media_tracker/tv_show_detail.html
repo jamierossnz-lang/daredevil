@@ -76,10 +76,10 @@
           {% if season.air_date %}· {{ season.air_date|date:"Y" }}{% endif %}</p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 flex-shrink-0">
       <button onclick="event.stopPropagation(); queueSeason({{ show.pk }}, {{ season.season_number }})"
               class="px-3 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
-        <i class="fa-solid fa-download mr-1"></i>Season
+        <i class="fa-solid fa-download"></i><span class="hidden sm:inline ml-1">Season</span>
       </button>
       <i class="fa-solid fa-chevron-down text-gray-500 transition-transform" :class="open ? 'rotate-180' : ''"></i>
     </div>
@@ -118,7 +118,7 @@
           <span class="text-yellow-400 text-xs"><i class="fa-solid fa-clock"></i></span>
           {% else %}
           <button onclick="queueEpisode({{ show.pk }}, {{ ep.pk }})"
-                  class="opacity-0 group-hover:opacity-100 px-2 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded text-xs transition-all border border-brand-600/30">
+                  class="sm:opacity-0 sm:group-hover:opacity-100 px-2 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded text-xs transition-all border border-brand-600/30">
             <i class="fa-solid fa-download"></i>
           </button>
           {% endif %}

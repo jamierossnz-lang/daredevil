@@ -332,10 +332,7 @@ def _format_eta(seconds):
 
 # ── File-move helpers ─────────────────────────────────────────────────────────
 
-# Video formats worth keeping; everything else is junk
-_VIDEO_EXTS    = {'.mkv', '.mp4', '.avi', '.m4v', '.mov', '.wmv', '.ts', '.m2ts',
-                  '.mpg', '.mpeg', '.flv', '.webm', '.divx', '.xvid', '.vob', '.iso'}
-_SUBTITLE_EXTS = {'.srt', '.ass', '.ssa', '.sub', '.idx', '.vtt', '.sup', '.pgs'}
+
 
 
 def _sanitise_name(name):
@@ -393,27 +390,6 @@ def _compute_plex_dest(item, base_path):
 
 
 
-def _find_main_video(path):
-    """Return the path to the largest video file under path (file or directory)."""
-    import os
-    if os.path.isfile(path):
-        return path if os.path.splitext(path)[1].lower() in _VIDEO_EXTS else None
-    best, best_size = None, -1
-    try:
-        for root, _dirs, files in os.walk(path):
-            for fname in files:
-                if os.path.splitext(fname)[1].lower() in _VIDEO_EXTS:
-                    fpath = os.path.join(root, fname)
-                    try:
-                        size = os.path.getsize(fpath)
-                    except Exception:
-                        continue
-                    if size > best_size:
-                        best_size, best = size, fpath
-    except Exception:
-        pass
-    return best
-
 
 def _maybe_queue_file_move(item, torrent):
     """If the category has a completed_path configured, create a FileMove and start it."""
@@ -426,13 +402,18 @@ def _maybe_queue_file_move(item, torrent):
     if not cat_path or not cat_path.completed_path:
         return
 
-    # Source: category download path + torrent folder/file name.
-    # download_path should be configured with the path Daredevil can access directly.
-    torrent_name = getattr(torrent, 'name', '')
-    if cat_path.download_path and torrent_name:
+    # Source: prefer content_path when it's accessible on this filesystem (same-machine
+    # setup) because it includes the correct filename and extension.  Fall back to
+    # download_path + torrent name for cross-machine / network-mount setups where the
+    # qBT-side path isn't valid here.
+    torrent_name  = getattr(torrent, 'name', '')
+    content_path  = getattr(torrent, 'content_path', None)
+    if content_path and os.path.exists(content_path):
+        source = content_path
+    elif cat_path.download_path and torrent_name:
         source = os.path.join(cat_path.download_path, torrent_name)
     else:
-        source = getattr(torrent, 'content_path', None) or getattr(torrent, 'save_path', None)
+        source = content_path or getattr(torrent, 'save_path', None)
 
     if not source:
         log.warning('_maybe_queue_file_move item=%d: cannot determine source path, skipping', item.id)
@@ -457,11 +438,7 @@ def _maybe_queue_file_move(item, torrent):
 
 
 def _run_file_move(move_id):
-    """
-    Move the main video file from source_path to dest_path using direct filesystem access.
-    Any subtitle file sharing the same stem as the video is also moved.
-    Non-video files are ignored.
-    """
+    """Move everything at source_path into dest_path."""
     import os, shutil
     try:
         move = FileMove.objects.get(pk=move_id)
@@ -471,37 +448,27 @@ def _run_file_move(move_id):
         source_path = move.source_path
         dest_path   = move.dest_path
 
-        # Find the largest video file at/under source_path
-        video_file = _find_main_video(source_path)
-        if not video_file:
-            raise FileNotFoundError(f'No video file found at {source_path}')
-
-        log.info('_run_file_move id=%d: video → %r', move_id, os.path.basename(video_file))
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f'Source not found: {source_path}')
 
         os.makedirs(dest_path, exist_ok=True)
 
-        # Move the video file
-        dest_file = os.path.join(dest_path, os.path.basename(video_file))
-        shutil.move(video_file, dest_file)
-        log.info('_run_file_move id=%d: moved to %r', move_id, dest_file)
+        if os.path.isfile(source_path):
+            # Single file — move it directly into dest_path
+            dest_file = os.path.join(dest_path, os.path.basename(source_path))
+            shutil.move(source_path, dest_file)
+            log.info('_run_file_move id=%d: moved file → %r', move_id, dest_file)
+        else:
+            # Directory — move every file inside it into dest_path (flat)
+            for root, _dirs, files in os.walk(source_path):
+                for fname in files:
+                    src_file  = os.path.join(root, fname)
+                    dest_file = os.path.join(dest_path, fname)
+                    shutil.move(src_file, dest_file)
+                    log.info('_run_file_move id=%d: moved %r', move_id, fname)
 
-        # Move any subtitle files that share the same stem
-        video_stem = os.path.splitext(os.path.basename(video_file))[0]
-        source_dir = os.path.dirname(video_file)
-        try:
-            for fname in os.listdir(source_dir):
-                if (os.path.splitext(fname)[0] == video_stem
-                        and os.path.splitext(fname)[1].lower() in _SUBTITLE_EXTS):
-                    shutil.move(
-                        os.path.join(source_dir, fname),
-                        os.path.join(dest_path, fname),
-                    )
-                    log.info('_run_file_move id=%d: moved subtitle %r', move_id, fname)
-        except Exception as e:
-            log.debug('_run_file_move id=%d: subtitle scan error — %s', move_id, e)
-
-        move.status       = FileMove.Status.COMPLETED
-        move.completed_at = timezone.now()
+        move.status        = FileMove.Status.COMPLETED
+        move.completed_at  = timezone.now()
         move.error_message = ''
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('_run_file_move id=%d: completed → %r', move_id, dest_path)

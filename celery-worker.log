@@ -203,3 +203,15 @@ KeyError: 'execute_file_move'
 [2026-06-14 09:03:12,924: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[9caff923-56d9-4c00-9920-8b5435f93842] succeeded in 0.008095042081549764s: None
 [2026-06-14 10:03:12,912: INFO/MainProcess] Task celery.backend_cleanup[7c000f4e-c993-48b5-93a5-5106032a0b6e] received
 [2026-06-14 10:03:12,929: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[7c000f4e-c993-48b5-93a5-5106032a0b6e] succeeded in 0.012195749906823039s: None
+[2026-06-14 11:03:12,912: INFO/MainProcess] Task celery.backend_cleanup[145f881a-7223-4894-a693-2cd6a93463ed] received
+[2026-06-14 11:03:12,921: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[145f881a-7223-4894-a693-2cd6a93463ed] succeeded in 0.006508291931822896s: None
+[2026-06-14 11:22:21,762: INFO/MainProcess] Task sync_all_shows[b70891ba-f870-400f-83d8-424c7fd73b34] received
+[2026-06-14 11:22:25,481: INFO/ForkPoolWorker-8] Task sync_all_shows[b70891ba-f870-400f-83d8-424c7fd73b34] succeeded in 3.717205750057474s: None
+[2026-06-14 12:17:31,372: INFO/MainProcess] Task celery.backend_cleanup[d55e4b2a-2c2b-4947-99f8-e2fe0505ca34] received
+[2026-06-14 12:17:31,390: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[d55e4b2a-2c2b-4947-99f8-e2fe0505ca34] succeeded in 0.01332775002811104s: None
+[2026-06-14 13:29:36,815: INFO/MainProcess] Task celery.backend_cleanup[07ce80f6-b604-4bb9-be16-8a2e2342799b] received
+[2026-06-14 13:29:36,822: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[07ce80f6-b604-4bb9-be16-8a2e2342799b] succeeded in 0.006200958043336868s: None
+[2026-06-15 08:31:12,538: INFO/MainProcess] Task celery.backend_cleanup[083ca351-b4dc-4460-a2c0-298ab2b2c25a] received
+[2026-06-15 08:31:12,561: INFO/ForkPoolWorker-8] Task celery.backend_cleanup[083ca351-b4dc-4460-a2c0-298ab2b2c25a] succeeded in 0.015359875047579408s: None
+[2026-06-15 09:01:12,731: INFO/MainProcess] Task sync_all_shows[02f7e3ff-9b65-4daf-8831-d99b144cf661] received
+[2026-06-15 09:01:16,575: INFO/ForkPoolWorker-8] Task sync_all_shows[02f7e3ff-9b65-4daf-8831-d99b144cf661] succeeded in 3.8413309580646455s: None

@@ -6,32 +6,35 @@
 <!-- Single Alpine scope wraps BOTH the tabs and the panels -->
 <div x-data="{ tab: 'active' }">
 
-  <!-- Tab bar -->
-  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit mb-6">
-    <button @click="tab = 'active'"
-            :class="tab === 'active' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
-            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
-      Active
-      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ active|length }}</span>
-    </button>
-    <button @click="tab = 'waiting'"
-            :class="tab === 'waiting' ? 'bg-surface-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
-            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
-      Awaiting Release
-      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ waiting|length }}</span>
-    </button>
-    <button @click="tab = 'completed'"
-            :class="tab === 'completed' ? 'bg-green-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
-            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
-      Completed
-      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ completed|length }}</span>
-    </button>
-    <button @click="tab = 'failed'"
-            :class="tab === 'failed' ? 'bg-red-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
-            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
-      Failed
-      <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ failed|length }}</span>
-    </button>
+  <!-- Tab bar (scrollable on mobile) -->
+  <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
+    <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-max sm:w-fit">
+      <button @click="tab = 'active'"
+              :class="tab === 'active' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap">
+        Active
+        <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ active|length }}</span>
+      </button>
+      <button @click="tab = 'waiting'"
+              :class="tab === 'waiting' ? 'bg-surface-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap">
+        <span class="hidden sm:inline">Awaiting Release</span>
+        <span class="sm:hidden">Waiting</span>
+        <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ waiting|length }}</span>
+      </button>
+      <button @click="tab = 'completed'"
+              :class="tab === 'completed' ? 'bg-green-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap">
+        Done
+        <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ completed|length }}</span>
+      </button>
+      <button @click="tab = 'failed'"
+              :class="tab === 'failed' ? 'bg-red-700 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap">
+        Failed
+        <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ failed|length }}</span>
+      </button>
+    </div>
   </div>
 
   <!-- ── Active Downloads ── -->
@@ -40,7 +43,7 @@
     <div class="space-y-3" id="activeList">
       {% for item in active %}
       <div class="glass rounded-2xl p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
-           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}>
+           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}>
         <div class="flex items-start gap-4">
           {% if item.poster_url %}
           <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
@@ -266,61 +269,111 @@
 const csrfToken = '{{ csrf_token }}';
 const activeSearches = new Set(); // prevent duplicate concurrent searches
 
-// ── Search a single queued item via the browser (same endpoint as search UI) ──
+// ── Normalise a string for show-name prefix matching ─────────────────────────
+function normTitle(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
-async function searchItem(pk, query) {
+// ── Search a single queued item via the browser (same endpoint as search UI) ──
+// Implements 4-tier fallback for TV episodes:
+//   1. {Show} SxxExx {quality}
+//   2. {Show} SxxExx {ep name} {quality}   (if episode name available)
+//   3. {Show} SxxExx
+//   4. {Show} SxxExx {ep name}             (if episode name available)
+// Each tier's results are filtered: show-name prefix then SxxExx code.
+
+async function searchItem(pk, initialQuery) {
   if (activeSearches.has(pk)) return;
   activeSearches.add(pk);
 
+  const el = document.getElementById(`dl-item-${pk}`);
+  const showName  = el ? (el.dataset.showName  || '') : '';
+  const subtitle  = el ? (el.dataset.subtitle  || '') : '';
+  const quality   = el ? (el.dataset.quality   || '1080p') : '1080p';
+  const mediaType = el ? (el.dataset.mediaType || '') : '';
+
+  // Extract episode name from subtitle: "SHOW S01E03 - Ep Name" → "Ep Name"
+  const dashIdx = subtitle.indexOf(' - ');
+  const epName  = dashIdx >= 0 ? subtitle.slice(dashIdx + 3).trim() : '';
+
+  // Extract "SHOW S01E03" base and episode code from initial query
+  const baseMatch = initialQuery.match(/^(.+?)\s+(S\d{1,2}E\d{1,2})\b/i);
+  let queries;
+  if (mediaType === 'episode' && baseMatch) {
+    const base = `${baseMatch[1]} ${baseMatch[2].toUpperCase()}`;
+    queries = [`${base} ${quality}`];
+    if (epName) queries.push(`${base} ${epName} ${quality}`);
+    queries.push(base);
+    if (epName) queries.push(`${base} ${epName}`);
+  } else {
+    // Movie or unparseable: with quality then without
+    queries = [initialQuery];
+    const bare = initialQuery.replace(/\s+\S+$/, '').trim();
+    if (bare && bare !== initialQuery) queries.push(bare);
+  }
+
+  // Filters derived from initial query
+  const epCodeMatch = initialQuery.match(/S(\d{1,2})E(\d{1,2})/i);
+  const epPat = epCodeMatch
+    ? new RegExp(`S0*${parseInt(epCodeMatch[1],10)}E0*${parseInt(epCodeMatch[2],10)}(?!\\d)`, 'i')
+    : null;
+  const showNorm = normTitle(showName);
+
   setStage(pk, 'Searching…', 'fa-spinner fa-spin');
-  setQuery(pk, query);
+  setQuery(pk, queries[0]);
   setCount(pk, null, 'Querying search plugins…');
 
+  const tried = [];
   try {
-    const fd = new FormData();
-    fd.append('q', query);
-    const res = await fetch('/qbt/search/run/', {
-      method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken}
-    });
-    const data = await res.json();
+    for (const query of queries) {
+      tried.push(query);
+      setStage(pk, `Trying: ${query}`, 'fa-spinner fa-spin');
+      setQuery(pk, query);
 
-    if (data.error) {
-      await failItem(pk, `Search error: ${data.error}`, 0);
-      return;
-    }
-
-    const results = data.results || [];
-    setCount(pk, results.length, null);
-
-    if (results.length === 0) {
-      // Retry without quality suffix (strip last word)
-      const bare = query.replace(/\s+\S+$/, '').trim();
-      if (bare && bare !== query) {
-        setStage(pk, 'Retrying without quality…', 'fa-spinner fa-spin');
-        setQuery(pk, bare + ' (any quality)');
-        setCount(pk, null, 'Retrying…');
-
-        const fd2 = new FormData();
-        fd2.append('q', bare);
-        const res2 = await fetch('/qbt/search/run/', {
-          method: 'POST', body: fd2, headers: {'X-CSRFToken': csrfToken}
+      let results;
+      try {
+        const fd = new FormData();
+        fd.append('q', query);
+        const res = await fetch('/qbt/search/run/', {
+          method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken}
         });
-        const data2 = await res2.json();
-        const results2 = data2.results || [];
-        setCount(pk, results2.length, null);
+        const data = await res.json();
+        if (data.error) { console.warn(`[daredevil] search error for "${query}":`, data.error); continue; }
+        results = data.results || [];
+      } catch(e) { console.warn(`[daredevil] fetch error for "${query}":`, e); continue; }
 
-        if (results2.length === 0) {
-          await failItem(pk, `No results — tried "${query}" and "${bare}"`, 0);
-          return;
+      setCount(pk, results.length, null);
+      if (results.length === 0) continue;
+
+      // Filter 1: show name must be a prefix of the torrent name (TV only)
+      let filtered = results;
+      if (showNorm && mediaType === 'episode') {
+        const nameFiltered = filtered.filter(r => normTitle(r.name || '').startsWith(showNorm));
+        if (nameFiltered.length > 0) {
+          filtered = nameFiltered;
+        } else {
+          console.log(`[daredevil] "${query}": no results start with show name "${showName}" — trying next query`);
+          continue;
         }
-        await addBest(pk, results2, results2.length);
-      } else {
-        await failItem(pk, `No results found for "${query}"`, 0);
       }
+
+      // Filter 2: torrent name must contain the right SxxExx
+      if (epPat) {
+        const epFiltered = filtered.filter(r => epPat.test(r.name || ''));
+        if (epFiltered.length > 0) {
+          filtered = epFiltered;
+        } else {
+          console.log(`[daredevil] "${query}": no results matched episode code — trying next query`);
+          continue;
+        }
+      }
+
+      // Good results found — pick the best
+      await addBest(pk, filtered, results.length, query);
       return;
     }
 
-    await addBest(pk, results, results.length);
+    await failItem(pk, `No results — tried: ${tried.map(q => `"${q}"`).join(', ')}`, 0);
   } catch(err) {
     await failItem(pk, `Error: ${err}`, 0);
   } finally {
@@ -328,9 +381,10 @@ async function searchItem(pk, query) {
   }
 }
 
-async function addBest(pk, results, total) {
+async function addBest(pk, results, total, query) {
+  // results are already filtered by show name and episode code
+
   // results already sorted by seeds descending
-  // Prefer a result with decent seeds; fall back to best available
   const seeded = results.filter(r => (r.seeds || 0) >= MIN_SEEDS);
   const pool = seeded.length > 0 ? seeded : results;
   const best = pool[0];

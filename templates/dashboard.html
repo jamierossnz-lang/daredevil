@@ -130,6 +130,266 @@
 </section>
 {% endif %}
 
+<!-- Discover Sliders -->
+<div x-data="discoverSliders()" class="mt-2">
+
+  {# TV New Premieres #}
+  <section class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <i class="fa-solid fa-sparkles text-brand-400 text-base"></i> New TV Premieres
+      </h2>
+      <div class="flex gap-1">
+        <button @click="tabs.tv_new = 'this'"
+                :class="tabs.tv_new === 'this' ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">This Week</button>
+        <button @click="tabs.tv_new = 'last'"
+                :class="tabs.tv_new === 'last' ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">Last Week</button>
+      </div>
+    </div>
+    <template x-if="loading">
+      <div class="flex gap-3 overflow-x-auto pb-2">
+        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-28 animate-pulse"><div class="w-28 rounded-xl bg-surface-700" style="aspect-ratio:2/3"></div><div class="mt-2 h-3 bg-surface-700 rounded w-20"></div></div></template>
+      </div>
+    </template>
+    <template x-if="!loading">
+      <div>
+        <div x-show="items('tv_new').length > 0" class="flex gap-3 overflow-x-auto pb-2">
+          <template x-for="item in items('tv_new')" :key="item.tmdb_id">
+            <div class="flex-shrink-0 w-28 group cursor-pointer" @click="add(item.tmdb_id, true)">
+              <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+                <img x-show="item.poster" :src="item.poster" :alt="item.title" class="w-28 object-cover" style="aspect-ratio:2/3">
+                <div x-show="!item.poster" class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3">
+                  <i class="fa-solid fa-tv text-2xl text-gray-600"></i>
+                </div>
+                <div x-show="item.rating > 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 font-medium" x-text="`★ ${item.rating}`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                  <div class="w-full">
+                    <p class="text-xs font-medium text-white leading-tight truncate" x-text="item.title"></p>
+                    <div class="mt-1 flex items-center justify-between">
+                      <span class="text-xs text-gray-400" x-text="item.year"></span>
+                      <span x-show="added[item.tmdb_id] === 'added'" class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="added[item.tmdb_id] === 'exists'" class="w-5 h-5 bg-gray-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="adding[item.tmdb_id]" class="w-5 h-5 bg-brand-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-spinner fa-spin text-white text-xs"></i></span>
+                      <span x-show="!added[item.tmdb_id] && !adding[item.tmdb_id]" class="w-5 h-5 bg-brand-600 hover:bg-brand-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-plus text-white text-xs"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-gray-400 truncate" x-text="item.title"></p>
+            </div>
+          </template>
+        </div>
+        <p x-show="items('tv_new').length === 0" class="text-sm text-gray-500 py-3">No new premieres found for this period.</p>
+      </div>
+    </template>
+  </section>
+
+  {# TV Returning #}
+  <section class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <i class="fa-solid fa-rotate-right text-brand-400 text-base"></i> Returning TV Shows
+      </h2>
+      <div class="flex gap-1">
+        <button @click="tabs.tv_returning = 'this'"
+                :class="tabs.tv_returning === 'this' ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">This Week</button>
+        <button @click="tabs.tv_returning = 'last'"
+                :class="tabs.tv_returning === 'last' ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">Last Week</button>
+      </div>
+    </div>
+    <template x-if="loading">
+      <div class="flex gap-3 overflow-x-auto pb-2">
+        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-28 animate-pulse"><div class="w-28 rounded-xl bg-surface-700" style="aspect-ratio:2/3"></div><div class="mt-2 h-3 bg-surface-700 rounded w-20"></div></div></template>
+      </div>
+    </template>
+    <template x-if="!loading">
+      <div>
+        <div x-show="items('tv_returning').length > 0" class="flex gap-3 overflow-x-auto pb-2">
+          <template x-for="item in items('tv_returning')" :key="item.tmdb_id">
+            <div class="flex-shrink-0 w-28 group cursor-pointer" @click="add(item.tmdb_id, true)">
+              <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+                <img x-show="item.poster" :src="item.poster" :alt="item.title" class="w-28 object-cover" style="aspect-ratio:2/3">
+                <div x-show="!item.poster" class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3">
+                  <i class="fa-solid fa-tv text-2xl text-gray-600"></i>
+                </div>
+                <div x-show="item.rating > 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 font-medium" x-text="`★ ${item.rating}`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                  <div class="w-full">
+                    <p class="text-xs font-medium text-white leading-tight truncate" x-text="item.title"></p>
+                    <div class="mt-1 flex items-center justify-between">
+                      <span class="text-xs text-gray-400" x-text="item.year"></span>
+                      <span x-show="added[item.tmdb_id] === 'added'" class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="added[item.tmdb_id] === 'exists'" class="w-5 h-5 bg-gray-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="adding[item.tmdb_id]" class="w-5 h-5 bg-brand-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-spinner fa-spin text-white text-xs"></i></span>
+                      <span x-show="!added[item.tmdb_id] && !adding[item.tmdb_id]" class="w-5 h-5 bg-brand-600 hover:bg-brand-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-plus text-white text-xs"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-gray-400 truncate" x-text="item.title"></p>
+            </div>
+          </template>
+        </div>
+        <p x-show="items('tv_returning').length === 0" class="text-sm text-gray-500 py-3">No returning shows found for this period.</p>
+      </div>
+    </template>
+  </section>
+
+  {# Movies on Streaming #}
+  <section class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <i class="fa-solid fa-circle-play text-cyan-400 text-base"></i> New on Streaming
+      </h2>
+      <div class="flex gap-1">
+        <button @click="tabs.movies_streaming = 'this'"
+                :class="tabs.movies_streaming === 'this' ? 'bg-cyan-700 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">This Week</button>
+        <button @click="tabs.movies_streaming = 'last'"
+                :class="tabs.movies_streaming === 'last' ? 'bg-cyan-700 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">Last Week</button>
+      </div>
+    </div>
+    <template x-if="loading">
+      <div class="flex gap-3 overflow-x-auto pb-2">
+        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-28 animate-pulse"><div class="w-28 rounded-xl bg-surface-700" style="aspect-ratio:2/3"></div><div class="mt-2 h-3 bg-surface-700 rounded w-20"></div></div></template>
+      </div>
+    </template>
+    <template x-if="!loading">
+      <div>
+        <div x-show="items('movies_streaming').length > 0" class="flex gap-3 overflow-x-auto pb-2">
+          <template x-for="item in items('movies_streaming')" :key="item.tmdb_id">
+            <div class="flex-shrink-0 w-28 group cursor-pointer" @click="add(item.tmdb_id, false)">
+              <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+                <img x-show="item.poster" :src="item.poster" :alt="item.title" class="w-28 object-cover" style="aspect-ratio:2/3">
+                <div x-show="!item.poster" class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3">
+                  <i class="fa-solid fa-film text-2xl text-gray-600"></i>
+                </div>
+                <div x-show="item.rating > 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 font-medium" x-text="`★ ${item.rating}`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                  <div class="w-full">
+                    <p class="text-xs font-medium text-white leading-tight truncate" x-text="item.title"></p>
+                    <div class="mt-1 flex items-center justify-between">
+                      <span class="text-xs text-gray-400" x-text="item.year"></span>
+                      <span x-show="added[item.tmdb_id] === 'added'" class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="added[item.tmdb_id] === 'exists'" class="w-5 h-5 bg-gray-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="adding[item.tmdb_id]" class="w-5 h-5 bg-cyan-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-spinner fa-spin text-white text-xs"></i></span>
+                      <span x-show="!added[item.tmdb_id] && !adding[item.tmdb_id]" class="w-5 h-5 bg-cyan-600 hover:bg-cyan-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-plus text-white text-xs"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-gray-400 truncate" x-text="item.title"></p>
+            </div>
+          </template>
+        </div>
+        <p x-show="items('movies_streaming').length === 0" class="text-sm text-gray-500 py-3">No streaming releases found for this period.</p>
+      </div>
+    </template>
+  </section>
+
+  {# Movies on Digital #}
+  <section class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <i class="fa-solid fa-download text-cyan-400 text-base"></i> New on Digital
+      </h2>
+      <div class="flex gap-1">
+        <button @click="tabs.movies_digital = 'this'"
+                :class="tabs.movies_digital === 'this' ? 'bg-cyan-700 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">This Week</button>
+        <button @click="tabs.movies_digital = 'last'"
+                :class="tabs.movies_digital === 'last' ? 'bg-cyan-700 text-white' : 'bg-surface-700 text-gray-400 hover:text-white'"
+                class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">Last Week</button>
+      </div>
+    </div>
+    <template x-if="loading">
+      <div class="flex gap-3 overflow-x-auto pb-2">
+        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-28 animate-pulse"><div class="w-28 rounded-xl bg-surface-700" style="aspect-ratio:2/3"></div><div class="mt-2 h-3 bg-surface-700 rounded w-20"></div></div></template>
+      </div>
+    </template>
+    <template x-if="!loading">
+      <div>
+        <div x-show="items('movies_digital').length > 0" class="flex gap-3 overflow-x-auto pb-2">
+          <template x-for="item in items('movies_digital')" :key="item.tmdb_id">
+            <div class="flex-shrink-0 w-28 group cursor-pointer" @click="add(item.tmdb_id, false)">
+              <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
+                <img x-show="item.poster" :src="item.poster" :alt="item.title" class="w-28 object-cover" style="aspect-ratio:2/3">
+                <div x-show="!item.poster" class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3">
+                  <i class="fa-solid fa-film text-2xl text-gray-600"></i>
+                </div>
+                <div x-show="item.rating > 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 font-medium" x-text="`★ ${item.rating}`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                  <div class="w-full">
+                    <p class="text-xs font-medium text-white leading-tight truncate" x-text="item.title"></p>
+                    <div class="mt-1 flex items-center justify-between">
+                      <span class="text-xs text-gray-400" x-text="item.year"></span>
+                      <span x-show="added[item.tmdb_id] === 'added'" class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="added[item.tmdb_id] === 'exists'" class="w-5 h-5 bg-gray-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-check text-white text-xs"></i></span>
+                      <span x-show="adding[item.tmdb_id]" class="w-5 h-5 bg-cyan-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-spinner fa-spin text-white text-xs"></i></span>
+                      <span x-show="!added[item.tmdb_id] && !adding[item.tmdb_id]" class="w-5 h-5 bg-cyan-600 hover:bg-cyan-500 rounded-full flex items-center justify-center"><i class="fa-solid fa-plus text-white text-xs"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-gray-400 truncate" x-text="item.title"></p>
+            </div>
+          </template>
+        </div>
+        <p x-show="items('movies_digital').length === 0" class="text-sm text-gray-500 py-3">No digital releases found for this period.</p>
+      </div>
+    </template>
+  </section>
+
+</div>
+
+<script>
+function discoverSliders() {
+  return {
+    data:    {},
+    loading: true,
+    added:   {},
+    adding:  {},
+    tabs: { tv_new: 'this', tv_returning: 'this', movies_streaming: 'this', movies_digital: 'this' },
+
+    async init() {
+      try {
+        const r = await fetch("{% url 'dashboard_discover' %}");
+        if (r.ok) this.data = await r.json();
+      } catch(e) {}
+      this.loading = false;
+    },
+
+    items(section) {
+      return this.data[`${section}_${this.tabs[section]}_week`] || [];
+    },
+
+    async add(tmdbId, isTV) {
+      if (this.added[tmdbId] || this.adding[tmdbId]) return;
+      this.adding = { ...this.adding, [tmdbId]: true };
+      const url = isTV ? "{% url 'tv_show_add' %}" : "{% url 'movie_add' %}";
+      const fd  = new FormData();
+      fd.append('tmdb_id', tmdbId);
+      fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+      try {
+        const r = await fetch(url, { method: 'POST', body: fd });
+        const j = await r.json();
+        this.added = { ...this.added, [tmdbId]: j.status };
+      } catch(e) {
+        this.added = { ...this.added, [tmdbId]: 'error' };
+      }
+      const a = { ...this.adding };
+      delete a[tmdbId];
+      this.adding = a;
+    },
+  };
+}
+</script>
+
 <!-- Empty state -->
 {% if not recent_shows and not recent_movies %}
 <div class="flex flex-col items-center justify-center py-24 text-center">

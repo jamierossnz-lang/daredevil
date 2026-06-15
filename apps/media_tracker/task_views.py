@@ -30,6 +30,12 @@ TASK_REGISTRY = {
         'icon': 'fa-arrow-down',
         'color': 'yellow',
     },
+    'cleanup_non_video_files': {
+        'label': 'Clean Up Non-Video Files',
+        'description': 'Delete junk files (.nfo, .txt, .jpg, …) left in completed download folders, keeping only video files.',
+        'icon': 'fa-broom',
+        'color': 'yellow',
+    },
 }
 
 PERIOD_CHOICES = [
@@ -155,12 +161,14 @@ def _dispatch(task_name):
     from apps.media_tracker.tasks import (
         sync_all_shows, queue_new_episodes,
         check_movie_releases, sync_download_progress,
+        cleanup_non_video_files,
     )
     mapping = {
         'sync_all_shows': sync_all_shows,
         'queue_new_episodes': queue_new_episodes,
         'check_movie_releases': check_movie_releases,
         'sync_download_progress': sync_download_progress,
+        'cleanup_non_video_files': cleanup_non_video_files,
     }
     return mapping[task_name].delay()
 
