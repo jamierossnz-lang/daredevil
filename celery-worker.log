@@ -10372,3 +10372,9 @@ KeyError: 'update_episode_statuses'
 [2026-06-19 23:11:42,930: INFO/ForkPoolWorker-8] Task sync_tvmaze_show[f960afe5-1777-488d-aff1-49982e904bbf] succeeded in 1.702149249962531s: 'synced TVMaze airdates for Last Week Tonight with John Oliver'
 [2026-06-19 23:12:00,609: INFO/MainProcess] Task queue_waiting_episodes[f75e3c9f-a694-4319-9c41-1cbc48e6925b] received
 [2026-06-19 23:12:00,613: INFO/ForkPoolWorker-8] Task queue_waiting_episodes[f75e3c9f-a694-4319-9c41-1cbc48e6925b] succeeded in 0.004031333024613559s: 'queued 0 waiting episodes'
+[2026-06-19 23:14:54,600: INFO/MainProcess] Task poll_download_progress[52f4bb70-b73e-4d98-9909-c2682bf9fff5] received
+[2026-06-19 23:14:54,602: INFO/MainProcess] Task auto_search_queue[40cfea46-8431-4186-9e8c-2a6c6aec2490] received
+[2026-06-19 23:14:54,605: INFO/MainProcess] Task update_episode_statuses[b617273d-4bfa-4d22-8723-9ddbb6f87f5d] received
+[2026-06-19 23:14:54,610: INFO/ForkPoolWorker-8] Task poll_download_progress[52f4bb70-b73e-4d98-9909-c2682bf9fff5] succeeded in 0.007810582988895476s: 'no active downloads'
+[2026-06-19 23:14:54,621: INFO/ForkPoolWorker-9] Task update_episode_statuses[b617273d-4bfa-4d22-8723-9ddbb6f87f5d] succeeded in 0.014196582953445613s: 'moved 0 to waiting_for_download'
+[2026-06-19 23:14:54,624: INFO/ForkPoolWorker-1] Task auto_search_queue[40cfea46-8431-4186-9e8c-2a6c6aec2490] succeeded in 0.01957591704558581s: 'dispatched 0'
