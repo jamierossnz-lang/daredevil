@@ -10378,3 +10378,13 @@ KeyError: 'update_episode_statuses'
 [2026-06-19 23:14:54,610: INFO/ForkPoolWorker-8] Task poll_download_progress[52f4bb70-b73e-4d98-9909-c2682bf9fff5] succeeded in 0.007810582988895476s: 'no active downloads'
 [2026-06-19 23:14:54,621: INFO/ForkPoolWorker-9] Task update_episode_statuses[b617273d-4bfa-4d22-8723-9ddbb6f87f5d] succeeded in 0.014196582953445613s: 'moved 0 to waiting_for_download'
 [2026-06-19 23:14:54,624: INFO/ForkPoolWorker-1] Task auto_search_queue[40cfea46-8431-4186-9e8c-2a6c6aec2490] succeeded in 0.01957591704558581s: 'dispatched 0'
+[2026-06-19 23:18:37,295: INFO/MainProcess] Task sync_tvmaze_show[58f5be7e-f595-42c5-b030-c14604a0d6c4] received
+[2026-06-19 23:18:39,437: INFO/MainProcess] Task sync_tvmaze_show[ca125057-63b4-45a1-ba2c-faddd0618027] received
+[2026-06-19 23:18:40,232: INFO/ForkPoolWorker-8] Task sync_tvmaze_show[58f5be7e-f595-42c5-b030-c14604a0d6c4] succeeded in 2.935918750008568s: 'synced TVMaze airdates for Sugar'
+[2026-06-19 23:18:40,397: INFO/ForkPoolWorker-1] Task sync_tvmaze_show[ca125057-63b4-45a1-ba2c-faddd0618027] succeeded in 0.9595386660657823s: 'synced TVMaze airdates for Sugar'
+[2026-06-19 23:19:54,613: INFO/MainProcess] Task poll_download_progress[0a7d179c-61f4-45b7-bc2a-8ff17f13eb1e] received
+[2026-06-19 23:19:54,615: INFO/MainProcess] Task auto_search_queue[2e448edc-5b13-4584-8700-229324079d34] received
+[2026-06-19 23:19:54,618: INFO/MainProcess] Task update_episode_statuses[51488cdb-5a48-41f6-8a01-f8d92f9d5b0a] received
+[2026-06-19 23:19:54,618: INFO/ForkPoolWorker-8] Task poll_download_progress[0a7d179c-61f4-45b7-bc2a-8ff17f13eb1e] succeeded in 0.004350582952611148s: 'no active downloads'
+[2026-06-19 23:19:54,621: INFO/ForkPoolWorker-1] Task auto_search_queue[2e448edc-5b13-4584-8700-229324079d34] succeeded in 0.005065249977633357s: 'dispatched 0'
+[2026-06-19 23:19:54,632: INFO/ForkPoolWorker-9] Task update_episode_statuses[51488cdb-5a48-41f6-8a01-f8d92f9d5b0a] succeeded in 0.012618083041161299s: 'moved 0 to waiting_for_download'
