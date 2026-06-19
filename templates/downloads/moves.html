@@ -144,6 +144,27 @@
       </p>
     </div>
     {% endif %}
+
+    {% if page_obj.has_other_pages %}
+    <div class="flex items-center justify-center gap-2 mt-6">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}"
+         class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-sm transition-colors">
+        <i class="fa-solid fa-chevron-left text-xs mr-1"></i>Prev
+      </a>
+      {% endif %}
+      <span class="text-xs text-gray-500">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        <span class="text-gray-700 ml-1">({{ page_obj.paginator.count }} total)</span>
+      </span>
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}"
+         class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-sm transition-colors">
+        Next<i class="fa-solid fa-chevron-right text-xs ml-1"></i>
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
 </div>

@@ -52,6 +52,12 @@ class TMDBClient:
     def get_movie_watch_providers(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/watch/providers')
 
+    def get_movie_credits(self, tmdb_id):
+        return self._get(f'/movie/{tmdb_id}/credits')
+
+    def get_movie_recommendations(self, tmdb_id, page=1):
+        return self._get(f'/movie/{tmdb_id}/recommendations', page=page)
+
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     def sync_show_to_db(self, tmdb_id):

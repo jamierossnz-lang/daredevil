@@ -8,13 +8,19 @@ from django_celery_results.models import TaskResult
 TASK_REGISTRY = {
     'sync_all_shows': {
         'label': 'Sync All TV Shows',
-        'description': 'Re-fetch every tracked show from TMDB to pick up new seasons and episodes.',
+        'description': 'Re-fetch every tracked show from TMDB + TVMaze (air times) and update episode statuses.',
         'icon': 'fa-tv',
         'color': 'brand',
     },
-    'queue_new_episodes': {
-        'label': 'Queue New Episodes',
-        'description': "Find aired episodes on monitored shows that haven't been queued yet and start downloading.",
+    'update_episode_statuses': {
+        'label': 'Update Episode Statuses',
+        'description': 'Transition awaiting_release → waiting_for_download for episodes whose NZT air time has passed.',
+        'icon': 'fa-satellite-dish',
+        'color': 'purple',
+    },
+    'queue_waiting_episodes': {
+        'label': 'Queue Waiting Episodes',
+        'description': 'Queue waiting_for_download episodes on monitored shows for immediate download.',
         'icon': 'fa-rss',
         'color': 'brand',
     },
@@ -42,11 +48,29 @@ TASK_REGISTRY = {
         'icon': 'fa-broom',
         'color': 'yellow',
     },
+    'remove_empty_folders': {
+        'label': 'Remove Empty Folders',
+        'description': 'Delete any empty directories found inside download path(s). Runs bottom-up so nested empties collapse in one pass.',
+        'icon': 'fa-folder-minus',
+        'color': 'orange',
+    },
+    'auto_search_queue': {
+        'label': 'Auto-Search Queue',
+        'description': 'Fire search_and_download for any queued items stuck in SEARCHING status without an active task — so searches run without the queue page open.',
+        'icon': 'fa-magnifying-glass-arrow-right',
+        'color': 'cyan',
+    },
     'poll_download_progress': {
         'label': 'Poll Download Progress',
         'description': 'Check qBittorrent for completed downloads and trigger file moves — runs in the background so the queue page does not need to be open.',
         'icon': 'fa-rotate',
         'color': 'brand',
+    },
+    'check_storage': {
+        'label': 'Check Storage Usage',
+        'description': 'Alert via ntfy when any configured drive reaches 75 % (caution) or 90 % (critical). Suppresses duplicate alerts for 4 hours.',
+        'icon': 'fa-hard-drive',
+        'color': 'yellow',
     },
 }
 
@@ -84,9 +108,7 @@ def tasks_dashboard(request):
     # All periodic tasks for the schedule manager (includes Django internals etc.)
     all_schedules = PeriodicTask.objects.select_related('interval', 'crontab').order_by('name')
 
-    recent = TaskResult.objects.filter(
-        task_name__in=TASK_REGISTRY.keys()
-    ).order_by('-date_done')[:100]
+    recent = _annotate_recent(TaskResult.objects.order_by('-date_done')[:100])
 
     context = {
         'tasks': tasks,
@@ -124,10 +146,48 @@ def task_poll(request, task_id):
 
 
 def recent_results_partial(request):
-    recent = TaskResult.objects.filter(
-        task_name__in=TASK_REGISTRY.keys()
-    ).order_by('-date_done')[:100]
+    recent = _annotate_recent(TaskResult.objects.order_by('-date_done')[:100])
     return render(request, 'tasks/_recent_results.html', {'recent': recent})
+
+
+def _annotate_recent(qs):
+    import json as _json
+    rows = []
+    for r in qs:
+        try:
+            val = _json.loads(r.result) if r.result else None
+        except Exception:
+            val = r.result
+
+        detail = None
+        if isinstance(val, str) and val:
+            detail = val
+        elif isinstance(val, dict):
+            detail = val.get('message') or val.get('status') or str(val)
+
+        # Friendly label map (covers both task_name populated and not)
+        name = r.task_name or ''
+        label = {
+            'sync_all_shows':              'Sync All TV Shows',
+            'update_episode_statuses':     'Update Episode Statuses',
+            'queue_waiting_episodes':      'Queue Waiting Episodes',
+            'sync_tvmaze_show':            'Sync TVMaze Airdates',
+            'check_movie_releases':        'Check Movie Releases',
+            'sync_download_progress':      'Sync Download Progress',
+            'poll_download_progress':      'Poll Download Progress',
+            'search_and_download':         'Search & Download',
+            'refresh_movie_release_dates': 'Refresh Movie Release Dates',
+            'cleanup_non_video_files':     'Clean Up Non-Video Files',
+            'remove_empty_folders':        'Remove Empty Folders',
+            'execute_file_move':           'Execute File Move',
+            'auto_search_queue':           'Auto-Search Queue',
+            'check_storage':               'Check Storage Usage',
+        }.get(name, name or 'Unknown Task')
+
+        r.label = label
+        r.detail = detail
+        rows.append(r)
+    return rows
 
 
 @require_POST
@@ -171,19 +231,25 @@ def schedule_delete(request, pk):
 
 def _dispatch(task_name):
     from apps.media_tracker.tasks import (
-        sync_all_shows, queue_new_episodes,
+        sync_all_shows,
+        update_episode_statuses, queue_waiting_episodes,
         check_movie_releases, sync_download_progress,
         cleanup_non_video_files, refresh_movie_release_dates,
+        remove_empty_folders, auto_search_queue, check_storage,
     )
     from apps.downloads.tasks import poll_download_progress
     mapping = {
-        'sync_all_shows': sync_all_shows,
-        'queue_new_episodes': queue_new_episodes,
-        'check_movie_releases': check_movie_releases,
-        'sync_download_progress': sync_download_progress,
-        'cleanup_non_video_files': cleanup_non_video_files,
+        'sync_all_shows':              sync_all_shows,
+        'update_episode_statuses':     update_episode_statuses,
+        'queue_waiting_episodes':      queue_waiting_episodes,
+        'check_movie_releases':        check_movie_releases,
+        'sync_download_progress':      sync_download_progress,
+        'cleanup_non_video_files':     cleanup_non_video_files,
         'refresh_movie_release_dates': refresh_movie_release_dates,
-        'poll_download_progress': poll_download_progress,
+        'remove_empty_folders':        remove_empty_folders,
+        'auto_search_queue':           auto_search_queue,
+        'poll_download_progress':      poll_download_progress,
+        'check_storage':               check_storage,
     }
     return mapping[task_name].delay()
 

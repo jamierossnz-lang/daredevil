@@ -18,6 +18,19 @@ class CategoryConfig(models.Model):
         return obj
 
 
+class ExtraTab(models.Model):
+    """User-defined folders to display as additional tabs in the file browser."""
+    label = models.CharField(max_length=100)
+    path  = models.CharField(max_length=1000)
+
+    class Meta:
+        ordering = ['label']
+        verbose_name = 'Extra File Browser Tab'
+
+    def __str__(self):
+        return f'{self.label} ({self.path})'
+
+
 class CategoryPath(models.Model):
     """Per-category path configuration stored in Daredevil."""
     category_name = models.CharField(max_length=200, unique=True)

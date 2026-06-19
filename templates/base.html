@@ -2,7 +2,11 @@
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07071a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Daredevil">
   <title>{% block title %}Daredevil{% endblock %} — Daredevil</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -93,6 +97,10 @@
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+    /* iOS safe-area: main content clears the bottom nav + home indicator */
+    @media (max-width: 1023px) {
+      main { padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); }
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -123,6 +131,8 @@
       {% url 'qbt_categories' as url_qbt_categories %}
       {% url 'qbt_files' as url_qbt_files %}
       {% url 'tasks_dashboard' as url_tasks %}
+      {% url 'app_settings' as url_app_settings %}
+      {% url 'plex:library' as url_plex %}
 
       {% with request.path as p %}
       <a href="{{ url_dashboard }}"
@@ -146,13 +156,20 @@
         Movies
       </a>
 
+      <a href="{{ url_plex }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_plex in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-server w-4 text-center"></i>
+        Plex Library
+      </a>
+
       <div class="pt-3 pb-1">
         <p class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-600">Downloads</p>
       </div>
 
       <a href="{{ url_queue }}"
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                {% if url_queue in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+                {% if p == url_queue %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-download w-4 text-center"></i>
         Download Queue
       </a>
@@ -209,11 +226,57 @@
         <i class="fa-solid fa-sliders w-4 text-center"></i>
         qBT Settings
       </a>
+
+      <a href="{{ url_app_settings }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if p == url_app_settings %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-gear w-4 text-center"></i>
+        App Settings
+      </a>
       {% endwith %}
     </nav>
 
+    <!-- Drive usage widget -->
+    {% if drives %}
+    <div class="px-4 pt-3 pb-1 border-t border-purple-900/30 space-y-3">
+      <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-600">Storage</p>
+      {% for drive in drives %}
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            {% for lbl in drive.labels %}
+            <span class="flex items-center gap-1 text-[10px] font-medium
+              {% if lbl.color == 'purple' %}text-purple-400
+              {% elif lbl.color == 'cyan' %}text-cyan-400
+              {% else %}text-brand-400{% endif %}">
+              <i class="fa-solid {{ lbl.icon }} text-[9px]"></i>{{ lbl.label }}
+            </span>
+            {% if not forloop.last %}<span class="text-gray-700 text-[10px]">+</span>{% endif %}
+            {% endfor %}
+          </div>
+          <span class="text-[10px] font-semibold tabular-nums
+            {% if drive.warning %}text-red-400
+            {% elif drive.caution %}text-yellow-400
+            {% else %}text-gray-500{% endif %}">{{ drive.pct }}%</span>
+        </div>
+        <div class="h-1.5 rounded-full bg-surface-700/80 overflow-hidden">
+          <div class="h-full rounded-full
+            {% if drive.warning %}bg-red-500
+            {% elif drive.caution %}bg-yellow-500
+            {% else %}bg-brand-500{% endif %}"
+               style="width: {{ drive.pct }}%"></div>
+        </div>
+        <p class="text-[9px] text-gray-600 mt-1">
+          <span class="{% if drive.warning %}text-red-400{% elif drive.caution %}text-yellow-400{% else %}text-green-500{% endif %}">{{ drive.free_display }} free</span>
+          · {{ drive.total_display }} total
+        </p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Footer -->
-    <div class="px-4 py-4 border-t border-purple-900/30">
+    <div class="px-4 py-3 {% if drives %}{% else %}border-t border-purple-900/30{% endif %}">
       <a href="/admin/" class="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors">
         <i class="fa-solid fa-user-shield"></i>
         Django Admin
@@ -228,15 +291,63 @@
   <div class="lg:pl-64 min-h-full flex flex-col">
 
     <!-- Top Bar -->
-    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-4">
+    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-3">
       <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-400 hover:text-white">
         <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+      <!-- Back / Forward -->
+      <button onclick="history.back()"
+              class="hidden sm:flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+              title="Go back">
+        <i class="fa-solid fa-arrow-left text-sm"></i>
+      </button>
+      <button onclick="history.forward()"
+              class="hidden sm:flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+              title="Go forward">
+        <i class="fa-solid fa-arrow-right text-sm"></i>
       </button>
       <div class="flex-1 min-w-0">
         <h1 class="text-lg font-semibold text-gray-100 truncate">{% block page_title %}{% endblock %}</h1>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         {% block header_actions %}{% endblock %}
+
+        <!-- Notification bell -->
+        <div x-data="notifBell()" @click.outside="open = false" class="relative">
+          <button @click="toggle()"
+                  class="relative w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
+                  title="Notifications">
+            <i class="fa-solid fa-bell text-sm"></i>
+            <span x-show="count > 0" x-cloak
+                  x-text="count > 9 ? '9+' : count"
+                  class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center px-1 leading-none pointer-events-none"></span>
+          </button>
+
+          <!-- Panel -->
+          <div x-show="open" x-cloak
+               x-transition:enter="transition ease-out duration-150"
+               x-transition:enter-start="opacity-0 scale-95 -translate-y-1"
+               x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+               x-transition:leave="transition ease-in duration-100"
+               x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+               x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
+               class="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-1rem))] glass rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50 origin-top-right flex flex-col"
+               style="max-height: 480px">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-4 py-3 border-b border-surface-700/50 flex-shrink-0">
+              <h3 class="text-sm font-semibold text-gray-200">Notifications</h3>
+              <button @click="clearAll()"
+                      class="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+                Clear all
+              </button>
+            </div>
+
+            <!-- Scrollable list -->
+            <div x-ref="list" class="overflow-y-auto scrollbar-thin flex-1" x-html="html"></div>
+          </div>
+        </div>
+
       </div>
     </header>
 
@@ -265,41 +376,107 @@
   </div>
 
   <!-- Mobile bottom navigation -->
-  <nav class="fixed bottom-0 inset-x-0 z-40 lg:hidden glass-dark border-t border-purple-900/30">
+  <nav class="fixed bottom-0 inset-x-0 z-40 lg:hidden glass-dark border-t border-purple-900/30"
+       style="padding-bottom: env(safe-area-inset-bottom, 0px)">
     <div class="flex h-16">
+
       <a href="{{ url_dashboard }}"
-         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
-                {% if request.path == url_dashboard %}text-brand-400{% else %}text-gray-500{% endif %}">
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                {% if request.path == url_dashboard %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if request.path == url_dashboard %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
         <i class="fa-solid fa-gauge-high text-lg"></i>
         <span class="text-[10px] font-medium">Home</span>
       </a>
+
       <a href="{{ url_shows }}"
-         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
-                {% if url_shows in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                {% if url_shows in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if url_shows in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
         <i class="fa-solid fa-tv text-lg"></i>
         <span class="text-[10px] font-medium">Shows</span>
       </a>
+
       <a href="{{ url_movies }}"
-         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
-                {% if url_movies in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                {% if url_movies in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if url_movies in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
         <i class="fa-solid fa-film text-lg"></i>
         <span class="text-[10px] font-medium">Movies</span>
       </a>
+
       <a href="{{ url_queue }}"
-         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
-                {% if url_queue in request.path or url_moves in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                {% if url_queue in request.path or url_moves in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if url_queue in request.path or url_moves in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
         <i class="fa-solid fa-download text-lg"></i>
         <span class="text-[10px] font-medium">Queue</span>
       </a>
+
       <a href="{{ url_qbt }}"
-         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors
-                {% if url_qbt in request.path %}text-brand-400{% else %}text-gray-500{% endif %}">
+         class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                {% if url_qbt in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if url_qbt in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
         <i class="fa-solid fa-seedling text-lg"></i>
         <span class="text-[10px] font-medium">Torrents</span>
       </a>
+
     </div>
   </nav>
 
+  {% include "_movie_add_modal.html" %}
   {% block extra_js %}{% endblock %}
+
+  <script>
+  function notifBell() {
+    return {
+      open: false,
+      count: {{ notif_unread|default:0 }},
+      html: '',
+
+      async toggle() {
+        this.open = !this.open;
+        if (this.open) {
+          await this.loadPanel();
+          this.count = 0;
+        }
+      },
+
+      async loadPanel() {
+        const r = await fetch('/notifications/panel/');
+        this.html = await r.text();
+      },
+
+      dismiss(pk) {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        fetch(`/notifications/${pk}/dismiss/`, { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+        const el = document.getElementById(`notif-${pk}`);
+        if (el) el.remove();
+        if (!this.$refs.list.querySelector('[id^="notif-"]')) {
+          this.html = '<div class="flex flex-col items-center justify-center py-14 text-gray-600"><i class="fa-solid fa-bell-slash text-3xl mb-3 opacity-40"></i><p class="text-sm">No notifications</p></div>';
+        }
+      },
+
+      async clearAll() {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        await fetch('/notifications/clear/', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+        this.html = '<div class="flex flex-col items-center justify-center py-14 text-gray-600"><i class="fa-solid fa-bell-slash text-3xl mb-3 opacity-40"></i><p class="text-sm">No notifications</p></div>';
+        this.count = 0;
+      },
+
+      init() {
+        // Poll unread count every 30s when panel is closed
+        setInterval(async () => {
+          if (!this.open) {
+            try {
+              const r = await fetch('/notifications/count/');
+              const d = await r.json();
+              this.count = d.count;
+            } catch {}
+          }
+        }, 30000);
+      },
+    };
+  }
+  </script>
 </body>
 </html>

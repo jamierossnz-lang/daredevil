@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -102,11 +103,21 @@ def torrent_add_magnet(request):
 
 
 def settings_view(request):
+    from django.conf import settings as django_settings
     connected = client.is_connected()
     prefs = {}
     if connected:
         prefs = client.get_preferences()
-    context = {'connected': connected, 'prefs': prefs}
+    context = {
+        'connected': connected,
+        'prefs': prefs,
+        'conn': {
+            'host':     django_settings.QBITTORRENT_HOST,
+            'port':     django_settings.QBITTORRENT_PORT,
+            'username': django_settings.QBITTORRENT_USERNAME,
+            'password': django_settings.QBITTORRENT_PASSWORD,
+        },
+    }
     return render(request, 'qbt/settings.html', context)
 
 
@@ -118,6 +129,73 @@ def settings_save(request):
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+@require_POST
+def connection_save(request):
+    """Update qBittorrent connection settings in-memory and persist to .env."""
+    import re
+    from django.conf import settings as django_settings
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    host     = str(data.get('host', '')).strip()
+    port     = data.get('port', '')
+    username = str(data.get('username', '')).strip()
+    password = str(data.get('password', '')).strip()
+
+    if not host:
+        return JsonResponse({'error': 'Host is required'}, status=400)
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Port must be a number'}, status=400)
+
+    # Apply to running process immediately — client reads settings on every call
+    django_settings.QBITTORRENT_HOST     = host
+    django_settings.QBITTORRENT_PORT     = port
+    django_settings.QBITTORRENT_USERNAME = username
+    django_settings.QBITTORRENT_PASSWORD = password
+
+    # Persist to .env so values survive a restart
+    _update_env({
+        'QBITTORRENT_HOST':     host,
+        'QBITTORRENT_PORT':     str(port),
+        'QBITTORRENT_USERNAME': username,
+        'QBITTORRENT_PASSWORD': password,
+    })
+
+    # Test the new connection
+    ok = client.is_connected()
+    log.info('connection_save: %s:%s ok=%s', host, port, ok)
+    return JsonResponse({'ok': ok, 'connected': ok})
+
+
+def _update_env(updates: dict):
+    """Write key=value pairs into .env, adding lines for missing keys."""
+    import re
+    from django.conf import settings as django_settings
+
+    env_path = getattr(django_settings, 'BASE_DIR', None)
+    if env_path is None:
+        return
+    env_file = env_path / '.env'
+    if not env_file.exists():
+        return
+
+    text = env_file.read_text()
+    for key, value in updates.items():
+        pattern = re.compile(rf'^{re.escape(key)}\s*=.*$', re.MULTILINE)
+        replacement = f'{key}={value}'
+        if pattern.search(text):
+            text = pattern.sub(replacement, text)
+        else:
+            text = text.rstrip('\n') + f'\n{replacement}\n'
+    env_file.write_text(text)
+    log.info('_update_env: wrote %s', list(updates.keys()))
 
 
 def categories_page(request):
@@ -301,8 +379,52 @@ def transfer_info_json(request):
 
 # ── Formatters ───────────────────────────────────────────────────────────────
 
+def _all_allowed_roots():
+    """Return a list of realpath-resolved allowed root directories for the file browser."""
+    from .models import CategoryPath, ExtraTab
+    roots = []
+    for cp in CategoryPath.objects.all():
+        for p in (cp.download_path, cp.completed_path):
+            if p:
+                try:
+                    roots.append(os.path.realpath(p))
+                except Exception:
+                    pass
+    for et in ExtraTab.objects.all():
+        if et.path:
+            try:
+                roots.append(os.path.realpath(et.path))
+            except Exception:
+                pass
+    return roots
+
+
+@require_POST
+def file_tabs_add(request):
+    from .models import ExtraTab
+    label = request.POST.get('label', '').strip()
+    path  = request.POST.get('path', '').strip()
+    if not label:
+        return JsonResponse({'error': 'Label is required'}, status=400)
+    if not path:
+        return JsonResponse({'error': 'Path is required'}, status=400)
+    if not os.path.isdir(path):
+        return JsonResponse({'error': f'Directory not found: {path}'}, status=400)
+    tab = ExtraTab.objects.create(label=label, path=path)
+    log.info('file_tabs_add: created pk=%d label=%r path=%r', tab.pk, label, path)
+    return JsonResponse({'ok': True, 'pk': tab.pk})
+
+
+@require_POST
+def file_tabs_delete(request, pk):
+    from .models import ExtraTab
+    ExtraTab.objects.filter(pk=pk).delete()
+    log.info('file_tabs_delete: deleted pk=%d', pk)
+    return JsonResponse({'ok': True})
+
+
 def file_browser_page(request):
-    from .models import CategoryPath
+    from .models import CategoryPath, ExtraTab
     all_paths = CategoryPath.objects.all()
     if client.is_connected():
         try:
@@ -312,13 +434,25 @@ def file_browser_page(request):
             categories = list(all_paths)
     else:
         categories = list(all_paths)
-    return render(request, 'qbt/files.html', {'categories': categories})
+
+    # Build flat list of named tabs: {label, path, kind}
+    tabs = []
+    for cp in categories:
+        if cp.download_path:
+            tabs.append({'label': cp.category_name, 'path': cp.download_path, 'kind': 'download'})
+        if cp.completed_path:
+            tabs.append({'label': cp.category_name, 'path': cp.completed_path, 'kind': 'completed'})
+
+    extra_tabs = list(ExtraTab.objects.all())
+    for et in extra_tabs:
+        tabs.append({'label': et.label, 'path': et.path, 'kind': 'custom', 'pk': et.pk})
+
+    return render(request, 'qbt/files.html', {'categories': categories, 'tabs': tabs})
 
 
 def file_browser_list(request):
     """Return a directory listing as JSON. Path must be inside a configured category path."""
     import os
-    from .models import CategoryPath
 
     raw = request.GET.get('path', '').strip()
     if not raw:
@@ -338,15 +472,7 @@ def file_browser_list(request):
 
     path = os.path.realpath(raw)
 
-    # Build the set of allowed roots (download + completed paths)
-    allowed = []
-    for cp in CategoryPath.objects.all():
-        for p in (cp.download_path, cp.completed_path):
-            if p:
-                try:
-                    allowed.append(os.path.realpath(p))
-                except Exception:
-                    pass
+    allowed = _all_allowed_roots()
 
     def _permitted(p):
         return any(p == a or p.startswith(a + os.sep) for a in allowed)
@@ -408,6 +534,267 @@ def file_browser_list(request):
         'breadcrumb': breadcrumb,
         'entries':    dirs + files,
     })
+
+
+@require_POST
+def file_delete(request):
+    """Delete a file or folder within an allowed category path."""
+    import shutil
+
+    raw = request.POST.get('path', '').strip()
+    if not raw:
+        return JsonResponse({'error': 'No path specified'}, status=400)
+
+    path = os.path.realpath(raw)
+    allowed = _all_allowed_roots()
+
+    def _permitted(p):
+        return any(p == a or p.startswith(a + os.sep) for a in allowed)
+
+    if not _permitted(path):
+        return JsonResponse({'error': 'Path not permitted'}, status=403)
+
+    if not os.path.exists(path):
+        return JsonResponse({'error': 'Path not found'}, status=404)
+
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+        log.info('file_delete: deleted %r', path)
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        log.error('file_delete: failed for %r — %s', path, e)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_POST
+def file_move_completed(request):
+    """
+    Move selected files/folders to their completed_path with Plex-standard naming.
+    Auto-detects movie vs TV from filenames; falls back to user-supplied media_type.
+    """
+    import re
+    from .models import CategoryPath
+
+    paths = request.POST.getlist('paths')
+    media_type = request.POST.get('media_type', 'auto')
+
+    if not paths:
+        return JsonResponse({'error': 'No paths provided'}, status=400)
+
+    allowed = _all_allowed_roots()
+
+    def _permitted(p):
+        return any(p == a or p.startswith(a + os.sep) for a in allowed)
+
+    def _sanitise(name):
+        return re.sub(r'\s+', ' ', re.sub(r'[<>:"/\\|?*]', '', name or '')).strip().rstrip('. ') or 'Unknown'
+
+    def _detect_type(path):
+        """Heuristic: TV if any filename contains SxxExx pattern."""
+        if os.path.isfile(path):
+            return 'tv' if re.search(r'[Ss]\d+[Ee]\d+', os.path.basename(path)) else 'movie'
+        for _root, _dirs, files in os.walk(path):
+            for f in files:
+                if re.search(r'[Ss]\d+[Ee]\d+', f):
+                    return 'tv'
+        return 'movie'
+
+    def _clean(raw):
+        """Replace dots/underscores/dashes with spaces and collapse runs."""
+        return re.sub(r'\s+', ' ', re.sub(r'[._\-]+', ' ', raw)).strip().strip(' -_')
+
+    def _strip_ext(name):
+        """Remove media file extension for cleaner parsing."""
+        return re.sub(r'\.(mkv|mp4|avi|mov|m4v|wmv|ts|m2ts|mpg|mpeg|webm|flv)$', '', name, flags=re.IGNORECASE)
+
+    def _parse_tv(name):
+        """Return (show_name, year_or_None, season_num, ep_num_or_None)."""
+        name = _strip_ext(name)
+        m = re.search(r'[Ss](\d{1,2})[Ee](\d+)', name)
+        if m:
+            prefix = name[:m.start()]
+            season = int(m.group(1))
+            ep = int(m.group(2))
+            ym = re.search(r'\((\d{4})\)', prefix)
+            if ym:
+                show = _sanitise(_clean(prefix[:ym.start()]))
+                return show or 'Unknown Show', int(ym.group(1)), season, ep
+            ym = re.search(r'(?<=[. _])(\d{4})(?=[. _]|$)', prefix)
+            if ym:
+                show = _sanitise(_clean(prefix[:ym.start()]))
+                return show or 'Unknown Show', int(ym.group(1)), season, ep
+            show = _sanitise(_clean(prefix))
+            return show or 'Unknown Show', None, season, ep
+        # Season-only folder: "Season 2", "S02"
+        m = re.search(r'[Ss]eason\s*(\d+)|[Ss](\d{2})(?:\b|$)', name)
+        if m:
+            season = int(m.group(1) or m.group(2))
+            prefix = name[:m.start()]
+            ym = re.search(r'\((\d{4})\)', prefix)
+            year = int(ym.group(1)) if ym else None
+            raw = prefix[:ym.start()] if ym else prefix
+            show = _sanitise(_clean(raw))
+            return show or 'Unknown Show', year, season, None
+        return _sanitise(_clean(name)) or 'Unknown Show', None, 1, None
+
+    def _parse_movie(name):
+        """Return (title, year) from a movie filename or folder name."""
+        name = _strip_ext(name)
+        m = re.search(r'\((\d{4})\)', name)
+        if m:
+            return _sanitise(_clean(name[:m.start()])), int(m.group(1))
+        m = re.search(r'(?<=[. _])(\d{4})(?=[. _]|$)', name)
+        if m:
+            return _sanitise(_clean(name[:m.start()])), int(m.group(1))
+        return _sanitise(_clean(name)), None
+
+    def _dest_for_path(src, completed_path, detected_type):
+        basename = os.path.basename(src.rstrip('/\\'))
+        base = completed_path.rstrip(os.sep)
+
+        if detected_type == 'movie':
+            title, year = _parse_movie(basename)
+            folder = f'{title} ({year})' if year else title
+            return os.path.join(base, folder), title, year, None, None
+
+        show, year, season, ep_num = _parse_tv(basename)
+        show_folder = f'{show} ({year})' if year else show
+        season_folder = f'Season {season:02d}'
+        return os.path.join(base, show_folder, season_folder), show, year, season, ep_num
+
+    def _tmdb_enrich_movie(title, year):
+        """Search TMDB for the movie, sync to DB, return (movie_obj, proper_title, proper_year)."""
+        from apps.media_tracker.tmdb import tmdb
+        from apps.media_tracker.models import Movie
+        query = f'{title} {year}' if year else title
+        results = tmdb.search_movie(query).get('results', [])
+        if not results:
+            results = tmdb.search_movie(title).get('results', [])
+        if not results:
+            return None, title, year
+        best = results[0]
+        tmdb_id = best['id']
+        movie = Movie.objects.filter(tmdb_id=tmdb_id).first()
+        if not movie:
+            movie = tmdb.sync_movie_to_db(tmdb_id)
+        proper_year = (best.get('release_date') or '')[:4]
+        return movie, best.get('title', title), int(proper_year) if proper_year else year
+
+    def _tmdb_enrich_tv(show, year, season, ep_num):
+        """Search TMDB for the show+episode, sync to DB, return (episode_obj, proper_show, proper_year, ep_title)."""
+        from apps.media_tracker.tmdb import tmdb
+        from apps.media_tracker.models import TVShow, Season as SeasonModel, Episode as EpisodeModel
+        query = f'{show} {year}' if year else show
+        results = tmdb.search_tv(query).get('results', [])
+        if not results:
+            results = tmdb.search_tv(show).get('results', [])
+        if not results:
+            return None, show, year, None
+
+        best = results[0]
+        tmdb_id = best['id']
+        proper_show = best.get('name', show)
+        first_air = (best.get('first_air_date') or '')[:4]
+        proper_year = int(first_air) if first_air else year
+
+        # Ensure show is in DB
+        show_obj = TVShow.objects.filter(tmdb_id=tmdb_id).first()
+        if not show_obj:
+            show_obj = tmdb.sync_show_to_db(tmdb_id)
+
+        ep_obj = None
+        ep_title = None
+        if ep_num is not None and season is not None:
+            # Ensure season + episode exist in DB
+            season_obj = SeasonModel.objects.filter(show=show_obj, season_number=season).first()
+            if not season_obj:
+                tmdb.sync_show_to_db(tmdb_id)  # full re-sync to pick up seasons
+                season_obj = SeasonModel.objects.filter(show=show_obj, season_number=season).first()
+            if season_obj:
+                ep_obj = EpisodeModel.objects.filter(season=season_obj, episode_number=ep_num).first()
+                if ep_obj:
+                    ep_title = ep_obj.name or None
+
+        return ep_obj, proper_show, proper_year, ep_title
+
+    # Find completed_paths for each category
+    movie_completed = None
+    tv_completed = None
+    try:
+        from apps.qbt.models import CategoryConfig
+        cfg = CategoryConfig.get()
+        movie_cp = CategoryPath.objects.filter(category_name=cfg.movie_category).first()
+        tv_cp = CategoryPath.objects.filter(category_name=cfg.tv_category).first()
+        movie_completed = movie_cp.completed_path if movie_cp else None
+        tv_completed = tv_cp.completed_path if tv_cp else None
+    except Exception:
+        pass
+
+    results = []
+    for raw in paths:
+        src = os.path.realpath(raw)
+        if not _permitted(src):
+            results.append({'path': raw, 'error': 'Not permitted'})
+            continue
+        if not os.path.exists(src):
+            results.append({'path': raw, 'error': 'Path not found'})
+            continue
+
+        detected = media_type if media_type in ('movie', 'tv') else _detect_type(src)
+        completed_path = movie_completed if detected == 'movie' else tv_completed
+        if not completed_path:
+            results.append({'path': raw, 'error': f'No completed path configured for {detected}'})
+            continue
+
+        basename = os.path.basename(src.rstrip('/\\'))
+        base = completed_path.rstrip(os.sep)
+        movie_pk = None
+        episode_pk = None
+
+        try:
+            if detected == 'movie':
+                raw_dest, title, year, _s, _e = _dest_for_path(src, completed_path, 'movie')
+                movie_obj, proper_title, proper_year = _tmdb_enrich_movie(title, year)
+                if movie_obj:
+                    movie_pk = movie_obj.pk
+                    folder = f'{proper_title} ({proper_year})' if proper_year else proper_title
+                    dest = os.path.join(base, _sanitise(folder))
+                else:
+                    dest = raw_dest
+            else:
+                raw_dest, show, year, season, ep_num = _dest_for_path(src, completed_path, 'tv')
+                ep_obj, proper_show, proper_year, ep_title = _tmdb_enrich_tv(show, year, season, ep_num)
+                if ep_obj:
+                    episode_pk = ep_obj.pk
+                show_folder = _sanitise(f'{proper_show} ({proper_year})' if proper_year else proper_show)
+                season_folder = f'Season {season:02d}' if season else 'Season 01'
+                if ep_title and ep_num is not None:
+                    ep_folder = _sanitise(f'E{ep_num:02d}-{ep_title}')
+                    dest = os.path.join(base, show_folder, season_folder, ep_folder)
+                else:
+                    dest = os.path.join(base, show_folder, season_folder)
+        except Exception as enrich_err:
+            log.warning('file_move_completed: TMDB enrich failed for %r — %s', src, enrich_err)
+            dest, *_ = _dest_for_path(src, completed_path, detected)
+
+        from apps.downloads.models import FileMove
+        move = FileMove.objects.create(
+            title=basename,
+            source_path=src,
+            dest_path=dest,
+            status=FileMove.Status.PENDING,
+            movie_pk=movie_pk,
+            episode_pk=episode_pk,
+        )
+        from apps.downloads.tasks import execute_file_move
+        execute_file_move.delay(move.id)
+        log.info('file_move_completed: queued FileMove id=%d  %r → %r', move.id, src, dest)
+        results.append({'path': raw, 'move_id': move.id, 'dest': dest, 'type': detected})
+
+    return JsonResponse({'results': results})
 
 
 def _fmt_size(b):

@@ -45,6 +45,7 @@ class DownloadItem(models.Model):
     # Search info for UI display
     search_query = models.CharField(max_length=500, blank=True)
     result_count = models.IntegerField(default=-1)  # -1 = not yet searched
+    search_started_at = models.DateTimeField(null=True, blank=True)
 
     # Scheduling
     release_date = models.DateField(null=True, blank=True)
@@ -104,6 +105,8 @@ class FileMove(models.Model):
     title = models.CharField(max_length=500)
     source_path = models.CharField(max_length=2000)
     dest_path = models.CharField(max_length=2000)
+    movie_pk = models.IntegerField(null=True, blank=True)
+    episode_pk = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     error_message = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

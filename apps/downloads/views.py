@@ -513,14 +513,17 @@ def _run_file_move(move_id):
 # ── File Move views ───────────────────────────────────────────────────────────
 
 def moves_page(request):
-    moves = FileMove.objects.select_related('download_item').all()
+    from django.core.paginator import Paginator
+    all_moves = FileMove.objects.select_related('download_item').order_by('-created_at')
     counts = {
-        'pending': moves.filter(status=FileMove.Status.PENDING).count(),
-        'moving': moves.filter(status=FileMove.Status.MOVING).count(),
-        'completed': moves.filter(status=FileMove.Status.COMPLETED).count(),
-        'failed': moves.filter(status=FileMove.Status.FAILED).count(),
+        'pending': all_moves.filter(status=FileMove.Status.PENDING).count(),
+        'moving': all_moves.filter(status=FileMove.Status.MOVING).count(),
+        'completed': all_moves.filter(status=FileMove.Status.COMPLETED).count(),
+        'failed': all_moves.filter(status=FileMove.Status.FAILED).count(),
     }
-    return render(request, 'downloads/moves.html', {'moves': moves, 'counts': counts})
+    paginator = Paginator(all_moves, 5)
+    moves = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'downloads/moves.html', {'moves': moves, 'counts': counts, 'page_obj': moves})
 
 
 @require_POST

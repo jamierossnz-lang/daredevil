@@ -11,6 +11,7 @@ class TVShow(models.Model):
         PLANNED = 'planned', 'Planned'
 
     tmdb_id = models.IntegerField(unique=True)
+    tvmaze_id = models.IntegerField(null=True, blank=True)
     name = models.CharField(max_length=500)
     overview = models.TextField(blank=True)
     poster_path = models.CharField(max_length=500, blank=True)
@@ -79,6 +80,8 @@ class Season(models.Model):
 class Episode(models.Model):
     class DownloadStatus(models.TextChoices):
         NONE = 'none', 'Not Queued'
+        AWAITING_RELEASE = 'awaiting_release', 'Awaiting Release'
+        WAITING_FOR_DOWNLOAD = 'waiting_for_download', 'Waiting for Download'
         QUEUED = 'queued', 'Queued'
         DOWNLOADING = 'downloading', 'Downloading'
         DOWNLOADED = 'downloaded', 'Downloaded'
@@ -90,6 +93,10 @@ class Episode(models.Model):
     name = models.CharField(max_length=500)
     overview = models.TextField(blank=True)
     air_date = models.DateField(null=True, blank=True)
+    air_datetime = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Precise air datetime in UTC from TVMaze. Use timezone.localtime() to display in NZT.'
+    )
     still_path = models.CharField(max_length=500, blank=True)
     runtime = models.IntegerField(null=True, blank=True)
     vote_average = models.FloatField(default=0)
@@ -106,9 +113,19 @@ class Episode(models.Model):
 
     @property
     def has_aired(self):
+        from datetime import timedelta
+        if self.air_datetime:
+            return self.air_datetime + timedelta(hours=1) <= timezone.now()
         if self.air_date:
-            return self.air_date <= timezone.now().date()
+            return self.air_date < timezone.localdate()  # next day in NZT
         return False
+
+    @property
+    def air_datetime_local(self):
+        """air_datetime converted to the configured local timezone (NZT)."""
+        if self.air_datetime:
+            return timezone.localtime(self.air_datetime)
+        return None
 
     @property
     def still_url(self):

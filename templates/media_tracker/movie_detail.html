@@ -4,11 +4,11 @@
 
 {% block content %}
 <!-- Hero -->
-<div class="relative rounded-2xl overflow-hidden mb-8" style="min-height: 280px;">
+<div class="relative rounded-2xl overflow-hidden mb-6" style="min-height: 280px;">
   {% if movie.backdrop_url %}
   <img src="{{ movie.backdrop_url }}" alt="{{ movie.title }}" class="absolute inset-0 w-full h-full object-cover opacity-25">
   {% endif %}
-  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/75 to-transparent"></div>
+  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/80 to-transparent"></div>
   <div class="relative flex gap-6 p-6 lg:p-10">
     {% if movie.poster_url %}
     <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="hidden sm:block w-36 lg:w-48 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-cyan-600/30">
@@ -29,10 +29,16 @@
         </span>
       </div>
 
-      {% if movie.genres %}<p class="text-sm text-cyan-400 mb-3">{{ movie.genres }}</p>{% endif %}
+      {% if movie.genres or directors %}
+      <p class="text-sm text-cyan-400 mb-1">{{ movie.genres }}</p>
+      {% if directors %}
+      <p class="text-xs text-gray-500 mb-3">Directed by <span class="text-gray-300">{{ directors|join:", " }}</span></p>
+      {% endif %}
+      {% endif %}
+
       <p class="text-sm text-gray-300 leading-relaxed max-w-2xl mb-5">{{ movie.overview }}</p>
 
-      <!-- Download status card -->
+      <!-- Download status -->
       <div class="flex flex-wrap items-center gap-4 glass rounded-xl px-4 py-3 mb-4 w-fit max-w-full">
         <div>
           <p class="text-xs text-gray-500 mb-0.5">Download Status</p>
@@ -55,7 +61,8 @@
         {% endif %}
       </div>
 
-      <div class="flex items-center gap-3">
+      <!-- Actions -->
+      <div class="flex flex-wrap items-center gap-2">
         <button onclick="toggleFav({{ movie.pk }})"
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                        {% if movie.is_favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
@@ -63,10 +70,16 @@
           Favourite
         </button>
         {% if movie.download_status == 'none' or movie.download_status == 'failed' %}
-        <button onclick="openQualityModal()"
+        <button onclick="openMovieAddModal({ mode: 'queue', moviePk: {{ movie.pk }}, title: '{{ movie.title|escapejs }}', onSuccess: () => location.reload() })"
                 class="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-download"></i>
           Queue Download
+        </button>
+        {% elif movie.download_status != 'none' %}
+        <button onclick="resetDownload({{ movie.pk }})"
+                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-rotate-left"></i>
+          Reset &amp; Redownload
         </button>
         {% endif %}
       </div>
@@ -74,75 +87,88 @@
   </div>
 </div>
 
-<!-- Quality selection modal -->
-<div id="quality-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-  <div class="absolute inset-0 bg-black/70" onclick="closeQualityModal()"></div>
-  <div class="relative glass rounded-2xl p-6 w-full max-w-sm shadow-2xl" x-data="{ quality: '1080p' }">
-    <h3 class="text-lg font-bold text-gray-100 mb-1">
-      <i class="fa-solid fa-film text-cyan-400 mr-2"></i>Queue Download
-    </h3>
-    <p class="text-sm text-gray-500 mb-5">{{ movie.title }}</p>
-
-    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Select Quality</p>
-    <div class="grid grid-cols-2 gap-3 mb-6">
-      <label class="cursor-pointer">
-        <input type="radio" name="quality" value="1080p" x-model="quality" class="sr-only">
-        <div :class="quality === '1080p' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-white/10 text-gray-400 hover:border-white/20'"
-             class="border-2 rounded-xl p-4 text-center transition-all">
-          <i class="fa-solid fa-display text-2xl mb-2 block"></i>
-          <p class="font-bold text-sm">1080p</p>
-          <p class="text-xs opacity-60 mt-0.5">Full HD</p>
+<!-- Cast -->
+{% if cast %}
+<div class="glass rounded-2xl px-6 py-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Cast</h2>
+  <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+    {% for person in cast %}
+    <div class="flex-shrink-0 w-20 text-center">
+      <div class="w-16 h-16 mx-auto rounded-full overflow-hidden bg-surface-700 mb-2 ring-1 ring-white/5">
+        {% if person.photo %}
+        <img src="{{ person.photo }}" alt="{{ person.name }}" class="w-full h-full object-cover">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center">
+          <i class="fa-solid fa-user text-gray-600 text-xl"></i>
         </div>
-      </label>
-      <label class="cursor-pointer">
-        <input type="radio" name="quality" value="2160p" x-model="quality" class="sr-only">
-        <div :class="quality === '2160p' ? 'border-purple-500 bg-purple-500/10 text-purple-300' : 'border-white/10 text-gray-400 hover:border-white/20'"
-             class="border-2 rounded-xl p-4 text-center transition-all">
-          <i class="fa-solid fa-tv text-2xl mb-2 block"></i>
-          <p class="font-bold text-sm">4K / 2160p</p>
-          <p class="text-xs opacity-60 mt-0.5">Ultra HD</p>
-        </div>
-      </label>
+        {% endif %}
+      </div>
+      <p class="text-xs text-gray-200 font-medium leading-tight truncate" title="{{ person.name }}">{{ person.name }}</p>
+      <p class="text-xs text-gray-600 truncate mt-0.5" title="{{ person.character }}">{{ person.character }}</p>
     </div>
-
-    <div class="flex gap-3">
-      <button onclick="closeQualityModal()"
-              class="flex-1 px-4 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium transition-colors">
-        Cancel
-      </button>
-      <button @click="queueMovie({{ movie.pk }}, quality)"
-              class="flex-1 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors">
-        <i class="fa-solid fa-download mr-1"></i>Queue
-      </button>
-    </div>
+    {% endfor %}
   </div>
 </div>
+{% endif %}
+
+<!-- Recommended -->
+{% if similar %}
+<div class="glass rounded-2xl px-6 py-5">
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">You Might Also Like</h2>
+  <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+    {% for m in similar %}
+    <div class="group relative">
+      <div class="rounded-xl overflow-hidden bg-surface-800 aspect-[2/3] mb-2 ring-1 ring-white/5">
+        {% if m.poster %}
+        <img src="{{ m.poster }}" alt="{{ m.title }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center">
+          <i class="fa-solid fa-film text-gray-700 text-2xl"></i>
+        </div>
+        {% endif %}
+        <!-- Hover overlay -->
+        <div class="absolute inset-0 bg-surface-950/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+          {% if m.already_added %}
+          <a href="{% url 'movies' %}?q={{ m.title|urlencode }}"
+             class="px-2 py-1.5 bg-surface-700 text-gray-300 rounded-lg text-xs font-medium">
+            <i class="fa-solid fa-circle-check text-green-400 mr-1"></i>In Library
+          </a>
+          {% else %}
+          <button onclick="openMovieAddModal({ mode: 'add', tmdbId: {{ m.tmdb_id }}, title: '{{ m.title|escapejs }}' })"
+                  class="px-2 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+            <i class="fa-solid fa-plus mr-1"></i>Add
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <p class="text-xs text-gray-300 font-medium truncate leading-tight" title="{{ m.title }}">{{ m.title }}</p>
+      {% if m.year or m.rating %}
+      <p class="text-xs text-gray-600">
+        {% if m.year %}{{ m.year }}{% endif %}
+        {% if m.rating > 0 %}<span class="text-yellow-600 ml-1"><i class="fa-solid fa-star text-xs"></i> {{ m.rating }}</span>{% endif %}
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const csrfToken = '{{ csrf_token }}';
 
-function openQualityModal() {
-  document.getElementById('quality-modal').classList.remove('hidden');
-}
-function closeQualityModal() {
-  document.getElementById('quality-modal').classList.add('hidden');
-}
-
-async function queueMovie(pk, quality) {
-  closeQualityModal();
-  const fd = new FormData();
-  fd.append('quality', quality);
-  await fetch(`/movies/${pk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
-  location.reload();
-}
-
 async function toggleFav(pk) {
   await fetch(`/movies/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
   location.reload();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeQualityModal(); });
+async function resetDownload(pk) {
+  if (!confirm('Reset download status? This will remove all download records for this movie so you can queue it again.')) return;
+  await fetch(`/movies/${pk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  location.reload();
+}
 </script>
 {% endblock %}

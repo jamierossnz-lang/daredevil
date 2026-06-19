@@ -4,7 +4,40 @@
 
 {% block content %}
 <!-- Single Alpine scope wraps BOTH the tabs and the panels -->
-<div x-data="{ tab: 'active' }">
+<div x-data="{
+  tab: location.hash.slice(1) || 'active',
+  selected: new Set(),
+  toggleSelect(pk) {
+    const s = new Set(this.selected);
+    s.has(pk) ? s.delete(pk) : s.add(pk);
+    this.selected = s;
+  },
+  async bulkRemove() {
+    if (!confirm(`Remove ${this.selected.size} item(s)? They will be reset so they can be re-queued.`)) return;
+    await Promise.all([...this.selected].map(pk => {
+      const fd = new FormData(); fd.append('delete_files','false');
+      return fetch(`/downloads/${pk}/delete/`, {method:'POST',body:fd,headers:{'X-CSRFToken':csrfToken}});
+    }));
+    location.reload();
+  },
+  async bulkRetry() {
+    await Promise.all([...this.selected].map(pk =>
+      fetch(`/downloads/${pk}/retry/`, {method:'POST',headers:{'X-CSRFToken':csrfToken}})
+    ));
+    location.reload();
+  },
+  async bulkPause() {
+    const hashes = [...document.querySelectorAll('[data-sel-hash]')]
+      .filter(el => this.selected.has(Number(el.dataset.selPk)))
+      .map(el => el.dataset.selHash).filter(Boolean);
+    await Promise.all(hashes.map(h =>
+      fetch(`/qbt/torrent/${h}/pause/`, {method:'POST',headers:{'X-CSRFToken':csrfToken}})
+    ));
+    this.selected = new Set();
+  },
+}"
+x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selected = new Set(); })"
+@hashchange.window="tab = location.hash.slice(1) || 'active'">
 
   <!-- Tab bar (scrollable on mobile) -->
   <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
@@ -34,23 +67,53 @@
         Failed
         <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ failed|length }}</span>
       </button>
+      <!-- multi-select bulk bar (shown when selections exist) -->
+      <div x-show="selected.size > 0" x-cloak
+           class="ml-auto flex items-center gap-2 px-3 py-1.5 glass rounded-xl border border-brand-600/30">
+        <span class="text-xs text-gray-400" x-text="`${selected.size} selected`"></span>
+        <button @click="bulkRetry()" x-show="tab === 'failed'"
+                class="px-2.5 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-rotate-right mr-1"></i>Retry
+        </button>
+        <button @click="bulkRemove()"
+                class="px-2.5 py-1 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-xmark mr-1"></i>Remove
+        </button>
+        <button @click="selected.clear(); selected = new Set()" class="text-gray-500 hover:text-gray-300 text-xs ml-1">Clear</button>
+      </div>
     </div>
   </div>
 
   <!-- ── Active Downloads ── -->
   <div x-show="tab === 'active'">
     {% if active %}
-    <div class="flex justify-end mb-3">
-      <button onclick="cancelAll()"
-              class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
-        <i class="fa-solid fa-xmark"></i> Cancel All
-      </button>
+    <div class="flex items-center justify-between mb-3 gap-2">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded"
+          @change="e => { const pks = [...document.querySelectorAll('#activeList [data-sel-pk]')].map(el=>Number(el.dataset.selPk)); if(e.target.checked) { selected = new Set(pks); } else { selected = new Set(); } }">
+        Select all
+      </label>
+      <div class="flex items-center gap-2">
+        <button onclick="cancelAll()"
+                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
+          <i class="fa-solid fa-xmark"></i> Cancel All
+        </button>
+      </div>
     </div>
     <div class="space-y-3" id="activeList">
       {% for item in active %}
       <div class="glass rounded-2xl p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
-           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}>
-        <div class="flex items-start gap-4">
+           data-sel-pk="{{ item.pk }}"{% if item.torrent_hash %} data-sel-hash="{{ item.torrent_hash }}"{% endif %}
+           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}
+           :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
+        <div class="flex items-start gap-3">
+          <!-- Checkbox -->
+          <div class="flex-shrink-0 pt-1">
+            <input type="checkbox" class="w-3.5 h-3.5 rounded cursor-pointer"
+                   :checked="selected.has({{ item.pk }})"
+                   @change="toggleSelect({{ item.pk }})">
+          </div>
+        <div class="flex items-start gap-4 flex-1">
           {% if item.poster_url %}
           <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
           {% else %}
@@ -139,7 +202,8 @@
               <span>Added {{ item.added_at|date:"M d H:i" }}</span>
             </div>
           </div>
-        </div>
+        </div>{# closes flex items-start gap-4 flex-1 #}
+        </div>{# closes flex items-start gap-3 (outer row with checkbox) #}
       </div>
       {% endfor %}
     </div>
@@ -155,9 +219,24 @@
   <!-- ── Awaiting Digital Release ── -->
   <div x-show="tab === 'waiting'" x-cloak>
     {% if waiting %}
-    <div class="space-y-3">
+    <div class="flex items-center justify-between mb-3 gap-2">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded"
+          @change="e => { const pks = [...document.querySelectorAll('#waitingList [data-sel-pk]')].map(el=>Number(el.dataset.selPk)); selected = e.target.checked ? new Set(pks) : new Set(); }">
+        Select all
+      </label>
+      <button @click="bulkRemove()"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
+        <i class="fa-solid fa-xmark"></i> Remove All Waiting
+      </button>
+    </div>
+    <div class="space-y-3" id="waitingList">
       {% for item in waiting %}
-      <div class="glass rounded-2xl p-4 flex items-center gap-4 animate-slide-in">
+      <div class="glass rounded-2xl p-4 flex items-center gap-3 animate-slide-in" data-sel-pk="{{ item.pk }}"
+           :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded cursor-pointer flex-shrink-0"
+               :checked="selected.has({{ item.pk }})" @change="toggleSelect({{ item.pk }})">
+        <div class="flex items-center gap-4 flex-1">
         {% if item.poster_url %}
         <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
         {% else %}
@@ -185,7 +264,8 @@
                   class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors">
             <i class="fa-solid fa-xmark text-xs"></i>
           </button>
-        </div>
+        </div>{# closes flex items-center gap-4 flex-1 #}
+        </div>{# closes glass card flex items-center gap-3 #}
       </div>
       {% endfor %}
     </div>
@@ -200,9 +280,23 @@
   <!-- ── Completed ── -->
   <div x-show="tab === 'completed'" x-cloak>
     {% if completed %}
-    <div class="space-y-2">
+    <div class="flex items-center justify-between mb-3 gap-2">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded"
+          @change="e => { const pks = [...document.querySelectorAll('#completedList [data-sel-pk]')].map(el=>Number(el.dataset.selPk)); selected = e.target.checked ? new Set(pks) : new Set(); }">
+        Select all
+      </label>
+      <button @click="bulkRemove()"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
+        <i class="fa-solid fa-xmark"></i> Remove All Done
+      </button>
+    </div>
+    <div class="space-y-2" id="completedList">
       {% for item in completed %}
-      <div class="glass rounded-xl p-3 flex items-center gap-3 animate-slide-in">
+      <div class="glass rounded-xl p-3 flex items-center gap-3 animate-slide-in" data-sel-pk="{{ item.pk }}"
+           :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded cursor-pointer flex-shrink-0"
+               :checked="selected.has({{ item.pk }})" @change="toggleSelect({{ item.pk }})">
         <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
           <i class="fa-solid fa-circle-check text-green-400 text-sm"></i>
         </div>
@@ -231,10 +325,30 @@
   <!-- ── Failed ── -->
   <div x-show="tab === 'failed'" x-cloak>
     {% if failed %}
-    <div class="space-y-3">
+    <div class="flex items-center justify-between mb-3 gap-2">
+      <label class="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" class="w-3.5 h-3.5 rounded"
+          @change="e => { const pks = [...document.querySelectorAll('#failedList [data-sel-pk]')].map(el=>Number(el.dataset.selPk)); selected = e.target.checked ? new Set(pks) : new Set(); }">
+        Select all
+      </label>
+      <div class="flex items-center gap-2">
+        <button @click="bulkRetry()"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
+          <i class="fa-solid fa-rotate-right"></i> Retry All Failed
+        </button>
+        <button @click="bulkRemove()"
+                class="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
+          <i class="fa-solid fa-xmark"></i> Remove All Failed
+        </button>
+      </div>
+    </div>
+    <div class="space-y-3" id="failedList">
       {% for item in failed %}
-      <div class="glass rounded-2xl p-4 border border-red-500/20 animate-slide-in">
+      <div class="glass rounded-2xl p-4 border border-red-500/20 animate-slide-in" data-sel-pk="{{ item.pk }}"
+           :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50 border-brand-500/30' : ''">
         <div class="flex items-start gap-3">
+          <input type="checkbox" class="w-3.5 h-3.5 rounded cursor-pointer flex-shrink-0 mt-1"
+                 :checked="selected.has({{ item.pk }})" @change="toggleSelect({{ item.pk }})">
           <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
             <i class="fa-solid fa-circle-exclamation text-red-400 text-sm"></i>
           </div>

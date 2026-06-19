@@ -75,6 +75,25 @@ docker compose exec web python manage.py createsuperuser
 | Jackett | http://localhost:9117 |
 | Plex | http://localhost:32400/web |
 
+---
+
+**Using Docker Desktop GUI (instead of the terminal):**
+
+After `docker compose up -d`, open Docker Desktop. The entire stack appears as a group called **daredevil** under the **Containers** tab.
+
+| Task | How |
+|------|-----|
+| Watch logs | Click a container (e.g. `web`) → **Logs** tab |
+| Get the qBittorrent temp password | Click `qbittorrent` → **Logs** tab, look for `temporary password is provided` |
+| Open a shell (e.g. to create a superuser) | Click `web` → **Exec** tab → type `python manage.py createsuperuser` |
+| Restart a container | Click the restart icon next to the container name |
+| Stop everything | Click **Stop** on the `daredevil` group row |
+| Browse volumes | **Volumes** tab in the left sidebar |
+
+> To create the admin user via the Docker Desktop GUI: open the `web` container → **Exec** tab → run `python manage.py createsuperuser` and follow the prompts. You can then log in at http://localhost:8000/admin.
+
+---
+
 **Set up qBittorrent after first run:**
 
 1. Log in at http://localhost:8080 with username `admin` and the temporary password from the logs

@@ -1,0 +1,306 @@
+<!-- Shared movie-add modal — included once in base.html, opened via openMovieAddModal(config) -->
+<div id="movieAddModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="movieModalClose()"></div>
+  <div class="relative glass rounded-2xl w-full max-w-md p-6 animate-slide-in overflow-y-auto max-h-[90vh]">
+
+    <!-- Step 1: Quality + action choice -->
+    <div id="mamStepQuality">
+      <h3 class="text-base font-bold text-white mb-0.5 flex items-center gap-2">
+        <i class="fa-solid fa-film text-cyan-400"></i>
+        <span id="mamTitle">Add Movie</span>
+      </h3>
+      <p class="text-xs text-gray-500 mb-5">Choose quality and how to find the download</p>
+
+      <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Quality</p>
+      <div class="grid grid-cols-2 gap-2 mb-5">
+        <label class="cursor-pointer">
+          <input type="radio" name="mamQuality" value="1080p" checked class="hidden peer">
+          <span class="block px-4 py-3 rounded-xl border text-center text-sm font-semibold transition-all
+                       border-surface-600 text-gray-400
+                       peer-checked:bg-cyan-600/20 peer-checked:border-cyan-500 peer-checked:text-cyan-300">
+            1080p HD
+          </span>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="mamQuality" value="2160p" class="hidden peer">
+          <span class="block px-4 py-3 rounded-xl border text-center text-sm font-semibold transition-all
+                       border-surface-600 text-gray-400
+                       peer-checked:bg-cyan-600/20 peer-checked:border-cyan-500 peer-checked:text-cyan-300">
+            2160p 4K
+          </span>
+        </label>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button id="mamAutoBtn" onclick="movieModalAction('auto')"
+                class="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid fa-bolt"></i> Add &amp; Auto-Search
+        </button>
+        <button id="mamPickBtn" onclick="movieModalAction('pick')"
+                class="w-full py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-medium transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid fa-magnifying-glass"></i> Add &amp; Pick Torrent
+        </button>
+        <button onclick="movieModalClose()"
+                class="w-full py-2 text-gray-500 hover:text-gray-300 text-sm transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Torrent picker -->
+    <div id="mamStepSearch" class="hidden">
+      <div class="flex items-center gap-2 mb-4">
+        <button onclick="movieModalBack()"
+                class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors">
+          <i class="fa-solid fa-arrow-left text-xs"></i>
+        </button>
+        <h3 class="text-sm font-bold text-white flex-1 truncate" id="mamSearchTitle">Pick a Torrent</h3>
+      </div>
+      <div class="flex gap-2 mb-4">
+        <input type="text" id="mamTorrentQuery"
+               class="flex-1 px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors">
+        <button onclick="movieModalSearch()" id="mamSearchBtn"
+                class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-sm font-medium transition-colors">
+          Search
+        </button>
+      </div>
+      <div id="mamTorrentResults" class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+        <p class="text-sm text-gray-500 text-center py-4">Enter a query above and click Search</p>
+      </div>
+      <button onclick="movieModalClose()"
+              class="w-full mt-3 py-1.5 text-gray-600 hover:text-gray-400 text-xs transition-colors">
+        Cancel
+      </button>
+    </div>
+
+    <!-- Step 3: Done -->
+    <div id="mamStepDone" class="hidden text-center py-4">
+      <i class="fa-solid fa-circle-check text-green-400 text-4xl mb-3 block"></i>
+      <p class="text-white font-semibold mb-1" id="mamDoneMsg">Download queued!</p>
+      <p class="text-xs text-gray-500">Redirecting…</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Shared Movie Add Modal ────────────────────────────────────────────────────
+//
+// openMovieAddModal(config) — config shape:
+//   mode       : 'add'   → call /movies/add/ with tmdbId (movie may not exist yet)
+//              : 'queue' → call /movies/{moviePk}/queue/ (movie already in library)
+//   tmdbId     : required for mode='add'
+//   moviePk    : required for mode='queue'; used for 'add' redirect after
+//   title      : movie title shown in modal header
+//   onSuccess  : optional callback(moviePk) after auto-add; defaults to redirecting to queue
+//
+(function() {
+  const MAM_CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+  let _cfg           = null;   // current config
+  let _downloadItemPk = null;  // set after add/queue resolves
+  let _moviePk        = null;  // set after add resolves
+  let _addPromise     = null;  // in-flight add/queue request
+
+  function _step(id) {
+    ['mamStepQuality','mamStepSearch','mamStepDone'].forEach(s => {
+      document.getElementById(s).classList.toggle('hidden', s !== id);
+    });
+  }
+
+  function _resetBtns() {
+    const a = document.getElementById('mamAutoBtn');
+    const p = document.getElementById('mamPickBtn');
+    if (a) { a.disabled = false; a.innerHTML = '<i class="fa-solid fa-bolt"></i> Add &amp; Auto-Search'; }
+    if (p) { p.disabled = false; p.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Add &amp; Pick Torrent'; }
+  }
+
+  window.openMovieAddModal = function(config) {
+    _cfg            = config;
+    _downloadItemPk = null;
+    _moviePk        = config.moviePk || null;
+    _addPromise     = null;
+    document.getElementById('mamTitle').textContent = config.title || 'Add Movie';
+    document.querySelector('input[name="mamQuality"][value="1080p"]').checked = true;
+    _resetBtns();
+    _step('mamStepQuality');
+    const el = document.getElementById('movieAddModal');
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+  };
+
+  window.movieModalClose = function() {
+    const el = document.getElementById('movieAddModal');
+    el.classList.add('hidden');
+    el.classList.remove('flex');
+    _resetBtns();
+    _cfg = null;
+  };
+
+  window.movieModalBack = function() {
+    _resetBtns();
+    _step('mamStepQuality');
+  };
+
+  async function _doAddOrQueue(quality) {
+    const fd = new FormData();
+    if (_cfg.mode === 'queue') {
+      fd.append('quality', quality);
+      const r = await fetch(`/movies/${_cfg.moviePk}/queue/`, {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': MAM_CSRF }
+      });
+      const d = await r.json();
+      _downloadItemPk = d.download_item_pk || null;
+      _moviePk        = _cfg.moviePk;
+      return d;
+    } else {
+      fd.append('tmdb_id', _cfg.tmdbId);
+      fd.append('quality', quality);
+      const r = await fetch('/movies/add/', {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': MAM_CSRF }
+      });
+      const d = await r.json();
+      if (d.status !== 'error') {
+        _moviePk        = d.pk;
+        _downloadItemPk = d.download_item_pk || null;
+      }
+      return d;
+    }
+  }
+
+  window.movieModalAction = async function(mode) {
+    const quality = document.querySelector('input[name="mamQuality"]:checked').value;
+    const autoBtn = document.getElementById('mamAutoBtn');
+    const pickBtn = document.getElementById('mamPickBtn');
+
+    if (mode === 'auto') {
+      autoBtn.disabled = true;
+      autoBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding…';
+      try {
+        const d = await _doAddOrQueue(quality);
+        if (d.status === 'error') {
+          alert('Failed: ' + d.message);
+          _resetBtns();
+          return;
+        }
+        if (_cfg.onSuccess) {
+          _cfg.onSuccess(_moviePk);
+        } else if (d.status === 'exists' && _cfg.mode === 'add') {
+          window.location.href = `/movies/${_moviePk}/`;
+        } else {
+          window.location.href = '/downloads/#active';
+        }
+      } catch(e) {
+        alert('Network error: ' + e.message);
+        _resetBtns();
+      }
+    } else {
+      // Pick torrent — fire add in background while showing search
+      pickBtn.disabled = true;
+      pickBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading…';
+      const query = `${_cfg.title || ''} ${quality}`.trim();
+      document.getElementById('mamTorrentQuery').value = query;
+      document.getElementById('mamSearchTitle').textContent = _cfg.title || 'Pick a Torrent';
+      document.getElementById('mamTorrentResults').innerHTML =
+        '<p class="text-sm text-gray-500 text-center py-4">Enter a query above and click Search</p>';
+      _step('mamStepSearch');
+      _addPromise = _doAddOrQueue(quality).catch(() => null);
+      movieModalSearch();
+    }
+  };
+
+  window.movieModalSearch = async function() {
+    const query = document.getElementById('mamTorrentQuery').value.trim();
+    if (!query) return;
+    const btn = document.getElementById('mamSearchBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Searching…';
+    document.getElementById('mamTorrentResults').innerHTML =
+      '<div class="py-8 text-center text-gray-500"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i><p class="text-sm">Searching Jackett…</p></div>';
+    try {
+      const fd = new FormData();
+      fd.append('q', query);
+      const r    = await fetch('/qbt/search/run/', { method: 'POST', body: fd, headers: { 'X-CSRFToken': MAM_CSRF } });
+      const data = await r.json();
+      _renderTorrentResults(data.results || []);
+    } catch(e) {
+      document.getElementById('mamTorrentResults').innerHTML =
+        `<p class="text-sm text-red-400 text-center py-4"><i class="fa-solid fa-circle-exclamation mr-1"></i>${_esc(e.message)}</p>`;
+    }
+    btn.disabled = false;
+    btn.innerHTML = 'Search';
+  };
+
+  function _renderTorrentResults(results) {
+    const el = document.getElementById('mamTorrentResults');
+    if (!results.length) {
+      el.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No results found</p>';
+      return;
+    }
+    el.innerHTML = results.slice(0, 40).map(r => {
+      const seeds = Number(r.seeds || r.seeders || r.nbSeeders) || 0;
+      const sz    = r.size || '';
+      const name  = _esc(r.name || r.fileName || '');
+      const trk   = r.engine ? `· ${_esc(r.engine)}` : '';
+      const magnet = r.url || r.magnet || r.fileUrl || '';
+      const payload = JSON.stringify({ magnet, name: r.name || r.fileName || '', seeders: seeds });
+      return `
+      <button onclick='_mamPick(${_esc(payload)})'
+              class="w-full text-left px-3 py-2.5 rounded-xl bg-surface-800 hover:bg-surface-700 border border-surface-600 hover:border-cyan-600/50 transition-colors group mb-1.5">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-xs text-gray-200 leading-snug group-hover:text-white">${name}</span>
+          <span class="flex-shrink-0 text-xs font-semibold ml-2 ${seeds > 0 ? 'text-green-400' : 'text-gray-600'}">${seeds}S</span>
+        </div>
+        <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-600">
+          ${sz ? `<span>${sz}</span>` : ''}${trk}
+        </div>
+      </button>`;
+    }).join('');
+  }
+
+  window._mamPick = async function({ magnet, name, seeders }) {
+    if (_addPromise) await _addPromise;
+    if (!_downloadItemPk) {
+      alert('Could not queue movie — close and try again.');
+      return;
+    }
+    document.getElementById('mamTorrentResults').innerHTML =
+      '<div class="py-6 text-center text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Starting download…</div>';
+    const fd = new FormData();
+    fd.append('magnet', magnet);
+    fd.append('name', name);
+    fd.append('result_count', seeders);
+    const r = await fetch(`/downloads/${_downloadItemPk}/begin-download/`, {
+      method: 'POST', body: fd, headers: { 'X-CSRFToken': MAM_CSRF }
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _step('mamStepDone');
+      setTimeout(() => {
+        if (_moviePk) window.location.href = `/movies/${_moviePk}/`;
+        else window.location.href = '/downloads/#active';
+      }, 1500);
+    } else {
+      alert('Failed to start download: ' + (d.error || 'unknown'));
+    }
+  };
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function _fmtSize(bytes) {
+    const n = Number(bytes);
+    if (!n || isNaN(n)) return '';
+    const u = ['B','KB','MB','GB']; let b = n, i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return b.toFixed(1) + ' ' + u[i];
+  }
+
+  document.getElementById('mamTorrentQuery')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); movieModalSearch(); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') movieModalClose();
+  });
+})();
+</script>

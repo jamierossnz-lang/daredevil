@@ -61,6 +61,11 @@
           <i class="fa-solid fa-rss" id="monitorIcon"></i>
           <span class="hidden sm:inline" id="monitorLabel">{% if show.monitor_new_episodes %}Monitoring{% else %}Monitor{% endif %}</span>
         </button>
+        <button onclick="resetDownload({{ show.pk }})"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span class="hidden sm:inline">Reset Downloads</span>
+        </button>
       </div>
     </div>
   </div>
@@ -154,6 +159,8 @@
                      {% if ep.download_status == 'downloaded' %}text-green-500
                      {% elif ep.download_status == 'downloading' %}text-blue-400
                      {% elif ep.download_status == 'queued' %}text-yellow-400
+                     {% elif ep.download_status == 'waiting_for_download' %}text-orange-400
+                     {% elif ep.download_status == 'awaiting_release' %}text-purple-400
                      {% else %}text-gray-600{% endif %}">
           {{ ep.episode_number|stringformat:"02d" }}
         </span>
@@ -173,7 +180,13 @@
             {{ ep.name }}
           </p>
           <div class="flex flex-wrap items-center gap-x-2 gap-y-0 mt-0.5 text-xs text-gray-600">
-            {% if ep.air_date %}<span>{{ ep.air_date|date:"M j, Y" }}</span>{% endif %}
+            {% if ep.air_datetime_local %}
+              <span title="NZ time">{{ ep.air_datetime_local|date:"M j, Y" }}
+                <span class="text-gray-700">{{ ep.air_datetime_local|date:"g:i A" }} NZT</span>
+              </span>
+            {% elif ep.air_date %}
+              <span>{{ ep.air_date|date:"M j, Y" }}</span>
+            {% endif %}
             {% if ep.runtime %}<span>· {{ ep.runtime }}m</span>{% endif %}
             {% if ep.vote_average > 0 %}<span class="text-yellow-600"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>{{ ep.vote_average|floatformat:1 }}</span>{% endif %}
           </div>
@@ -182,11 +195,25 @@
         <!-- Status / action -->
         <div class="flex-shrink-0">
           {% if ep.download_status == 'downloaded' %}
-          <i class="fa-solid fa-circle-check text-green-400 text-base w-8 text-center block"></i>
+          <span title="Downloaded">
+            <i class="fa-solid fa-circle-check text-green-400 text-base w-8 text-center block"></i>
+          </span>
           {% elif ep.download_status == 'downloading' %}
-          <i class="fa-solid fa-spinner fa-spin text-blue-400 text-base w-8 text-center block"></i>
+          <span title="Downloading">
+            <i class="fa-solid fa-spinner fa-spin text-blue-400 text-base w-8 text-center block"></i>
+          </span>
           {% elif ep.download_status == 'queued' %}
-          <i class="fa-solid fa-clock text-yellow-400 text-base w-8 text-center block"></i>
+          <span title="Queued for download">
+            <i class="fa-solid fa-clock text-yellow-400 text-base w-8 text-center block"></i>
+          </span>
+          {% elif ep.download_status == 'waiting_for_download' %}
+          <span title="Aired — queuing soon">
+            <i class="fa-solid fa-circle-down text-orange-400 text-base w-8 text-center block"></i>
+          </span>
+          {% elif ep.download_status == 'awaiting_release' %}
+          <span title="{% if ep.air_datetime_local %}Airs {{ ep.air_datetime_local|date:'M j, Y g:i A' }} NZT{% else %}Not yet aired{% endif %}">
+            <i class="fa-solid fa-satellite-dish text-purple-400 text-base w-8 text-center block"></i>
+          </span>
           {% else %}
           <button onclick="queueEpisode({{ show.pk }}, {{ ep.pk }}, this)"
                   title="Download episode"
@@ -369,6 +396,12 @@ async function toggleMonitor(pk) {
     btn.className = btn.className.replace('bg-brand-500/20 text-brand-400 border border-brand-500/30', 'bg-surface-700 text-gray-400 hover:text-brand-400');
     if (lbl) lbl.textContent = 'Monitor';
   }
+}
+
+async function resetDownload(pk) {
+  if (!confirm('Reset all episode download statuses? This removes all download records so you can re-queue episodes from scratch.')) return;
+  await fetch(`/shows/${pk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  location.reload();
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────

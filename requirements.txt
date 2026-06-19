@@ -11,3 +11,4 @@ Pillow>=10.0.0
 whitenoise>=6.6.0
 django-htmx>=1.17.0
 gunicorn>=21.2.0
+plexapi>=4.15.0

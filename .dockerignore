@@ -2,6 +2,7 @@
 .gitignore
 venv/
 env/
+.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -13,3 +14,9 @@ staticfiles/
 .DS_Store
 README.md
 docker-compose.yml
+data/
+downloads/
+movies/
+tv/
+.vscode/
+.idea/

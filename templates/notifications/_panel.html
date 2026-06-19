@@ -1,0 +1,33 @@
+{% if items %}
+{% for item in items %}
+<div class="flex items-start gap-3 px-4 py-3 border-b border-surface-700/40 hover:bg-surface-800/40 group transition-colors"
+     id="notif-{{ item.notif.pk }}">
+
+  <div class="mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
+    {% if item.notif.level == 'error' %}bg-red-500/20 text-red-400
+    {% elif item.notif.level == 'warning' %}bg-yellow-500/20 text-yellow-400
+    {% elif item.notif.level == 'success' %}bg-green-500/20 text-green-400
+    {% else %}bg-brand-500/20 text-brand-400{% endif %}">
+    <i class="fa-solid {{ item.notif.icon }} text-xs"></i>
+  </div>
+
+  <div class="flex-1 min-w-0">
+    <p class="text-sm font-medium {% if not item.notif.read %}text-white{% else %}text-gray-300{% endif %} leading-snug">
+      {{ item.notif.title }}
+    </p>
+    <p class="text-xs text-gray-500 mt-0.5 break-words leading-relaxed">{{ item.notif.message }}</p>
+    <p class="text-[10px] text-gray-600 mt-1">{{ item.time_ago }}</p>
+  </div>
+
+  <button @click="dismiss({{ item.notif.pk }})"
+          class="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-all flex-shrink-0 mt-0.5 rounded">
+    <i class="fa-solid fa-xmark text-xs"></i>
+  </button>
+</div>
+{% endfor %}
+{% else %}
+<div class="flex flex-col items-center justify-center py-14 text-gray-600">
+  <i class="fa-solid fa-bell-slash text-3xl mb-3 opacity-40"></i>
+  <p class="text-sm">No notifications</p>
+</div>
+{% endif %}

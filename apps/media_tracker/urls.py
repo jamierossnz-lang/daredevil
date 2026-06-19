@@ -24,6 +24,16 @@ urlpatterns = [
     path('movies/<int:pk>/favourite/', views.movie_toggle_favourite, name='movie_favourite'),
     path('movies/<int:pk>/queue/', views.movie_queue_download, name='movie_queue'),
     path('movies/<int:pk>/delete/', views.movie_delete, name='movie_delete'),
+    path('movies/<int:pk>/reset/', views.movie_reset_download, name='movie_reset'),
+    path('shows/<int:pk>/reset/', views.tv_show_reset_download, name='tv_show_reset'),
+
+    # App Settings
+    path('settings/', views.app_settings_view, name='app_settings'),
+    path('settings/save/', views.app_settings_save, name='app_settings_save'),
+    path('settings/ping/', views.server_ping, name='server_ping'),
+    path('settings/restart/', views.server_restart, name='server_restart'),
+    path('settings/celery-restart/', views.celery_restart, name='celery_restart'),
+    path('settings/ntfy-test/', views.ntfy_test, name='ntfy_test'),
 
     # Background Tasks
     path('tasks/', task_views.tasks_dashboard, name='tasks_dashboard'),

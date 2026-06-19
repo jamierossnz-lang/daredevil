@@ -8,6 +8,8 @@ urlpatterns = [
     path('', include('apps.media_tracker.urls')),
     path('downloads/', include('apps.downloads.urls')),
     path('qbt/', include('apps.qbt.urls')),
+    path('plex/', include('apps.plex.urls')),
+    path('notifications/', include('apps.notifications.urls')),
 ]
 
 if settings.DEBUG:

@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
@@ -15,29 +16,41 @@ _VIDEO_EXTENSIONS = {
 @shared_task(name='cleanup_non_video_files')
 def cleanup_non_video_files():
     """
-    Walk every completed_path configured in CategoryPath and delete any file
-    whose extension is not a recognised video format.
-    Directories are never deleted — only files.
+    Walk every download_path and completed_path configured in CategoryPath, delete
+    any file whose extension is not a recognised video format, then remove empty
+    directories left behind.
     """
     from apps.qbt.models import CategoryPath
 
-    paths = [
-        cp.completed_path
-        for cp in CategoryPath.objects.all()
-        if cp.completed_path
-    ]
+    paths = []
+    for cp in CategoryPath.objects.all():
+        if cp.download_path:
+            paths.append(cp.download_path)
+        if cp.completed_path:
+            paths.append(cp.completed_path)
 
-    if not paths:
-        log.info('cleanup_non_video_files: no completed_path configured, nothing to do')
+    # Deduplicate while preserving order
+    seen = set()
+    unique_paths = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique_paths.append(p)
+
+    if not unique_paths:
+        log.info('cleanup_non_video_files: no paths configured, nothing to do')
         return
 
-    deleted = 0
-    for base_path in paths:
+    deleted_files = 0
+    removed_dirs = 0
+
+    for base_path in unique_paths:
         if not os.path.isdir(base_path):
             log.warning('cleanup_non_video_files: path %r does not exist, skipping', base_path)
             continue
 
-        for root, _dirs, files in os.walk(base_path):
+        # Delete non-video files (bottom-up so we can catch empty dirs in same pass)
+        for root, _dirs, files in os.walk(base_path, topdown=False):
             for fname in files:
                 ext = os.path.splitext(fname)[1].lower()
                 if ext not in _VIDEO_EXTENSIONS:
@@ -45,83 +58,246 @@ def cleanup_non_video_files():
                     try:
                         os.remove(fpath)
                         log.info('cleanup_non_video_files: deleted %r', fpath)
-                        deleted += 1
+                        deleted_files += 1
                     except Exception as e:
                         log.warning('cleanup_non_video_files: could not delete %r — %s', fpath, e)
 
-    log.info('cleanup_non_video_files: done — deleted %d file(s)', deleted)
+            # Remove directory if now empty (never remove the base_path itself)
+            if root != base_path:
+                try:
+                    if not os.listdir(root):
+                        os.rmdir(root)
+                        log.info('cleanup_non_video_files: removed empty dir %r', root)
+                        removed_dirs += 1
+                except Exception as e:
+                    log.warning('cleanup_non_video_files: could not remove dir %r — %s', root, e)
+
+    log.info('cleanup_non_video_files: done — deleted %d file(s), removed %d empty dir(s)',
+             deleted_files, removed_dirs)
+    return f'deleted {deleted_files} files, {removed_dirs} dirs'
+
+
+@shared_task(name='auto_search_queue')
+def auto_search_queue():
+    """
+    Pick up any DownloadItems stuck in SEARCHING status that haven't had an active
+    search task running in the last 10 minutes, and fire search_and_download for each.
+    This means the search runs even when nobody has the queue page open.
+    """
+    from datetime import timedelta
+    from apps.downloads.models import DownloadItem
+
+    cutoff = timezone.now() - timedelta(minutes=10)
+    from django.db.models import Q
+    stuck = DownloadItem.objects.filter(
+        status=DownloadItem.Status.SEARCHING,
+    ).filter(
+        Q(search_started_at__isnull=True) | Q(search_started_at__lt=cutoff)
+    )
+
+    dispatched = 0
+    for item in stuck:
+        search_and_download.delay(item.pk)
+        dispatched += 1
+        log.info('auto_search_queue: dispatched search_and_download for pk=%d %r', item.pk, item.title)
+
+    log.info('auto_search_queue: dispatched %d item(s)', dispatched)
+    return f'dispatched {dispatched}'
+
+
+@shared_task(name='remove_empty_folders')
+def remove_empty_folders():
+    """
+    Walk every completed_path configured in CategoryPath and remove any empty
+    directories (bottom-up, so nested empties collapse in one pass).
+    """
+    from apps.qbt.models import CategoryPath
+
+    paths = []
+    for cp in CategoryPath.objects.all():
+        if cp.download_path:
+            paths.append(cp.download_path)
+
+    seen = set()
+    unique_paths = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique_paths.append(p)
+
+    if not unique_paths:
+        log.info('remove_empty_folders: no download_path configured, nothing to do')
+        return
+
+    removed = 0
+    for base_path in unique_paths:
+        if not os.path.isdir(base_path):
+            log.warning('remove_empty_folders: path %r does not exist, skipping', base_path)
+            continue
+        for root, _dirs, _files in os.walk(base_path, topdown=False):
+            if root == base_path:
+                continue
+            try:
+                if not os.listdir(root):
+                    os.rmdir(root)
+                    log.info('remove_empty_folders: removed %r', root)
+                    removed += 1
+            except Exception as e:
+                log.warning('remove_empty_folders: could not remove %r — %s', root, e)
+
+    log.info('remove_empty_folders: done — removed %d empty dir(s)', removed)
+    return f'removed {removed} empty dirs'
 
 
 @shared_task(name='sync_all_shows')
 def sync_all_shows():
-    """Re-sync every tracked TV show from TMDB to pick up new seasons and episodes."""
+    """
+    Re-sync every tracked TV show from TMDB (metadata + episodes) and TVMaze (precise
+    air times), then apply awaiting_release/waiting_for_download statuses for monitored shows.
+    """
     from .models import TVShow
     from .tmdb import tmdb
+    from .tvmaze import tvmaze
 
-    for show in TVShow.objects.all():
+    shows = list(TVShow.objects.all())
+    synced = 0
+    for show in shows:
         try:
             tmdb.sync_show_to_db(show.tmdb_id)
-        except Exception:
-            pass
+            show.refresh_from_db()
+            tvmaze.sync_airdates_for_show(show)
+            show.refresh_from_db()
+            _apply_episode_statuses(show)
+            synced += 1
+        except Exception as e:
+            log.warning('sync_all_shows: failed for %s: %s', show.name, e)
+
+    return f'synced {synced} of {len(shows)} shows'
 
 
-@shared_task(name='queue_new_episodes')
-def queue_new_episodes():
+@shared_task(name='sync_tvmaze_show')
+def sync_tvmaze_show(show_pk):
     """
-    Auto-queue aired episodes for monitored shows, but only from monitor_from onward.
-    monitor_from is a high-water mark that advances to the latest queued air date,
-    so historical episodes are never auto-queued (the user adds those manually).
+    Sync TVMaze air times for a single show then apply episode statuses.
+    Fired on show add and monitor toggle so statuses are set without waiting for the
+    daily sync_all_shows run.
+    """
+    from .models import TVShow
+    from .tvmaze import tvmaze
+
+    try:
+        show = TVShow.objects.get(pk=show_pk)
+    except TVShow.DoesNotExist:
+        return
+
+    tvmaze.sync_airdates_for_show(show)
+    show.refresh_from_db()
+    _apply_episode_statuses(show)
+    log.info('sync_tvmaze_show: done for %s', show.name)
+    return f'synced TVMaze airdates for {show.name}'
+
+
+@shared_task(name='update_episode_statuses')
+def update_episode_statuses():
+    """
+    Transition episodes from awaiting_release → waiting_for_download when their air
+    time has passed in NZT. Runs frequently so the window between airing and queuing
+    is small.
+
+    Uses air_datetime (precise, UTC) when available, falls back to air_date (date only).
+
+    Rules:
+      - With air_datetime: wait 1 hour after the broadcast time (torrent release window).
+      - Date-only fallback: wait until the day AFTER the air_date (no exact time known).
+    """
+    from .models import Episode
+
+    now = timezone.now()
+    today = timezone.localdate()
+    one_hour_ago = now - timedelta(hours=1)
+
+    # Precise: air_datetime — transition 1 hour after broadcast
+    moved_dt = Episode.objects.filter(
+        download_status=Episode.DownloadStatus.AWAITING_RELEASE,
+        air_datetime__isnull=False,
+        air_datetime__lte=one_hour_ago,
+    ).update(download_status=Episode.DownloadStatus.WAITING_FOR_DOWNLOAD)
+
+    # Fallback: date-only — transition the day after (air_date strictly before today)
+    moved_date = Episode.objects.filter(
+        download_status=Episode.DownloadStatus.AWAITING_RELEASE,
+        air_datetime__isnull=True,
+        air_date__lt=today,
+    ).update(download_status=Episode.DownloadStatus.WAITING_FOR_DOWNLOAD)
+
+    total = moved_dt + moved_date
+    if total:
+        log.info('update_episode_statuses: moved %d episodes to waiting_for_download', total)
+    return f'moved {total} to waiting_for_download'
+
+
+@shared_task(name='queue_waiting_episodes')
+def queue_waiting_episodes():
+    """
+    For all monitored shows, find episodes in waiting_for_download status and queue
+    them for download. This is the authoritative auto-download trigger — it only fires
+    for episodes that have already aired (status set by update_episode_statuses).
     """
     from .models import TVShow, Episode
     from apps.downloads.models import DownloadItem
 
-    monitored = TVShow.objects.filter(monitor_new_episodes=True).prefetch_related(
-        'seasons__episodes'
+    monitored_show_ids = set(
+        TVShow.objects.filter(monitor_new_episodes=True).values_list('id', flat=True)
     )
-    today = timezone.now().date()
+    if not monitored_show_ids:
+        return 'no monitored shows'
 
-    for show in monitored:
-        # Fallback: if monitor_from was never set, use the date the show was added
-        cutoff = show.monitor_from or show.added_at.date()
-        latest_queued_date = None
+    waiting = Episode.objects.filter(
+        download_status=Episode.DownloadStatus.WAITING_FOR_DOWNLOAD,
+        season__show_id__in=monitored_show_ids,
+    ).select_related('season__show')
 
-        for season in show.seasons.all():
-            for ep in season.episodes.filter(download_status=Episode.DownloadStatus.NONE):
-                if not ep.air_date:
-                    continue
-                # Only queue episodes that aired on or after the cutoff date
-                if ep.air_date < cutoff or ep.air_date > today:
-                    continue
+    queued = 0
+    newly_queued = []
 
-                sq = f'{show.name} S{season.season_number:02d}E{ep.episode_number:02d} 1080p'
-                item, created = DownloadItem.objects.get_or_create(
-                    media_type=DownloadItem.MediaType.EPISODE,
-                    episode_id=ep.id,
-                    defaults={
-                        'title': show.name,
-                        'subtitle': str(ep),
-                        'poster_path': show.poster_path,
-                        'status': DownloadItem.Status.SEARCHING,
-                        'release_date': ep.air_date,
-                        'quality': '1080p',
-                        'search_query': sq,
-                    },
-                )
-                if created:
-                    ep.download_status = Episode.DownloadStatus.QUEUED
-                    ep.save(update_fields=['download_status'])
-                    search_and_download.delay(item.id)
-                    log.info('queue_new_episodes: queued %s (air_date=%s)', ep, ep.air_date)
+    for ep in waiting:
+        show = ep.season.show
+        season_num = ep.season.season_number
 
-                # Track the most recent air date queued this run
-                if latest_queued_date is None or ep.air_date > latest_queued_date:
-                    latest_queued_date = ep.air_date
+        sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} 1080p'
+        item, created = DownloadItem.objects.get_or_create(
+            media_type=DownloadItem.MediaType.EPISODE,
+            episode_id=ep.id,
+            defaults={
+                'title': show.name,
+                'subtitle': str(ep),
+                'poster_path': show.poster_path,
+                'status': DownloadItem.Status.SEARCHING,
+                'release_date': ep.air_date,
+                'quality': '1080p',
+                'search_query': sq,
+            },
+        )
+        if created:
+            ep.download_status = Episode.DownloadStatus.QUEUED
+            ep.save(update_fields=['download_status'])
+            search_and_download.delay(item.id)
+            log.info('queue_waiting_episodes: queued %s', ep)
+            queued += 1
+            newly_queued.append((show.name, season_num, ep.episode_number))
 
-        # Advance monitor_from to the latest episode queued this run
-        if latest_queued_date and (show.monitor_from is None or latest_queued_date > show.monitor_from):
-            show.monitor_from = latest_queued_date
-            show.save(update_fields=['monitor_from'])
-            log.info('queue_new_episodes: advanced monitor_from for %r to %s', show.name, latest_queued_date)
+    if newly_queued:
+        from apps.notifications.notify import send as ntfy
+        from collections import Counter
+        if len(newly_queued) == 1:
+            show_name, sn, en = newly_queued[0]
+            ntfy('New Episode Queued', f'{show_name} S{sn:02d}E{en:02d}', tags=['tv', 'tada'], category='episodes_queued')
+        else:
+            by_show = Counter(name for name, _, _ in newly_queued)
+            parts = ', '.join(f'{n} ({c})' for n, c in by_show.most_common(5))
+            ntfy('New Episodes Queued', f'{len(newly_queued)} episodes: {parts}', tags=['tv', 'tada'], category='episodes_queued')
+
+    return f'queued {queued} waiting episodes'
 
 
 @shared_task(name='check_movie_releases')
@@ -136,7 +312,8 @@ def check_movie_releases():
     from .tmdb import tmdb, is_available_on_watch_providers
 
     region = getattr(__import__('django.conf', fromlist=['settings']).settings, 'TMDB_REGION', 'US')
-    waiting = Movie.objects.filter(download_status=Movie.DownloadStatus.WAITING_RELEASE)
+    waiting = list(Movie.objects.filter(download_status=Movie.DownloadStatus.WAITING_RELEASE))
+    queued = 0
 
     for movie in waiting:
         try:
@@ -161,6 +338,17 @@ def check_movie_releases():
             movie.download_status = Movie.DownloadStatus.QUEUED
             movie.save(update_fields=['download_status'])
             search_and_download.delay(item.id)
+            queued += 1
+            from apps.notifications.notify import send as ntfy
+            year = movie.release_date.year if movie.release_date else ''
+            ntfy(
+                'Movie Now Available',
+                f'{movie.title} ({year}) is now streaming — downloading',
+                tags=['clapper', 'tada'],
+                category='movie_available',
+            )
+
+    return f'checked {len(waiting)} waiting, queued {queued}'
 
 
 @shared_task(name='refresh_movie_release_dates')
@@ -176,6 +364,7 @@ def refresh_movie_release_dates():
     from datetime import timedelta
 
     waiting = Movie.objects.filter(download_status=Movie.DownloadStatus.WAITING_RELEASE)
+    updated = 0
 
     for movie in waiting:
         try:
@@ -201,6 +390,9 @@ def refresh_movie_release_dates():
                 movie_id=movie.id,
                 status=DownloadItem.Status.WAITING_RELEASE,
             ).update(release_date=new_date)
+            updated += 1
+
+    return f'updated {updated} release dates'
 
 
 @shared_task(name='search_and_download')
@@ -229,7 +421,8 @@ def search_and_download(download_item_id):
     item.status = DownloadItem.Status.SEARCHING
     item.search_query = queries[0]
     item.result_count = -1
-    item.save(update_fields=['status', 'search_query', 'result_count'])
+    item.search_started_at = timezone.now()
+    item.save(update_fields=['status', 'search_query', 'result_count', 'search_started_at'])
 
     episode_code = None
     if item.media_type == DownloadItem.MediaType.EPISODE:
@@ -259,10 +452,24 @@ def search_and_download(download_item_id):
 
     if not best:
         log.warning('search_and_download pk=%s: no suitable torrent found after %d queries', download_item_id, len(tried))
+        # If the episode/movie air date is today (NZ), it may not be out yet — keep
+        # searching rather than permanently failing.
+        air_date = item.release_date
+        if air_date and air_date >= timezone.localdate():
+            item.status = DownloadItem.Status.SEARCHING
+            item.error_message = f'Not yet available — retrying (tried: {", ".join(repr(q) for q in tried)})'
+            item.result_count = 0
+            item.search_started_at = None  # reset so auto_search_queue will retry in 10 min
+            item.save(update_fields=['status', 'error_message', 'result_count', 'search_started_at'])
+            log.info('search_and_download pk=%s: air date is today (%s) — will retry', download_item_id, air_date)
+            return
         item.status = DownloadItem.Status.FAILED
         item.error_message = f'No results — tried: {", ".join(repr(q) for q in tried)}'
         item.result_count = 0
         item.save(update_fields=['status', 'error_message', 'result_count'])
+        from apps.notifications.notify import send as ntfy
+        label = item.title + (f' — {item.subtitle}' if item.subtitle else '')
+        ntfy('Download Failed', f'{label} — no torrent found', priority='high', tags=['x'], category='download_failed')
         return
 
     magnet = best.get('fileUrl', '')
@@ -293,12 +500,13 @@ def sync_download_progress():
     from apps.qbt.client import get_torrent, is_connected
 
     if not is_connected():
-        return
+        return 'qBT unreachable'
 
-    active = DownloadItem.objects.filter(
+    active = list(DownloadItem.objects.filter(
         status=DownloadItem.Status.DOWNLOADING,
         torrent_hash__gt='',
-    )
+    ))
+    completed = 0
 
     for item in active:
         t = get_torrent(item.torrent_hash)
@@ -315,8 +523,11 @@ def sync_download_progress():
             item.completed_at = timezone.now()
             fields += ['status', 'completed_at']
             _mark_downloaded(item)
+            completed += 1
 
         item.save(update_fields=fields)
+
+    return f'{len(active)} active, {completed} completed'
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -488,3 +699,83 @@ def _mark_downloaded(item):
         Movie.objects.filter(pk=item.movie_id).update(
             download_status=Movie.DownloadStatus.DOWNLOADED
         )
+
+
+def _apply_episode_statuses(show):
+    """
+    Set awaiting_release or waiting_for_download on episodes whose download_status is
+    still NONE, for monitored shows only. Respects monitor_from as the earliest cutoff
+    date so historical episodes are never auto-queued.
+
+    Uses air_datetime (UTC, from TVMaze) when available; falls back to air_date (TMDB).
+    """
+    from .models import Episode
+
+    if not show.monitor_new_episodes:
+        return
+
+    now = timezone.now()
+    today = timezone.localdate()
+    one_hour_ago = now - timedelta(hours=1)
+    cutoff = show.monitor_from or show.added_at.date()
+
+    base_qs = Episode.objects.filter(
+        season__show=show,
+        download_status=Episode.DownloadStatus.NONE,
+        air_date__isnull=False,
+        air_date__gte=cutoff,
+    )
+
+    # Precise: TVMaze air_datetime — awaiting until 1 hour after broadcast
+    base_qs.filter(air_datetime__isnull=False, air_datetime__gt=one_hour_ago).update(
+        download_status=Episode.DownloadStatus.AWAITING_RELEASE
+    )
+    base_qs.filter(air_datetime__isnull=False, air_datetime__lte=one_hour_ago).update(
+        download_status=Episode.DownloadStatus.WAITING_FOR_DOWNLOAD
+    )
+
+    # Fallback: date-only — awaiting until the day after (no exact time known)
+    base_qs.filter(air_datetime__isnull=True, air_date__gte=today).update(
+        download_status=Episode.DownloadStatus.AWAITING_RELEASE
+    )
+    base_qs.filter(air_datetime__isnull=True, air_date__lt=today).update(
+        download_status=Episode.DownloadStatus.WAITING_FOR_DOWNLOAD
+    )
+
+
+@shared_task(name='check_storage')
+def check_storage():
+    """Alert via ntfy when any configured drive reaches 75 % (caution) or 90 % (critical)."""
+    from django.core.cache import cache
+    from apps.plex.utils import get_disk_usage
+    from apps.notifications.notify import send as ntfy
+
+    drives = get_disk_usage()
+    for drive in drives:
+        label_str = ' + '.join(l['label'] for l in drive['labels'])
+        cache_key  = f'ntfy_storage_{drive["path"]}'
+
+        if drive['warning']:
+            if not cache.get(cache_key):
+                ntfy(
+                    'Storage Critical',
+                    f'{label_str}: {drive["pct"]}% full — {drive["free_display"]} left of {drive["total_display"]}',
+                    priority='urgent',
+                    tags=['rotating_light', 'cd'],
+                    category='storage_warning',
+                )
+                cache.set(cache_key, 'warning', 4 * 60 * 60)
+        elif drive['caution']:
+            if not cache.get(cache_key):
+                ntfy(
+                    'Storage Getting Full',
+                    f'{label_str}: {drive["pct"]}% used — {drive["free_display"]} remaining',
+                    priority='high',
+                    tags=['warning', 'cd'],
+                    category='storage_warning',
+                )
+                cache.set(cache_key, 'caution', 4 * 60 * 60)
+        else:
+            cache.delete(cache_key)  # clear so next breach re-alerts
+
+    return f'checked {len(drives)} drive(s)'

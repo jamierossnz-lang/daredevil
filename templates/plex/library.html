@@ -1,0 +1,496 @@
+{% extends 'base.html' %}
+{% block title %}Plex Library{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ tab: 'recent' }">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-100 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+          <i class="fa-solid fa-server text-orange-400 text-sm"></i>
+        </span>
+        Plex Library
+      </h1>
+      <p class="text-sm text-gray-500 mt-1">
+        {{ plex_movies|length }} movies · {{ plex_shows|length }} shows
+      </p>
+    </div>
+    {% if configured %}
+    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/20">
+      <i class="fa-solid fa-circle text-[6px]"></i> Connected
+    </span>
+    {% else %}
+    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+      <i class="fa-solid fa-circle text-[6px]"></i> Not connected
+    </span>
+    {% endif %}
+  </div>
+
+  {% if not configured or error %}
+  <div class="glass rounded-2xl p-6 border border-orange-500/20 bg-orange-500/5">
+    <div class="flex items-start gap-3">
+      <i class="fa-solid fa-triangle-exclamation text-orange-400 mt-0.5"></i>
+      <div>
+        <p class="text-sm font-medium text-orange-300">{{ error|default:"Plex not configured" }}</p>
+        <p class="text-xs text-gray-500 mt-1">
+          Add <code class="bg-surface-700 px-1 rounded">PLEX_URL</code> and
+          <code class="bg-surface-700 px-1 rounded">PLEX_TOKEN</code> in
+          <a href="{% url 'app_settings' %}" class="text-brand-400 hover:underline">App Settings</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if configured %}
+  <!-- Tabs -->
+  <div class="flex items-center gap-1 bg-surface-800/60 rounded-xl p-1 w-fit border border-surface-700/40 flex-wrap">
+    <button @click="tab = 'recent'"
+            :class="tab === 'recent' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-clock-rotate-left mr-1.5 text-xs"></i>Recently Added
+    </button>
+    <button @click="tab = 'watched'"
+            :class="tab === 'watched' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-eye mr-1.5 text-xs"></i>Watched
+      {% if watched %}<span class="ml-1 text-xs text-gray-500">{{ watched|length }}</span>{% endif %}
+    </button>
+    <button @click="tab = 'movies'"
+            :class="tab === 'movies' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-film mr-1.5 text-xs"></i>Movies
+      <span class="ml-1 text-xs text-gray-500">{{ plex_movies|length }}</span>
+    </button>
+    <button @click="tab = 'shows'"
+            :class="tab === 'shows' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-tv mr-1.5 text-xs"></i>TV Shows
+      <span class="ml-1 text-xs text-gray-500">{{ plex_shows|length }}</span>
+    </button>
+    <button @click="tab = 'missing'"
+            :class="tab === 'missing' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-circle-exclamation mr-1.5 text-xs"></i>Not in Plex
+      {% if missing_movies or missing_shows %}
+      <span class="ml-1 text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{{ missing_movies|length|add:missing_shows|length }}</span>
+      {% endif %}
+    </button>
+    <button @click="tab = 'cleanup'"
+            :class="tab === 'cleanup' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-trash-can mr-1.5 text-xs"></i>Clean Up
+      {% if candidates %}
+      <span class="ml-1 text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">
+        {% with total=0 %}{% for c in candidates %}{{ c.items|length|add:total }}{% endfor %}{% endwith %}
+      </span>
+      {% endif %}
+    </button>
+  </div>
+
+  <!-- ── Recently Added ── -->
+  <div x-show="tab === 'recent'" x-cloak>
+    {% if recent %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      {% for item in recent %}{% include 'plex/_media_card.html' %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-clock-rotate-left text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm">No recent additions found</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Recently Watched ── -->
+  <div x-show="tab === 'watched'" x-cloak>
+    {% if watched %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      {% for item in watched %}{% include 'plex/_media_card.html' %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-eye-slash text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm">Nothing watched yet</p>
+      <p class="text-gray-600 text-xs mt-1">Watched items will appear here once you play them in Plex</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Movies ── -->
+  <div x-show="tab === 'movies'" x-cloak>
+    {% if plex_movies %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      {% for item in plex_movies %}{% include 'plex/_media_card.html' %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-film text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm">No movies found</p>
+      <p class="text-gray-600 text-xs mt-1">Check PLEX_MOVIE_SECTION matches your library name exactly</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── TV Shows ── -->
+  <div x-show="tab === 'shows'" x-cloak>
+    {% if plex_shows %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      {% for item in plex_shows %}{% include 'plex/_media_card.html' %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-tv text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm">No TV shows found</p>
+      <p class="text-gray-600 text-xs mt-1">Check PLEX_TV_SECTION matches your library name exactly</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Not in Plex ── -->
+  <div x-show="tab === 'missing'" x-cloak>
+    {% if not missing_movies and not missing_shows %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-circle-check text-4xl text-green-500 mb-3 block"></i>
+      <p class="text-gray-300 text-sm font-medium">Everything is in Plex</p>
+      <p class="text-gray-600 text-xs mt-1">All downloaded items were found in your Plex library</p>
+    </div>
+    {% else %}
+
+    {% if missing_movies %}
+    <div class="mb-6">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-film text-cyan-500"></i> Movies not in Plex ({{ missing_movies|length }})
+      </h3>
+      <div class="glass rounded-2xl overflow-hidden" id="missing-movies-list">
+        <div class="divide-y divide-surface-700/30">
+          {% for movie in missing_movies %}
+          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-movie-{{ movie.pk }}"
+               x-data="{ removing: false }">
+            <a href="{% url 'movie_detail' movie.pk %}" class="flex items-center gap-4 flex-1 min-w-0">
+              {% if movie.poster_path %}
+              <img src="https://image.tmdb.org/t/p/w92{{ movie.poster_path }}" alt="{{ movie.title }}"
+                   class="w-10 h-14 object-cover rounded flex-shrink-0 bg-surface-700">
+              {% else %}
+              <div class="w-10 h-14 rounded bg-surface-700 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-film text-gray-600 text-xs"></i>
+              </div>
+              {% endif %}
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-200">{{ movie.title }}</p>
+                {% if movie.release_date %}<p class="text-xs text-gray-500">{{ movie.release_date.year }}</p>{% endif %}
+              </div>
+            </a>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <span class="text-xs text-orange-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation"></i> Not in Plex
+              </span>
+              <button @click="
+                if (!confirm('Remove {{ movie.title|escapejs }} from Daredevil library?')) return;
+                removing = true;
+                fetch('{% url "movie_delete" movie.pk %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+                  .then(r => { if(r.ok || r.redirected) document.getElementById('missing-movie-{{ movie.pk }}').remove(); else removing = false; })
+                  .catch(() => { removing = false; });
+              "
+              :disabled="removing"
+              class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 disabled:opacity-50 transition-colors">
+                <i class="fa-solid fa-trash text-[10px]"></i>
+                <span x-text="removing ? 'Removing…' : 'Remove'"></span>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if missing_shows %}
+    <div>
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-tv text-purple-500"></i> TV Shows not in Plex ({{ missing_shows|length }})
+      </h3>
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="divide-y divide-surface-700/30">
+          {% for show in missing_shows %}
+          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-show-{{ show.pk }}"
+               x-data="{ removing: false }">
+            <a href="{% url 'tv_show_detail' show.pk %}" class="flex items-center gap-4 flex-1 min-w-0">
+              {% if show.poster_path %}
+              <img src="https://image.tmdb.org/t/p/w92{{ show.poster_path }}" alt="{{ show.name }}"
+                   class="w-10 h-14 object-cover rounded flex-shrink-0 bg-surface-700">
+              {% else %}
+              <div class="w-10 h-14 rounded bg-surface-700 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-tv text-gray-600 text-xs"></i>
+              </div>
+              {% endif %}
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-200">{{ show.name }}</p>
+                {% if show.first_air_date %}<p class="text-xs text-gray-500">{{ show.first_air_date.year }}</p>{% endif %}
+              </div>
+            </a>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <span class="text-xs text-orange-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation"></i> Not in Plex
+              </span>
+              <button @click="
+                if (!confirm('Remove {{ show.name|escapejs }} from Daredevil library?')) return;
+                removing = true;
+                fetch('{% url "tv_show_delete" show.pk %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+                  .then(r => { if(r.ok || r.redirected) document.getElementById('missing-show-{{ show.pk }}').remove(); else removing = false; })
+                  .catch(() => { removing = false; });
+              "
+              :disabled="removing"
+              class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 disabled:opacity-50 transition-colors">
+                <i class="fa-solid fa-trash text-[10px]"></i>
+                <span x-text="removing ? 'Removing…' : 'Remove'"></span>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div>
+  <!-- ── Clean Up ── -->
+  <div x-show="tab === 'cleanup'" x-cloak x-data="plexCleanup()">
+
+    {% if not candidates %}
+    <div class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-broom text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-300 text-sm font-medium">Nothing to clean up</p>
+      <p class="text-gray-600 text-xs mt-1">Items will appear here once they meet one of the cleanup criteria</p>
+    </div>
+    {% else %}
+
+    <!-- Drive usage -->
+    {% if drives %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      {% for drive in drives %}
+      <div class="glass rounded-2xl px-5 py-4 border
+                  {% if drive.warning %}border-red-500/30 bg-red-500/5
+                  {% elif drive.caution %}border-yellow-500/30 bg-yellow-500/5
+                  {% else %}border-surface-700/40{% endif %}">
+        <!-- Labels + free space -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            {% for lbl in drive.labels %}
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold
+              {% if lbl.color == 'purple' %}bg-purple-500/20 text-purple-300
+              {% elif lbl.color == 'cyan' %}bg-cyan-500/20 text-cyan-300
+              {% else %}bg-brand-500/20 text-brand-300{% endif %}">
+              <i class="fa-solid {% if lbl.color == 'purple' %}fa-tv{% elif lbl.color == 'cyan' %}fa-film{% else %}fa-folder{% endif %} text-[10px]"></i>
+              {{ lbl.label }}
+            </span>
+            {% endfor %}
+          </div>
+          <span class="text-xs {% if drive.warning %}text-red-400{% elif drive.caution %}text-yellow-400{% else %}text-gray-400{% endif %} font-semibold tabular-nums">
+            {{ drive.pct }}%
+          </span>
+        </div>
+
+        <!-- Bar -->
+        <div class="relative h-3 rounded-full bg-surface-700/60 overflow-hidden mb-3">
+          <div class="absolute inset-y-0 left-0 rounded-full transition-all
+                      {% if drive.warning %}bg-red-500
+                      {% elif drive.caution %}bg-yellow-500
+                      {% else %}bg-brand-500{% endif %}"
+               style="width: {{ drive.pct }}%"></div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="flex items-center justify-between text-[11px] text-gray-500">
+          <span><span class="text-gray-300 font-medium">{{ drive.used_display }}</span> used</span>
+          <span><span class="{% if drive.warning %}text-red-400{% elif drive.caution %}text-yellow-400{% else %}text-green-400{% endif %} font-medium">{{ drive.free_display }}</span> free</span>
+          <span>{{ drive.total_display }} total</span>
+        </div>
+
+        <!-- Path -->
+        <p class="text-[10px] text-gray-700 mt-2 font-mono truncate" title="{{ drive.path }}">{{ drive.path }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Info banner -->
+    <div class="glass rounded-xl px-4 py-3 mb-5 border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-3">
+      <i class="fa-solid fa-triangle-exclamation text-yellow-400 flex-shrink-0"></i>
+      <p class="text-xs text-yellow-300">
+        <strong>Delete from Plex</strong> removes the item from your library.
+        Files are also deleted if <em>Allow media deletion</em> is enabled in Plex Settings → Troubleshooting.
+        <strong>Dismiss</strong> hides the item from this list permanently without deleting anything.
+      </p>
+    </div>
+
+    {% for category in candidates %}
+    <div class="mb-6" x-data="{ open: true }">
+
+      <!-- Category header -->
+      <button @click="open = !open"
+              class="w-full flex items-center justify-between mb-2 group">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid {{ category.icon }}
+            {% if category.color == 'green' %}text-green-500
+            {% elif category.color == 'yellow' %}text-yellow-500
+            {% elif category.color == 'cyan' %}text-cyan-500
+            {% elif category.color == 'orange' %}text-orange-500
+            {% elif category.color == 'red' %}text-red-500
+            {% else %}text-gray-500{% endif %}"></i>
+          {{ category.label }}
+          <span class="text-gray-600 font-normal normal-case tracking-normal">— {{ category.description }}</span>
+        </h3>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <span class="text-xs text-gray-600">
+            {{ category.items|length }} item{{ category.items|length|pluralize }}
+            {% if category.total_display %}· <span class="text-gray-500">{{ category.total_display }}</span>{% endif %}
+          </span>
+          <i class="fa-solid fa-chevron-down text-gray-600 text-xs transition-transform" :class="open ? '' : '-rotate-90'"></i>
+        </div>
+      </button>
+
+      <!-- Items -->
+      <div x-show="open" class="glass rounded-2xl overflow-hidden">
+        <div class="divide-y divide-surface-700/30">
+          {% for item in category.items %}
+          <div class="flex items-center gap-4 px-4 py-3 hover:bg-surface-700/20 transition-colors"
+               id="cleanup-{{ item.rating_key }}"
+               x-data="{ state: 'idle' }">
+
+            <!-- Poster -->
+            <div class="flex-shrink-0 w-10 h-14 rounded overflow-hidden bg-surface-700">
+              {% if item.thumb %}
+              <img src="{% url 'plex:thumb' %}?path={{ item.thumb }}"
+                   alt="{{ item.title }}" class="w-full h-full object-cover" loading="lazy">
+              {% else %}
+              <div class="w-full h-full flex items-center justify-center">
+                <i class="fa-solid {% if item.type == 'movie' %}fa-film{% else %}fa-tv{% endif %} text-gray-600 text-xs"></i>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              {% if item.detail_url %}
+              <a href="{{ item.detail_url }}" class="text-sm font-medium text-gray-200 hover:text-brand-300 transition-colors line-clamp-1">{{ item.title }}</a>
+              {% else %}
+              <p class="text-sm font-medium text-gray-200 line-clamp-1">{{ item.title }}</p>
+              {% endif %}
+              <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                {% if item.year %}<span class="text-[10px] text-gray-600">{{ item.year }}</span>{% endif %}
+                <span class="text-[10px] text-gray-600 capitalize">{{ item.type }}</span>
+                {% if item.type == 'show' and item.total_episodes %}
+                <span class="text-[10px] text-gray-600">{{ item.view_count }}/{{ item.total_episodes }} ep</span>
+                {% endif %}
+                {% if item.last_viewed %}
+                <span class="text-[10px] text-gray-500">Last watched {{ item.last_viewed|timesince }} ago</span>
+                {% elif item.added_at %}
+                <span class="text-[10px] text-gray-500">Added {{ item.added_at|timesince }} ago</span>
+                {% endif %}
+                {% if item.size_display %}
+                <span class="text-[10px] text-gray-600">{{ item.size_display }}</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <template x-if="state === 'idle'">
+                <div class="flex items-center gap-2">
+                  <button @click="doDelete('{{ item.rating_key }}', '{{ item.title|escapejs }}')"
+                          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
+                    <i class="fa-solid fa-trash-can text-[10px]"></i> Delete from Plex
+                  </button>
+                  <button @click="doIgnore('{{ item.rating_key }}', '{{ item.title|escapejs }}')"
+                          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-400 hover:bg-surface-600 hover:text-gray-200 border border-surface-600 transition-colors">
+                    <i class="fa-solid fa-eye-slash text-[10px]"></i> Dismiss
+                  </button>
+                </div>
+              </template>
+              <template x-if="state === 'deleting'">
+                <span class="text-xs text-red-400 flex items-center gap-1.5">
+                  <i class="fa-solid fa-spinner fa-spin text-[10px]"></i> Deleting…
+                </span>
+              </template>
+              <template x-if="state === 'ignoring'">
+                <span class="text-xs text-gray-400 flex items-center gap-1.5">
+                  <i class="fa-solid fa-spinner fa-spin text-[10px]"></i> Dismissing…
+                </span>
+              </template>
+              <template x-if="state === 'done'">
+                <span class="text-xs text-green-400 flex items-center gap-1.5">
+                  <i class="fa-solid fa-check text-[10px]"></i> Done
+                </span>
+              </template>
+              <template x-if="state === 'error'">
+                <span class="text-xs text-red-400 flex items-center gap-1.5">
+                  <i class="fa-solid fa-triangle-exclamation text-[10px]"></i> Failed
+                </span>
+              </template>
+            </div>
+
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+const _csrfToken = '{{ csrf_token }}';
+
+function plexCleanup() {
+  return {
+    async doDelete(ratingKey, title) {
+      if (!confirm(`Delete "${title}" from Plex?\n\nThis will also delete the files if "Allow media deletion" is enabled in Plex.`)) return;
+      const el = document.getElementById(`cleanup-${ratingKey}`);
+      const scope = Alpine.$data(el);
+      scope.state = 'deleting';
+      try {
+        const r = await fetch(`/plex/delete/${ratingKey}/`, {
+          method: 'POST', headers: { 'X-CSRFToken': _csrfToken }
+        });
+        if (r.ok) {
+          scope.state = 'done';
+          setTimeout(() => el.remove(), 800);
+        } else {
+          const d = await r.json().catch(() => ({}));
+          alert(`Delete failed: ${d.error || r.status}`);
+          scope.state = 'error';
+        }
+      } catch (e) {
+        scope.state = 'error';
+      }
+    },
+
+    async doIgnore(ratingKey, title) {
+      const el = document.getElementById(`cleanup-${ratingKey}`);
+      const scope = Alpine.$data(el);
+      scope.state = 'ignoring';
+      const body = new URLSearchParams({ title });
+      try {
+        await fetch(`/plex/ignore/${ratingKey}/`, {
+          method: 'POST', headers: { 'X-CSRFToken': _csrfToken },
+          body,
+        });
+        scope.state = 'done';
+        setTimeout(() => el.remove(), 600);
+      } catch (e) {
+        scope.state = 'error';
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

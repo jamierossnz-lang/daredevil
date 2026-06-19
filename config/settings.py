@@ -9,6 +9,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -24,6 +26,8 @@ INSTALLED_APPS = [
     'apps.media_tracker',
     'apps.downloads',
     'apps.qbt',
+    'apps.plex',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [
@@ -51,6 +55,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.plex.context_processors.drive_usage',
+                'apps.notifications.context_processors.notification_count',
             ],
         },
     },
@@ -61,7 +67,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.environ.get('DB_PATH') or BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -73,7 +79,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = os.environ.get('TZ', 'Pacific/Auckland')
 USE_I18N = True
 USE_TZ = True
 
@@ -100,6 +106,19 @@ QBITTORRENT_PASSWORD = os.environ.get('QBITTORRENT_PASSWORD', 'adminadmin')
 
 DOWNLOAD_PATH = os.environ.get('DOWNLOAD_PATH', str(BASE_DIR / 'downloads'))
 
+PLEX_CLAIM = os.environ.get('PLEX_CLAIM', '')
+PLEX_URL = os.environ.get('PLEX_URL', 'http://localhost:32400')
+PLEX_TOKEN = os.environ.get('PLEX_TOKEN', '')
+PLEX_MOVIE_SECTION = os.environ.get('PLEX_MOVIE_SECTION', 'Movies')
+PLEX_TV_SECTION = os.environ.get('PLEX_TV_SECTION', 'TV Shows')
+
+# ntfy push notifications — https://ntfy.sh
+NTFY_URL   = os.environ.get('NTFY_URL',   'https://ntfy.sh')
+NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '')   # leave blank to disable
+NTFY_TOKEN = os.environ.get('NTFY_TOKEN', '')   # optional: for private topics
+PUID = os.environ.get('PUID', '1000')
+PGID = os.environ.get('PGID', '1000')
+
 # Celery / Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_BROKER_URL = REDIS_URL
@@ -108,6 +127,7 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
+CELERY_RESULT_EXTENDED = True  # store task_name, task_args, task_kwargs in result backend
 CELERY_TIMEZONE = TIME_ZONE
 # Schedules are stored in the database (DatabaseScheduler) and managed via the
 # Background Tasks UI.  Run `python manage.py setup_schedules` to seed defaults.

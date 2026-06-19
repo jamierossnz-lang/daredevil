@@ -18,7 +18,7 @@
         <i class="fa-solid fa-circle-check mr-1"></i>Already Added
       </span>
       {% else %}
-      <button onclick="addMovie({{ movie.id }}, '{{ movie.title|escapejs }}', this)"
+      <button onclick="openMovieAddModal({ mode: 'add', tmdbId: {{ movie.id }}, title: '{{ movie.title|escapejs }}' })"
               class="w-full px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
         <i class="fa-solid fa-plus mr-1"></i>Add Movie
       </button>

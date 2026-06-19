@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+{% block title %}App Settings{% endblock %}
+{% block page_title %}App Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6" x-data="appSettings()" x-cloak>
+
+  <!-- TMDB -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1">TMDB</h2>
+    <p class="text-xs text-gray-500 mb-4">API key for fetching movie/TV metadata and artwork. Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" class="text-brand-400 hover:underline">themoviedb.org</a>.</p>
+    <label class="block text-xs text-gray-500 mb-1">API Key</label>
+    <input type="text" x-model="cfg.TMDB_API_KEY"
+           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+  </div>
+
+  <!-- Paths -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1">Paths</h2>
+    <p class="text-xs text-gray-500 mb-4">Default download destination used when no category path is configured.</p>
+    <label class="block text-xs text-gray-500 mb-1">Default Download Path</label>
+    <input type="text" x-model="cfg.DOWNLOAD_PATH"
+           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+  </div>
+
+  <!-- Redis -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+      Redis / Celery
+      <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+        <i class="fa-solid fa-rotate-right mr-1"></i>Restart required
+      </span>
+    </h2>
+    <label class="block text-xs text-gray-500 mb-1">Redis URL</label>
+    <input type="text" x-model="cfg.REDIS_URL"
+           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+  </div>
+
+  <!-- Django -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+      Django
+      <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+        <i class="fa-solid fa-rotate-right mr-1"></i>Restart required
+      </span>
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Timezone</label>
+        <input type="text" x-model="cfg.TZ" placeholder="Pacific/Auckland"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">e.g. America/New_York, Europe/London</p>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Allowed Hosts</label>
+        <input type="text" x-model="cfg.ALLOWED_HOSTS" placeholder="localhost,127.0.0.1"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Comma-separated hostnames</p>
+      </div>
+    </div>
+    <div class="mt-4 flex items-center gap-3">
+      <button @click="cfg.DEBUG = !cfg.DEBUG"
+              :class="cfg.DEBUG ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300' : 'bg-surface-700 border-surface-600 text-gray-400'"
+              class="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors">
+        <i class="fa-solid" :class="cfg.DEBUG ? 'fa-bug' : 'fa-shield-halved'"></i>
+        <span x-text="cfg.DEBUG ? 'Debug Mode ON' : 'Debug Mode OFF'"></span>
+      </button>
+      <p class="text-xs text-gray-600">Turn off in production</p>
+    </div>
+  </div>
+
+  <!-- Plex -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1 flex items-center gap-2">
+      <i class="fa-solid fa-play text-yellow-400"></i> Plex
+    </h2>
+    <p class="text-xs text-gray-500 mb-4">Connect to your Plex Media Server to see your library and manage content.</p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Server URL</label>
+        <input type="text" x-model="cfg.PLEX_URL" placeholder="http://localhost:32400"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Use <code class="text-brand-400">http://plex:32400</code> with Docker Compose</p>
+      </div>
+      <div x-data="{ showPlexToken: false }">
+        <label class="block text-xs text-gray-500 mb-1">Plex Token</label>
+        <div class="flex gap-1">
+          <input :type="showPlexToken ? 'text' : 'password'" x-model="cfg.PLEX_TOKEN"
+                 placeholder="your-plex-token"
+                 class="flex-1 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+          <button @click="showPlexToken = !showPlexToken" type="button"
+                  class="px-2.5 bg-surface-700 border border-surface-600 rounded-xl text-gray-400 hover:text-gray-200 transition-colors">
+            <i class="fa-solid" :class="showPlexToken ? 'fa-eye-slash' : 'fa-eye'"></i>
+          </button>
+        </div>
+        <p class="text-xs text-gray-600 mt-1">Find at Plex Web → ⋮ → Get Info → XML → X-Plex-Token</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Movie Library Name</label>
+        <input type="text" x-model="cfg.PLEX_MOVIE_SECTION" placeholder="Movies"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Must match exactly</p>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">TV Library Name</label>
+        <input type="text" x-model="cfg.PLEX_TV_SECTION" placeholder="TV Shows"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Must match exactly</p>
+      </div>
+    </div>
+
+    <div class="border-t border-surface-700 pt-4">
+      <label class="block text-xs text-gray-500 mb-1">
+        <i class="fa-solid fa-key mr-1"></i>First-Run Claim Token
+      </label>
+      <input type="text" x-model="cfg.PLEX_CLAIM" placeholder="claim-xxxxxxxxxxxxxxxxxxxx"
+             class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+      <p class="text-xs text-gray-600 mt-1">Only needed on first run — get one at <a href="https://www.plex.tv/claim/" target="_blank" class="text-brand-400 hover:underline">plex.tv/claim</a> (expires 4 min). Leave blank after setup.</p>
+    </div>
+  </div>
+
+  <!-- Notifications (ntfy) -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1 flex items-center gap-2">
+      <i class="fa-solid fa-bell text-brand-400"></i> Notifications
+    </h2>
+    <p class="text-xs text-gray-500 mb-4">Push notifications via <a href="https://ntfy.sh" target="_blank" class="text-brand-400 hover:underline">ntfy</a>. Install the app on iOS/Android and subscribe to your topic.</p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">ntfy Server URL</label>
+        <input type="text" x-model="cfg.NTFY_URL" placeholder="https://ntfy.sh"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Use your own server URL if self-hosting</p>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">Topic</label>
+        <input type="text" x-model="cfg.NTFY_TOPIC" placeholder="my-unique-topic-abc123"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <p class="text-xs text-gray-600 mt-1">Leave blank to disable all notifications</p>
+      </div>
+    </div>
+
+    <div x-data="{ showNtfyToken: false }" class="mb-5">
+      <label class="block text-xs text-gray-500 mb-1">Auth Token <span class="text-gray-600">(optional)</span></label>
+      <div class="flex gap-1">
+        <input :type="showNtfyToken ? 'text' : 'password'" x-model="cfg.NTFY_TOKEN"
+               placeholder="tk_••••••••"
+               class="flex-1 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+        <button @click="showNtfyToken = !showNtfyToken" type="button"
+                class="px-2.5 bg-surface-700 border border-surface-600 rounded-xl text-gray-400 hover:text-gray-200 transition-colors">
+          <i class="fa-solid" :class="showNtfyToken ? 'fa-eye-slash' : 'fa-eye'"></i>
+        </button>
+      </div>
+      <p class="text-xs text-gray-600 mt-1">Only needed for private or authenticated topics</p>
+    </div>
+
+    <!-- Test button -->
+    <div class="flex items-center gap-3 mb-5">
+      <button @click="testNtfy()" :disabled="ntfyState !== 'idle'"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border"
+              :class="{
+                'bg-surface-700 border-surface-600 text-gray-300 hover:bg-surface-600': ntfyState === 'idle',
+                'bg-surface-700 border-surface-600 text-gray-500 cursor-not-allowed': ntfyState === 'sending',
+                'bg-green-500/15 border-green-500/30 text-green-400': ntfyState === 'ok',
+                'bg-red-500/15 border-red-500/30 text-red-400': ntfyState === 'error',
+              }">
+        <i class="fa-solid"
+           :class="{
+             'fa-paper-plane': ntfyState === 'idle',
+             'fa-spinner fa-spin': ntfyState === 'sending',
+             'fa-circle-check': ntfyState === 'ok',
+             'fa-circle-exclamation': ntfyState === 'error',
+           }"></i>
+        <span x-text="{ idle:'Send Test', sending:'Sending…', ok:'Sent!', error:'Failed' }[ntfyState]"></span>
+      </button>
+      <span x-show="ntfyMsg" x-text="ntfyMsg" x-cloak
+            :class="ntfyState === 'error' ? 'text-red-400' : 'text-gray-400'"
+            class="text-xs"></span>
+    </div>
+
+    <!-- Notification event preferences -->
+    <div class="border-t border-surface-700 pt-4 mt-1">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-gray-400"><i class="fa-solid fa-sliders mr-1.5"></i>Event preferences</p>
+        <span x-show="prefsMsg" x-text="prefsMsg" x-cloak
+              :class="prefsMsgOk ? 'text-green-400' : 'text-red-400'"
+              class="text-xs transition-opacity"></span>
+      </div>
+      <div x-show="prefsLoading" class="text-xs text-gray-600 py-2 px-1">Loading…</div>
+      <template x-if="!prefsLoading">
+        <ul class="space-y-0.5">
+          <template x-for="cat in notifMeta" :key="cat.key">
+            <li class="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-surface-800/60 transition-colors">
+              <i class="fa-solid text-gray-500 w-4 text-center text-sm shrink-0" :class="cat.icon"></i>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs text-gray-300" x-text="cat.label"></p>
+                <p class="text-xs text-gray-600 truncate" x-text="cat.description"></p>
+              </div>
+              <button type="button" role="switch"
+                      :aria-checked="String(notifPrefs[cat.key])"
+                      @click="notifPrefs[cat.key] = !notifPrefs[cat.key]; savePrefs()"
+                      class="relative shrink-0 w-9 h-5 rounded-full transition-colors duration-200"
+                      :class="notifPrefs[cat.key] ? 'bg-brand-600' : 'bg-surface-600'">
+                <span class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                      :class="notifPrefs[cat.key] ? 'translate-x-4' : 'translate-x-0'"></span>
+              </button>
+            </li>
+          </template>
+        </ul>
+      </template>
+    </div>
+  </div>
+
+  <!-- Docker -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1">Docker</h2>
+    <p class="text-xs text-gray-500 mb-4">User/group IDs for LinuxServer containers. Run <code class="text-brand-400">id</code> on Linux to find yours. On macOS/Windows with Docker Desktop, leave as 1000.</p>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">PUID</label>
+        <input type="number" x-model="cfg.PUID" min="0"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">PGID</label>
+        <input type="number" x-model="cfg.PGID" min="0"
+               class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+      </div>
+    </div>
+  </div>
+
+  <!-- Restart -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1">Restart Services</h2>
+    <p class="text-xs text-gray-500 mb-5">Required after changing Timezone, Redis URL, Debug mode, or Allowed Hosts.</p>
+    <div class="flex flex-col sm:flex-row gap-3">
+
+      <div class="flex-1 bg-surface-800 rounded-xl p-4 border border-surface-600">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <p class="text-sm font-medium text-gray-200">Django Server</p>
+            <p class="text-xs text-gray-500 mt-0.5">Touches manage.py to trigger the auto-reloader</p>
+          </div>
+          <i class="fa-brands fa-python text-xl text-brand-400 mt-0.5"></i>
+        </div>
+        <button @click="restartDjango()" :disabled="djangoState !== 'idle'"
+                class="w-full py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                :class="{
+                  'bg-brand-600 hover:bg-brand-500 text-white': djangoState === 'idle',
+                  'bg-surface-700 text-gray-500 cursor-not-allowed': djangoState === 'restarting',
+                  'bg-green-500/20 text-green-400 border border-green-500/30': djangoState === 'done',
+                  'bg-red-500/20 text-red-400 border border-red-500/30': djangoState === 'error',
+                }">
+          <i class="fa-solid"
+             :class="{
+               'fa-rotate-right': djangoState === 'idle',
+               'fa-spinner fa-spin': djangoState === 'restarting',
+               'fa-circle-check': djangoState === 'done',
+               'fa-circle-exclamation': djangoState === 'error',
+             }"></i>
+          <span x-text="{idle:'Restart Django',restarting:'Restarting…',done:'Back Online',error:'Failed'}[djangoState]"></span>
+        </button>
+      </div>
+
+      <div class="flex-1 bg-surface-800 rounded-xl p-4 border border-surface-600">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <p class="text-sm font-medium text-gray-200">Celery Worker</p>
+            <p class="text-xs text-gray-500 mt-0.5">Pool restart to pick up new task code</p>
+          </div>
+          <i class="fa-solid fa-rotate text-xl text-orange-400 mt-0.5"></i>
+        </div>
+        <button @click="restartCelery()" :disabled="celeryState !== 'idle'"
+                class="w-full py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                :class="{
+                  'bg-orange-600 hover:bg-orange-500 text-white': celeryState === 'idle',
+                  'bg-surface-700 text-gray-500 cursor-not-allowed': celeryState === 'sending',
+                  'bg-green-500/20 text-green-400 border border-green-500/30': celeryState === 'done',
+                  'bg-red-500/20 text-red-400 border border-red-500/30': celeryState === 'error',
+                }">
+          <i class="fa-solid"
+             :class="{
+               'fa-rotate': celeryState === 'idle',
+               'fa-spinner fa-spin': celeryState === 'sending',
+               'fa-circle-check': celeryState === 'done',
+               'fa-circle-exclamation': celeryState === 'error',
+             }"></i>
+          <span x-text="{idle:'Restart Celery',sending:'Sending…',done:'Restart Sent',error:'Failed'}[celeryState]"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Save bar -->
+  <div class="flex items-center justify-between gap-4 pb-4">
+    <p x-show="msg" x-text="msg" x-cloak
+       :class="msgOk ? 'text-green-400' : 'text-red-400'"
+       class="text-sm"></p>
+    <div class="ml-auto flex items-center gap-3">
+      <p x-show="restartKeys.length" x-cloak class="text-xs text-yellow-400">
+        <i class="fa-solid fa-rotate-right mr-1"></i>
+        Restart required for: <span x-text="restartKeys.join(', ')"></span>
+      </p>
+      <button @click="save()" :disabled="saving"
+              class="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors">
+        <i class="fa-solid" :class="saving ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>
+        <span x-text="saving ? 'Saving…' : 'Save All'"></span>
+      </button>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function appSettings() {
+  return {
+    cfg: {
+      TMDB_API_KEY:       '{{ cfg.TMDB_API_KEY|escapejs }}',
+      DOWNLOAD_PATH:      '{{ cfg.DOWNLOAD_PATH|escapejs }}',
+      REDIS_URL:          '{{ cfg.REDIS_URL|escapejs }}',
+      TZ:                 '{{ cfg.TZ|escapejs }}',
+      DEBUG:               {{ cfg.DEBUG|yesno:"true,false" }},
+      ALLOWED_HOSTS:      '{{ cfg.ALLOWED_HOSTS|escapejs }}',
+      PLEX_CLAIM:         '{{ cfg.PLEX_CLAIM|escapejs }}',
+      PLEX_URL:           '{{ cfg.PLEX_URL|escapejs }}',
+      PLEX_TOKEN:         '{{ cfg.PLEX_TOKEN|escapejs }}',
+      PLEX_MOVIE_SECTION: '{{ cfg.PLEX_MOVIE_SECTION|escapejs }}',
+      PLEX_TV_SECTION:    '{{ cfg.PLEX_TV_SECTION|escapejs }}',
+      NTFY_URL:           '{{ cfg.NTFY_URL|escapejs }}',
+      NTFY_TOPIC:         '{{ cfg.NTFY_TOPIC|escapejs }}',
+      NTFY_TOKEN:         '{{ cfg.NTFY_TOKEN|escapejs }}',
+      PUID:               '{{ cfg.PUID|escapejs }}',
+      PGID:               '{{ cfg.PGID|escapejs }}',
+    },
+    saving: false,
+    msg: '',
+    msgOk: true,
+    restartKeys: [],
+    djangoState: 'idle',
+    celeryState: 'idle',
+    ntfyState: 'idle',
+    ntfyMsg: '',
+    notifPrefs: {},
+    notifMeta: [],
+    prefsLoading: true,
+    prefsSaving: false,
+    prefsMsg: '',
+    prefsMsgOk: true,
+
+    async init() {
+      await this.loadPrefs();
+    },
+
+    async loadPrefs() {
+      this.prefsLoading = true;
+      try {
+        const r = await fetch('/notifications/prefs/');
+        const d = await r.json();
+        this.notifMeta  = d.meta;
+        this.notifPrefs = d.prefs;
+      } catch(e) {
+        console.warn('Could not load notification prefs:', e);
+      } finally {
+        this.prefsLoading = false;
+      }
+    },
+
+    async savePrefs() {
+      this.prefsSaving = true;
+      this.prefsMsg = '';
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      try {
+        const r = await fetch('/notifications/prefs/save/', {
+          method: 'POST',
+          body: JSON.stringify(this.notifPrefs),
+          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+        });
+        const d = await r.json();
+        this.prefsMsgOk = d.ok;
+        this.prefsMsg = d.ok ? 'Saved' : (d.error || 'Failed');
+      } catch(e) {
+        this.prefsMsgOk = false;
+        this.prefsMsg = 'Failed';
+      } finally {
+        this.prefsSaving = false;
+        setTimeout(() => { this.prefsMsg = ''; }, 2500);
+      }
+    },
+
+    async save() {
+      this.saving = true;
+      this.msg = '';
+      this.restartKeys = [];
+      try {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        const r = await fetch('/settings/save/', {
+          method: 'POST',
+          body: JSON.stringify(this.cfg),
+          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+        });
+        const d = await r.json();
+        if (d.ok) {
+          this.msgOk = true;
+          this.msg = 'Saved to .env';
+          this.restartKeys = d.restart_required || [];
+        } else {
+          this.msgOk = false;
+          this.msg = d.error || 'Save failed';
+        }
+      } catch(e) {
+        this.msgOk = false;
+        this.msg = 'Request failed: ' + e.message;
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async testNtfy() {
+      this.ntfyState = 'sending';
+      this.ntfyMsg = '';
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      try {
+        const r = await fetch('/settings/ntfy-test/', {
+          method: 'POST',
+          body: JSON.stringify({
+            NTFY_URL:   this.cfg.NTFY_URL,
+            NTFY_TOPIC: this.cfg.NTFY_TOPIC,
+            NTFY_TOKEN: this.cfg.NTFY_TOKEN,
+          }),
+          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+        });
+        const d = await r.json();
+        if (d.ok) {
+          this.ntfyState = 'ok';
+          this.ntfyMsg = 'Check your device';
+        } else {
+          this.ntfyState = 'error';
+          this.ntfyMsg = d.error || 'Failed';
+        }
+      } catch(e) {
+        this.ntfyState = 'error';
+        this.ntfyMsg = e.message;
+      }
+      setTimeout(() => { this.ntfyState = 'idle'; this.ntfyMsg = ''; }, 5000);
+    },
+
+    async restartDjango() {
+      this.djangoState = 'restarting';
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      try {
+        await fetch('/settings/restart/', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+      } catch {}
+      // Poll /settings/ping/ until the server is back
+      await new Promise(r => setTimeout(r, 1500));
+      for (let i = 0; i < 30; i++) {
+        try {
+          const r = await fetch('/settings/ping/', { cache: 'no-store' });
+          if (r.ok) { this.djangoState = 'done'; return; }
+        } catch {}
+        await new Promise(r => setTimeout(r, 500));
+      }
+      this.djangoState = 'error';
+    },
+
+    async restartCelery() {
+      this.celeryState = 'sending';
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      try {
+        const r = await fetch('/settings/celery-restart/', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+        const d = await r.json();
+        this.celeryState = d.ok ? 'done' : 'error';
+      } catch {
+        this.celeryState = 'error';
+      }
+      setTimeout(() => { this.celeryState = 'idle'; }, 4000);
+    },
+  };
+}
+</script>
+{% endblock %}

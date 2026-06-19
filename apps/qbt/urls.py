@@ -13,6 +13,7 @@ urlpatterns = [
     path('search/run/', views.search_run, name='qbt_search_run'),
     path('settings/', views.settings_view, name='qbt_settings'),
     path('settings/save/', views.settings_save, name='qbt_settings_save'),
+    path('settings/connection/', views.connection_save, name='qbt_connection_save'),
     path('categories/', views.categories_page, name='qbt_categories'),
     path('categories/create/', views.category_create, name='qbt_category_create'),
     path('categories/<str:name>/edit/', views.category_edit, name='qbt_category_edit'),
@@ -21,4 +22,8 @@ urlpatterns = [
     path('categories/defaults/', views.category_defaults_save, name='qbt_category_defaults'),
     path('files/', views.file_browser_page, name='qbt_files'),
     path('files/list/', views.file_browser_list, name='qbt_files_list'),
+    path('files/delete/', views.file_delete, name='qbt_file_delete'),
+    path('files/move-completed/', views.file_move_completed, name='qbt_file_move_completed'),
+    path('files/tabs/add/', views.file_tabs_add, name='qbt_file_tabs_add'),
+    path('files/tabs/<int:pk>/delete/', views.file_tabs_delete, name='qbt_file_tabs_delete'),
 ]

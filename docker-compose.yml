@@ -5,11 +5,12 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - ${DATA_DIR:-./data}/redis:/data
 
   # ── qBittorrent ────────────────────────────────────────────────────────────
-  # Web UI: http://localhost:8080
-  # First run: check logs for the temporary password →  docker compose logs qbittorrent
+  # Web UI: http://<host>:${QBT_WEBUI_PORT:-8081}   (default 8081 — Unraid uses 8080)
+  # First run: check logs for the temporary password → docker compose logs qbittorrent
+  # Skip this service if you already have qBittorrent installed on Unraid via Community Apps.
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     restart: unless-stopped
@@ -19,18 +20,15 @@ services:
       - TZ=${TZ:-UTC}
       - WEBUI_PORT=8080
     ports:
-      - "8080:8080"       # Web UI
-      - "6881:6881"       # Torrent port TCP
-      - "6881:6881/udp"   # Torrent port UDP
+      - "${QBT_WEBUI_PORT:-8081}:8080"  # Changed default to 8081 — Unraid WebUI is on 8080
+      - "6881:6881"
+      - "6881:6881/udp"
     volumes:
-      - qbt_config:/config
-      - downloads:/downloads  # In-progress downloads
+      - ${DATA_DIR:-./data}/qbt:/config
+      - ${DOWNLOADS_DIR:-./downloads}:/downloads
 
   # ── Jackett ────────────────────────────────────────────────────────────────
-  # Web UI: http://localhost:9117
-  # Provides a unified API across hundreds of torrent indexers.
-  # After setup, connect it to qBittorrent's search using the Jackett plugin
-  # (see README for instructions).
+  # Web UI: http://<host>:${JACKETT_PORT:-9118}
   jackett:
     image: lscr.io/linuxserver/jackett:latest
     restart: unless-stopped
@@ -40,15 +38,15 @@ services:
       - TZ=${TZ:-UTC}
       - AUTO_UPDATE=true
     ports:
-      - "9117:9117"
+      - "${JACKETT_PORT:-9118}:9117"
     volumes:
-      - jackett_config:/config
-      - downloads:/downloads    # Blackhole watch folder (optional)
+      - ${DATA_DIR:-./data}/jackett:/config
+      - ${DOWNLOADS_DIR:-./downloads}:/downloads
 
   # ── Plex Media Server ──────────────────────────────────────────────────────
-  # Web UI: http://localhost:32400/web
-  # First run: get a claim token from https://www.plex.tv/claim/ and set PLEX_CLAIM in .env
-  # After first successful start the token is no longer needed.
+  # Web UI: http://<host>:32400/web
+  # Skip this service if Plex is already installed on Unraid via Community Apps —
+  # just point PLEX_URL in .env at your existing Plex container (e.g. http://plex:32400).
   plex:
     image: lscr.io/linuxserver/plex:latest
     restart: unless-stopped
@@ -59,32 +57,32 @@ services:
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
     ports:
-      - "32400:32400"     # Web UI + API
+      - "32400:32400"
     volumes:
-      - plex_config:/config
-      - movies:/data/movies
-      - tv:/data/tv
+      - ${DATA_DIR:-./data}/plex:/config
+      - ${MOVIES_DIR:-./movies}:/data/movies
+      - ${TV_DIR:-./tv}:/data/tv
 
   # ── Daredevil web server ───────────────────────────────────────────────────
   web:
     build: .
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     env_file: .env
     environment:
-      # Override .env values to use Docker service names for internal networking
       - REDIS_URL=redis://redis:6379/0
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
+      - DB_PATH=/app/data/db.sqlite3
     depends_on:
       - redis
       - qbittorrent
     volumes:
-      - db_data:/app/db.sqlite3
-      - downloads:/media/downloads  # Must match qBittorrent's /downloads
-      - movies:/media/movies        # Completed movies — also Plex source
-      - tv:/media/tv                # Completed TV    — also Plex source
+      - ${DATA_DIR:-./data}/app:/app/data
+      - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
+      - ${MOVIES_DIR:-./movies}:/media/movies
+      - ${TV_DIR:-./tv}:/media/tv
 
   # ── Celery worker ──────────────────────────────────────────────────────────
   worker:
@@ -96,14 +94,15 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
+      - DB_PATH=/app/data/db.sqlite3
     depends_on:
       - redis
       - qbittorrent
     volumes:
-      - db_data:/app/db.sqlite3
-      - downloads:/media/downloads
-      - movies:/media/movies
-      - tv:/media/tv
+      - ${DATA_DIR:-./data}/app:/app/data
+      - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
+      - ${MOVIES_DIR:-./movies}:/media/movies
+      - ${TV_DIR:-./tv}:/media/tv
 
   # ── Celery beat scheduler ──────────────────────────────────────────────────
   beat:
@@ -113,17 +112,8 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DB_PATH=/app/data/db.sqlite3
     depends_on:
       - redis
     volumes:
-      - db_data:/app/db.sqlite3
-
-volumes:
-  redis_data:
-  db_data:
-  qbt_config:       # qBittorrent settings and state
-  jackett_config:   # Jackett indexer config and API key
-  plex_config:      # Plex metadata and database
-  downloads:        # Shared: qBittorrent writes, Daredevil reads/moves from here
-  movies:           # Shared: Daredevil writes, Plex reads
-  tv:               # Shared: Daredevil writes, Plex reads
+      - ${DATA_DIR:-./data}/app:/app/data

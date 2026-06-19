@@ -86,6 +86,10 @@ def poll_download_progress():
         completed += 1
         log.info('poll_download_progress: completed item pk=%d %r', item.pk, item.title)
 
+        from apps.notifications.notify import send as ntfy
+        label = item.title + (f' — {item.subtitle}' if item.subtitle else '')
+        ntfy('Download Complete', label, tags=['white_check_mark'], category='download_complete')
+
     return f'checked {len(items)}, completed {completed}'
 
 
@@ -104,14 +108,48 @@ def execute_file_move(file_move_id):
 
     try:
         os.makedirs(move.dest_path, exist_ok=True)
-        shutil.move(move.source_path, move.dest_path)
+        src = move.source_path
+        if os.path.isdir(src):
+            # Move each item inside the folder into dest, then remove the (now empty) source dir
+            for entry in os.scandir(src):
+                shutil.move(entry.path, os.path.join(move.dest_path, entry.name))
+            try:
+                os.rmdir(src)
+            except OSError:
+                pass  # not empty (e.g. non-video files remain) — leave it
+        else:
+            shutil.move(src, move.dest_path)
         move.status = FileMove.Status.COMPLETED
         move.completed_at = timezone.now()
         move.error_message = ''
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('execute_file_move id=%d: done', file_move_id)
+        _mark_moved_downloaded(move)
+        from apps.notifications.notify import send as ntfy
+        ntfy('Ready to Watch', f'{move.title} moved to library', priority='low', tags=['tada'], category='file_moved')
     except Exception as e:
         move.status = FileMove.Status.FAILED
         move.error_message = str(e)
         move.save(update_fields=['status', 'error_message'])
         log.error('execute_file_move id=%d: failed — %s', file_move_id, e)
+        from apps.notifications.notify import send as ntfy
+        ntfy('File Move Failed', f'{move.title} — {e}', priority='high', tags=['x'], category='file_failed')
+
+
+def _mark_moved_downloaded(move):
+    """After a successful file move, mark the associated movie or episode as DOWNLOADED."""
+    try:
+        if move.movie_pk:
+            from apps.media_tracker.models import Movie
+            Movie.objects.filter(pk=move.movie_pk).update(
+                download_status=Movie.DownloadStatus.DOWNLOADED
+            )
+            log.info('execute_file_move: marked movie pk=%d as DOWNLOADED', move.movie_pk)
+        if move.episode_pk:
+            from apps.media_tracker.models import Episode
+            Episode.objects.filter(pk=move.episode_pk).update(
+                download_status=Episode.DownloadStatus.DOWNLOADED
+            )
+            log.info('execute_file_move: marked episode pk=%d as DOWNLOADED', move.episode_pk)
+    except Exception as e:
+        log.warning('execute_file_move: could not update download status — %s', e)
