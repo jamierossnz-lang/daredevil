@@ -24,6 +24,8 @@ class TVShow(models.Model):
     vote_average = models.FloatField(default=0)
     is_favourite = models.BooleanField(default=False)
     monitor_new_episodes = models.BooleanField(default=False)
+    monitor_from = models.DateField(null=True, blank=True,
+        help_text='Only auto-queue episodes that air on or after this date. Advances as new episodes are queued.')
     added_at = models.DateTimeField(auto_now_add=True)
     last_synced = models.DateTimeField(null=True, blank=True)
 
@@ -166,9 +168,7 @@ class Movie(models.Model):
 
     @property
     def is_digitally_available(self):
+        """True if the known/estimated digital release date has passed."""
         if self.digital_release_date:
             return self.digital_release_date <= timezone.now().date()
-        if self.release_date:
-            days_since = (timezone.now().date() - self.release_date).days
-            return days_since >= 90  # assume ~3 months theatrical window
         return False

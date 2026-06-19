@@ -1,10 +1,92 @@
 import os
+import re
 import shutil
 import logging
 from celery import shared_task
 from django.utils import timezone
 
 log = logging.getLogger('daredevil.downloads.tasks')
+
+
+_DONE_STATES = {
+    'uploading', 'stalledUP', 'forcedUP', 'queuedUP',
+    'checkingUP', 'pausedUP', 'moving',
+}
+
+
+@shared_task(name='poll_download_progress')
+def poll_download_progress():
+    """
+    Background replacement for the browser-only progress poll.
+    Runs every 5 min; finds DOWNLOADING items that are done in qBT and
+    triggers the completed → file-move pipeline without the user needing
+    to have the queue page open.
+    """
+    from .models import DownloadItem, FileMove
+    from apps.qbt.client import get_torrents
+
+    items = list(DownloadItem.objects.filter(status=DownloadItem.Status.DOWNLOADING))
+    if not items:
+        return 'no active downloads'
+
+    try:
+        all_torrents = get_torrents()
+        torrent_map = {t.hash.lower(): t for t in all_torrents}
+    except Exception as e:
+        log.warning('poll_download_progress: could not reach qBT — %s', e)
+        return f'qBT unreachable: {e}'
+
+    def _norm(s):
+        return re.sub(r'[._\-]+', ' ', (s or '').strip().lower())
+
+    completed = 0
+    for item in items:
+        torrent = torrent_map.get((item.torrent_hash or '').lower())
+
+        if torrent is None:
+            # Try to recover hash via name match
+            stored_norm = _norm(item.torrent_name)
+            title_norm  = _norm(item.title)
+            for t in torrent_map.values():
+                qbt_norm = _norm(t.name)
+                if stored_norm and qbt_norm == stored_norm:
+                    torrent = t
+                    break
+                if title_norm and len(title_norm) >= 8 and qbt_norm.startswith(title_norm):
+                    torrent = t
+                    break
+            if torrent:
+                item.torrent_hash = torrent.hash.lower()
+                item.save(update_fields=['torrent_hash'])
+
+        if torrent is None:
+            continue
+
+        is_done = (torrent.progress or 0) >= 1.0 or (torrent.state or '') in _DONE_STATES
+        if not is_done:
+            # Update progress even if not done yet
+            item.progress = (torrent.progress or 0) * 100
+            item.download_speed = torrent.dlspeed or 0
+            item.eta_seconds = torrent.eta or 0
+            item.size_bytes = torrent.size or 0
+            item.save(update_fields=['progress', 'download_speed', 'eta_seconds', 'size_bytes'])
+            continue
+
+        if FileMove.objects.filter(download_item=item).exists():
+            continue
+
+        item.status = DownloadItem.Status.COMPLETED
+        item.progress = 100
+        item.completed_at = timezone.now()
+        item.save(update_fields=['status', 'progress', 'completed_at'])
+
+        from apps.downloads.views import _mark_media_downloaded, _maybe_queue_file_move
+        _mark_media_downloaded(item)
+        _maybe_queue_file_move(item, torrent)
+        completed += 1
+        log.info('poll_download_progress: completed item pk=%d %r', item.pk, item.title)
+
+    return f'checked {len(items)}, completed {completed}'
 
 
 @shared_task(name='execute_file_move')

@@ -208,16 +208,38 @@ def category_delete(request, name):
 
 @require_POST
 def category_defaults_save(request):
-    from .models import CategoryConfig
+    from .models import CategoryConfig, CategoryPath
     tv = request.POST.get('tv_category', '').strip()
     movie = request.POST.get('movie_category', '').strip()
     config = CategoryConfig.get()
+    old_tv    = config.tv_category
+    old_movie = config.movie_category
     if tv:
         config.tv_category = tv
     if movie:
         config.movie_category = movie
     config.save()
     log.info('category_defaults_save: tv=%r movie=%r', config.tv_category, config.movie_category)
+
+    # Migrate stored paths to the new category name so the file browser stays clean
+    def _migrate(old_name, new_name):
+        if not old_name or old_name == new_name:
+            return
+        old_path = CategoryPath.objects.filter(category_name=old_name).first()
+        if not old_path:
+            return
+        new_path, _ = CategoryPath.objects.get_or_create(category_name=new_name)
+        if not new_path.download_path:
+            new_path.download_path = old_path.download_path
+        if not new_path.completed_path:
+            new_path.completed_path = old_path.completed_path
+        new_path.save()
+        old_path.delete()
+        log.info('category_defaults_save: migrated paths %r → %r', old_name, new_name)
+
+    _migrate(old_tv, config.tv_category)
+    _migrate(old_movie, config.movie_category)
+
     return JsonResponse({'ok': True, 'tv_category': config.tv_category, 'movie_category': config.movie_category})
 
 
@@ -281,7 +303,15 @@ def transfer_info_json(request):
 
 def file_browser_page(request):
     from .models import CategoryPath
-    categories = CategoryPath.objects.all()
+    all_paths = CategoryPath.objects.all()
+    if client.is_connected():
+        try:
+            live_names = set(client.get_categories().keys())
+            categories = [cp for cp in all_paths if cp.category_name in live_names]
+        except Exception:
+            categories = list(all_paths)
+    else:
+        categories = list(all_paths)
     return render(request, 'qbt/files.html', {'categories': categories})
 
 

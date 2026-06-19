@@ -40,7 +40,6 @@ def dashboard_discover(request):
     last_week_end   = last_week_start + timedelta(days=6)
 
     IMG_BASE  = 'https://image.tmdb.org/t/p/w300'
-    STREAMING = '8|9|337|350|15|1899'   # Netflix|Prime|Disney+|Apple TV+|Hulu|Max
     CACHE_TTL = 1800
 
     def _raw(key, method, **kwargs):
@@ -73,48 +72,58 @@ def dashboard_discover(request):
             'first_air_date.gte': this_week_start.isoformat(),
             'first_air_date.lte': today.isoformat(),
             'sort_by': 'popularity.desc',
+            'with_original_language': 'en',
         }),
         ('tv_new_last_week', tmdb.discover_tv, True, {
             'first_air_date.gte': last_week_start.isoformat(),
             'first_air_date.lte': last_week_end.isoformat(),
             'sort_by': 'popularity.desc',
+            'with_original_language': 'en',
         }),
         ('tv_returning_this_week', tmdb.discover_tv, True, {
             'air_date.gte': this_week_start.isoformat(),
             'air_date.lte': today.isoformat(),
             'with_status': 0,
             'sort_by': 'popularity.desc',
+            'with_original_language': 'en',
         }),
         ('tv_returning_last_week', tmdb.discover_tv, True, {
             'air_date.gte': last_week_start.isoformat(),
             'air_date.lte': last_week_end.isoformat(),
             'with_status': 0,
             'sort_by': 'popularity.desc',
+            'with_original_language': 'en',
         }),
-        ('movies_streaming_this_week', tmdb.discover_movie, False, {
+        # Movies new to rent/stream (digital release type 4) — replaces old streaming+digital
+        ('movies_rent_stream_this_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': (this_week_start - timedelta(days=14)).isoformat(),
+            'primary_release_date.lte': today.isoformat(),
+            'with_release_type': '4',
+            'sort_by': 'popularity.desc',
+        }),
+        ('movies_rent_stream_last_week', tmdb.discover_movie, False, {
+            'primary_release_date.gte': (last_week_start - timedelta(days=14)).isoformat(),
+            'primary_release_date.lte': last_week_end.isoformat(),
+            'with_release_type': '4',
+            'sort_by': 'popularity.desc',
+        }),
+        # Movies released theatrically this/last week
+        ('movies_released_this_week', tmdb.discover_movie, False, {
             'primary_release_date.gte': this_week_start.isoformat(),
             'primary_release_date.lte': today.isoformat(),
-            'with_watch_providers': STREAMING,
-            'watch_region': 'US',
+            'with_release_type': '3',
             'sort_by': 'popularity.desc',
         }),
-        ('movies_streaming_last_week', tmdb.discover_movie, False, {
+        ('movies_released_last_week', tmdb.discover_movie, False, {
             'primary_release_date.gte': last_week_start.isoformat(),
             'primary_release_date.lte': last_week_end.isoformat(),
-            'with_watch_providers': STREAMING,
-            'watch_region': 'US',
+            'with_release_type': '3',
             'sort_by': 'popularity.desc',
         }),
-        ('movies_digital_this_week', tmdb.discover_movie, False, {
-            'primary_release_date.gte': this_week_start.isoformat(),
-            'primary_release_date.lte': today.isoformat(),
-            'with_release_type': 4,
-            'sort_by': 'popularity.desc',
-        }),
-        ('movies_digital_last_week', tmdb.discover_movie, False, {
-            'primary_release_date.gte': last_week_start.isoformat(),
-            'primary_release_date.lte': last_week_end.isoformat(),
-            'with_release_type': 4,
+        # Upcoming / announced movies (next 6 months, by popularity)
+        ('movies_announced', tmdb.discover_movie, False, {
+            'primary_release_date.gte': today.isoformat(),
+            'primary_release_date.lte': (today + timedelta(days=180)).isoformat(),
             'sort_by': 'popularity.desc',
         }),
     ]
@@ -151,8 +160,17 @@ def tv_shows(request):
 
 
 def tv_show_detail(request, pk):
+    from django.db.models import Count, Q
     show = get_object_or_404(TVShow, pk=pk)
-    seasons = show.seasons.prefetch_related('episodes').all()
+    seasons = (
+        show.seasons
+        .prefetch_related('episodes')
+        .annotate(
+            downloaded_count=Count('episodes', filter=Q(episodes__download_status='downloaded')),
+            active_count=Count('episodes', filter=Q(episodes__download_status__in=['queued', 'downloading'])),
+        )
+        .all()
+    )
     context = {'show': show, 'seasons': seasons}
     return render(request, 'media_tracker/tv_show_detail.html', context)
 
@@ -169,7 +187,13 @@ def tv_show_toggle_favourite(request, pk):
 def tv_show_toggle_monitor(request, pk):
     show = get_object_or_404(TVShow, pk=pk)
     show.monitor_new_episodes = not show.monitor_new_episodes
-    show.save(update_fields=['monitor_new_episodes'])
+    fields = ['monitor_new_episodes']
+    # Set the high-water mark to today the first time monitoring is enabled,
+    # so historical episodes are not auto-queued.
+    if show.monitor_new_episodes and show.monitor_from is None:
+        show.monitor_from = timezone.now().date()
+        fields.append('monitor_from')
+    show.save(update_fields=fields)
     return JsonResponse({'monitor_new_episodes': show.monitor_new_episodes})
 
 
@@ -224,7 +248,11 @@ def tv_show_queue_download(request, pk):
 
     if monitor:
         show.monitor_new_episodes = True
-        show.save(update_fields=['monitor_new_episodes'])
+        fields = ['monitor_new_episodes']
+        if show.monitor_from is None:
+            show.monitor_from = timezone.now().date()
+            fields.append('monitor_from')
+        show.save(update_fields=fields)
 
     # Build (episode, season_number) pairs so we can pre-fill the search query
     ep_pairs = []  # list of (Episode, season_number)
@@ -336,14 +364,21 @@ def tmdb_search_movie(request):
 @require_POST
 def movie_add(request):
     tmdb_id = int(request.POST.get('tmdb_id'))
+    quality = request.POST.get('quality', '1080p')
+    if quality not in ('1080p', '2160p'):
+        quality = '1080p'
     if Movie.objects.filter(tmdb_id=tmdb_id).exists():
         movie = Movie.objects.get(tmdb_id=tmdb_id)
-        return JsonResponse({'status': 'exists', 'pk': movie.pk, 'title': movie.title})
+        from apps.downloads.models import DownloadItem
+        item = DownloadItem.objects.filter(movie_id=movie.pk).first()
+        return JsonResponse({'status': 'exists', 'pk': movie.pk, 'title': movie.title,
+                             'download_item_pk': item.pk if item else None})
     try:
         movie = tmdb.sync_movie_to_db(tmdb_id)
-        # Auto-queue: if released queue immediately, else wait for digital release
-        _queue_movie(movie)
-        return JsonResponse({'status': 'added', 'pk': movie.pk, 'title': movie.title})
+        item = _queue_movie(movie, quality=quality)
+        return JsonResponse({'status': 'added', 'pk': movie.pk, 'title': movie.title,
+                             'download_item_pk': item.pk if item else None,
+                             'search_query': item.search_query if item else ''})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
@@ -394,5 +429,6 @@ def _queue_movie(movie, quality='1080p'):
     movie.download_status = dl_status
     movie.save(update_fields=['download_status'])
     # Browser handles the search when the user lands on the queue page.
+    return item
 
 

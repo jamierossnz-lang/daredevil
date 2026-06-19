@@ -19,6 +19,7 @@
           {% elif r.task_name == 'check_movie_releases' %}Check Movie Releases
           {% elif r.task_name == 'sync_download_progress' %}Sync Download Progress
           {% elif r.task_name == 'search_and_download' %}Search & Download
+          {% elif r.task_name == 'refresh_movie_release_dates' %}Refresh Movie Release Dates
           {% elif r.task_name == 'cleanup_non_video_files' %}Clean Up Non-Video Files
           {% else %}{{ r.task_name }}{% endif %}
         </p>

@@ -49,6 +49,9 @@ class TMDBClient:
     def get_movie_release_dates(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/release_dates')
 
+    def get_movie_watch_providers(self, tmdb_id):
+        return self._get(f'/movie/{tmdb_id}/watch/providers')
+
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     def sync_show_to_db(self, tmdb_id):
@@ -131,6 +134,7 @@ class TMDBClient:
     def sync_movie_to_db(self, tmdb_id):
         from apps.media_tracker.models import Movie
         from django.utils import timezone
+        from datetime import timedelta
 
         data = self.get_movie(tmdb_id)
 
@@ -142,7 +146,12 @@ class TMDBClient:
             'Rumored': Movie.Status.UPCOMING,
         }
 
+        # Type 4 = Digital release. If none found, estimate release_date + 45 days.
         digital_date = _extract_digital_release(data.get('release_dates', {}).get('results', []))
+        if not digital_date:
+            theatrical = _parse_date(data.get('release_date'))
+            if theatrical:
+                digital_date = theatrical + timedelta(days=45)
 
         movie, _ = Movie.objects.update_or_create(
             tmdb_id=tmdb_id,
@@ -175,15 +184,20 @@ def _parse_date(value):
 
 
 def _extract_digital_release(results):
-    """Pull the earliest digital / home release date from release_dates results."""
-    DIGITAL_TYPES = {4, 5, 6}  # 4=digital, 5=physical, 6=TV
+    """Pull the earliest type-4 (Digital) release date for the US from release_dates results."""
     candidates = []
     for country in results:
         if country.get('iso_3166_1') == 'US':
             for rd in country.get('release_dates', []):
-                if rd.get('type') in DIGITAL_TYPES and rd.get('release_date'):
+                if rd.get('type') == 4 and rd.get('release_date'):
                     candidates.append(_parse_date(rd['release_date'][:10]))
     return min(candidates) if candidates else None
+
+
+def is_available_on_watch_providers(watch_providers_data, region='US'):
+    """Return True if the movie has any streaming or rental providers in the given region."""
+    region_data = watch_providers_data.get('results', {}).get(region, {})
+    return bool(region_data.get('flatrate') or region_data.get('rent'))
 
 
 tmdb = TMDBClient()

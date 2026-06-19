@@ -358,24 +358,41 @@ def _compute_plex_dest(item, base_path):
     Movies : {base}/{Title} ({Year})
     TV     : {base}/{Show} ({Year})/Season XX/EXX-Episode Name
     """
-    year        = item.release_date.year if item.release_date else None
     clean_title = _sanitise_name(item.title)
-    title_year  = f'{clean_title} ({year})' if year else clean_title
 
     if item.media_type == DownloadItem.MediaType.MOVIE:
+        # Always use the theatrical release year for the Plex folder, never the digital date
+        year = None
+        if item.movie_id:
+            try:
+                from apps.media_tracker.models import Movie
+                m = Movie.objects.only('release_date').get(pk=item.movie_id)
+                if m.release_date:
+                    year = m.release_date.year
+            except Exception:
+                pass
+        if year is None and item.release_date:
+            year = item.release_date.year
+        title_year = f'{clean_title} ({year})' if year else clean_title
         return _path_join(base_path, title_year)
 
-    # TV episode — pull season + episode info
+    year       = item.release_date.year if item.release_date else None
+    title_year = f'{clean_title} ({year})' if year else clean_title
+
+    # TV episode — pull season + episode info and use the show's premiere year
     season_num = 1
     ep_num     = None
     ep_name    = None
     if item.episode_id:
         try:
             from apps.media_tracker.models import Episode
-            ep         = Episode.objects.select_related('season').get(pk=item.episode_id)
+            ep         = Episode.objects.select_related('season__show').get(pk=item.episode_id)
             season_num = ep.season.season_number
             ep_num     = ep.episode_number
             ep_name    = _sanitise_name(ep.name) if ep.name else None
+            show_year  = ep.season.show.first_air_date.year if ep.season.show.first_air_date else None
+            if show_year:
+                title_year = f'{clean_title} ({show_year})'
         except Exception:
             pass
 
@@ -472,6 +489,15 @@ def _run_file_move(move_id):
         move.error_message = ''
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('_run_file_move id=%d: completed → %r', move_id, dest_path)
+
+        # Remove from qBittorrent (keep files — already moved to Plex path)
+        torrent_hash = move.download_item.torrent_hash if move.download_item_id else None
+        if torrent_hash:
+            try:
+                delete_torrent(torrent_hash, delete_files=False)
+                log.info('_run_file_move id=%d: removed torrent %s from qBT', move_id, torrent_hash)
+            except Exception as e:
+                log.warning('_run_file_move id=%d: could not remove from qBT — %s', move_id, e)
     except Exception as e:
         err = f'{type(e).__name__}: {e}'
         try:

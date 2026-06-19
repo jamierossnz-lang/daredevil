@@ -40,6 +40,12 @@
   <!-- ── Active Downloads ── -->
   <div x-show="tab === 'active'">
     {% if active %}
+    <div class="flex justify-end mb-3">
+      <button onclick="cancelAll()"
+              class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded-lg text-xs font-medium transition-colors border border-red-500/20">
+        <i class="fa-solid fa-xmark"></i> Cancel All
+      </button>
+    </div>
     <div class="space-y-3" id="activeList">
       {% for item in active %}
       <div class="glass rounded-2xl p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
@@ -479,6 +485,21 @@ function manualSearch(pk) {
 
 async function pauseItem(hash) {
   await fetch(`/qbt/torrent/${hash}/pause/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+}
+
+async function cancelAll() {
+  const items = document.querySelectorAll('[data-item-pk], #activeList .glass[id^="dl-item-"]');
+  const pks = [...document.querySelectorAll('#activeList [id^="dl-item-"]')]
+    .map(el => el.id.replace('dl-item-', ''))
+    .filter(Boolean);
+  if (pks.length === 0) { location.reload(); return; }
+  if (!confirm(`Cancel all ${pks.length} active download(s)?\n\nItems will be reset so they can be re-queued.`)) return;
+  await Promise.all(pks.map(pk => {
+    const fd = new FormData();
+    fd.append('delete_files', 'false');
+    return fetch(`/downloads/${pk}/delete/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  }));
+  location.reload();
 }
 
 async function removeItem(pk, deleteFiles) {

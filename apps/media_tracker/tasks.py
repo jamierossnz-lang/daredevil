@@ -67,7 +67,11 @@ def sync_all_shows():
 
 @shared_task(name='queue_new_episodes')
 def queue_new_episodes():
-    """Find aired episodes on monitored shows not yet queued and kick off downloads."""
+    """
+    Auto-queue aired episodes for monitored shows, but only from monitor_from onward.
+    monitor_from is a high-water mark that advances to the latest queued air date,
+    so historical episodes are never auto-queued (the user adds those manually).
+    """
     from .models import TVShow, Episode
     from apps.downloads.models import DownloadItem
 
@@ -77,48 +81,126 @@ def queue_new_episodes():
     today = timezone.now().date()
 
     for show in monitored:
+        # Fallback: if monitor_from was never set, use the date the show was added
+        cutoff = show.monitor_from or show.added_at.date()
+        latest_queued_date = None
+
         for season in show.seasons.all():
             for ep in season.episodes.filter(download_status=Episode.DownloadStatus.NONE):
-                if ep.air_date and ep.air_date <= today:
-                    sq = f'{show.name} S{season.season_number:02d}E{ep.episode_number:02d} 1080p'
-                    item, created = DownloadItem.objects.get_or_create(
-                        media_type=DownloadItem.MediaType.EPISODE,
-                        episode_id=ep.id,
-                        defaults={
-                            'title': show.name,
-                            'subtitle': str(ep),
-                            'poster_path': show.poster_path,
-                            'status': DownloadItem.Status.SEARCHING,
-                            'release_date': ep.air_date,
-                            'search_query': sq,
-                        },
-                    )
-                    if created:
-                        ep.download_status = Episode.DownloadStatus.QUEUED
-                        ep.save(update_fields=['download_status'])
-                        search_and_download.delay(item.id)
+                if not ep.air_date:
+                    continue
+                # Only queue episodes that aired on or after the cutoff date
+                if ep.air_date < cutoff or ep.air_date > today:
+                    continue
+
+                sq = f'{show.name} S{season.season_number:02d}E{ep.episode_number:02d} 1080p'
+                item, created = DownloadItem.objects.get_or_create(
+                    media_type=DownloadItem.MediaType.EPISODE,
+                    episode_id=ep.id,
+                    defaults={
+                        'title': show.name,
+                        'subtitle': str(ep),
+                        'poster_path': show.poster_path,
+                        'status': DownloadItem.Status.SEARCHING,
+                        'release_date': ep.air_date,
+                        'quality': '1080p',
+                        'search_query': sq,
+                    },
+                )
+                if created:
+                    ep.download_status = Episode.DownloadStatus.QUEUED
+                    ep.save(update_fields=['download_status'])
+                    search_and_download.delay(item.id)
+                    log.info('queue_new_episodes: queued %s (air_date=%s)', ep, ep.air_date)
+
+                # Track the most recent air date queued this run
+                if latest_queued_date is None or ep.air_date > latest_queued_date:
+                    latest_queued_date = ep.air_date
+
+        # Advance monitor_from to the latest episode queued this run
+        if latest_queued_date and (show.monitor_from is None or latest_queued_date > show.monitor_from):
+            show.monitor_from = latest_queued_date
+            show.save(update_fields=['monitor_from'])
+            log.info('queue_new_episodes: advanced monitor_from for %r to %s', show.name, latest_queued_date)
 
 
 @shared_task(name='check_movie_releases')
 def check_movie_releases():
-    """Move movies that have become digitally available into the active download queue."""
+    """
+    Move waiting movies into the active download queue when they appear on any
+    streaming or rental service (Watch Providers API).  TMDB release dates are
+    unreliable, so this is the authoritative availability signal.
+    """
     from .models import Movie
     from apps.downloads.models import DownloadItem
+    from .tmdb import tmdb, is_available_on_watch_providers
+
+    region = getattr(__import__('django.conf', fromlist=['settings']).settings, 'TMDB_REGION', 'US')
+    waiting = Movie.objects.filter(download_status=Movie.DownloadStatus.WAITING_RELEASE)
+
+    for movie in waiting:
+        try:
+            providers = tmdb.get_movie_watch_providers(movie.tmdb_id)
+            available = is_available_on_watch_providers(providers, region)
+        except Exception as e:
+            log.warning('check_movie_releases: watch-providers call failed for %r — %s', movie.title, e)
+            continue
+
+        if not available:
+            log.debug('check_movie_releases: %r not yet on any service', movie.title)
+            continue
+
+        log.info('check_movie_releases: %r is now available — queuing download', movie.title)
+        item = DownloadItem.objects.filter(
+            media_type=DownloadItem.MediaType.MOVIE,
+            movie_id=movie.id,
+        ).first()
+        if item and item.status == DownloadItem.Status.WAITING_RELEASE:
+            item.status = DownloadItem.Status.SEARCHING
+            item.save(update_fields=['status'])
+            movie.download_status = Movie.DownloadStatus.QUEUED
+            movie.save(update_fields=['download_status'])
+            search_and_download.delay(item.id)
+
+
+@shared_task(name='refresh_movie_release_dates')
+def refresh_movie_release_dates():
+    """
+    Daily task: re-fetch TMDB type-4 (Digital) release dates for all waiting movies.
+    If a confirmed date is now available, replace the +45-day estimate and update
+    the DownloadItem so the correct date shows in the Awaiting Release tab.
+    """
+    from .models import Movie
+    from apps.downloads.models import DownloadItem
+    from .tmdb import tmdb, _extract_digital_release
+    from datetime import timedelta
 
     waiting = Movie.objects.filter(download_status=Movie.DownloadStatus.WAITING_RELEASE)
 
     for movie in waiting:
-        if movie.is_digitally_available:
-            item = DownloadItem.objects.filter(
+        try:
+            data = tmdb.get_movie_release_dates(movie.tmdb_id)
+            confirmed = _extract_digital_release(data.get('results', []))
+        except Exception as e:
+            log.warning('refresh_movie_release_dates: TMDB call failed for %r — %s', movie.title, e)
+            continue
+
+        # Use confirmed date if available, otherwise recalculate estimate
+        new_date = confirmed or (
+            movie.release_date + timedelta(days=45) if movie.release_date else None
+        )
+
+        if new_date and new_date != movie.digital_release_date:
+            log.info('refresh_movie_release_dates: updating %r digital date %s → %s',
+                     movie.title, movie.digital_release_date, new_date)
+            movie.digital_release_date = new_date
+            movie.save(update_fields=['digital_release_date'])
+            # Keep DownloadItem.release_date in sync so the UI shows the right date
+            DownloadItem.objects.filter(
                 media_type=DownloadItem.MediaType.MOVIE,
                 movie_id=movie.id,
-            ).first()
-            if item and item.status == DownloadItem.Status.WAITING_RELEASE:
-                item.status = DownloadItem.Status.SEARCHING
-                item.save(update_fields=['status'])
-                movie.download_status = Movie.DownloadStatus.QUEUED
-                movie.save(update_fields=['download_status'])
-                search_and_download.delay(item.id)
+                status=DownloadItem.Status.WAITING_RELEASE,
+            ).update(release_date=new_date)
 
 
 @shared_task(name='search_and_download')

@@ -88,12 +88,8 @@ async function addShow(tmdbId, name, btn) {
   try {
     const res = await fetch('/shows/add/', { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
     const data = await res.json();
-    if (data.status === 'added') {
-      btn.outerHTML = `<a href="/shows/${data.pk}/" class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
-        <i class="fa-solid fa-circle-check mr-1"></i>Added! View →</a>`;
-    } else if (data.status === 'exists') {
-      btn.outerHTML = `<a href="/shows/${data.pk}/" class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
-        <i class="fa-solid fa-circle-check mr-1"></i>Already Added →</a>`;
+    if (data.status === 'added' || data.status === 'exists') {
+      window.location.href = `/shows/${data.pk}/`;
     } else {
       btn.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i>Failed';
       btn.disabled = false;

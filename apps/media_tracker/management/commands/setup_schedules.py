@@ -10,11 +10,15 @@ class Command(BaseCommand):
         daily,    _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
         every30m, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.MINUTES)
 
+        every5m, _ = IntervalSchedule.objects.get_or_create(every=5, period=IntervalSchedule.MINUTES)
+
         tasks = [
-            ('Sync all TV shows from TMDB',           'sync_all_shows',           daily),
-            ('Queue new episodes for monitored shows', 'queue_new_episodes',       every30m),
-            ('Check movie digital release dates',      'check_movie_releases',     hourly),
-            ('Clean up non-video files',               'cleanup_non_video_files',  daily),
+            ('Sync all TV shows from TMDB',           'sync_all_shows',              daily),
+            ('Queue new episodes for monitored shows', 'queue_new_episodes',          every30m),
+            ('Check movie watch providers',            'check_movie_releases',        hourly),
+            ('Refresh movie digital release dates',    'refresh_movie_release_dates', daily),
+            ('Clean up non-video files',               'cleanup_non_video_files',     daily),
+            ('Poll download progress',                 'poll_download_progress',      every5m),
         ]
 
         for name, task_name, schedule in tasks:

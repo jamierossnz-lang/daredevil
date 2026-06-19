@@ -30,11 +30,23 @@ TASK_REGISTRY = {
         'icon': 'fa-arrow-down',
         'color': 'yellow',
     },
+    'refresh_movie_release_dates': {
+        'label': 'Refresh Movie Release Dates',
+        'description': 'Re-check TMDB for confirmed digital release dates (type 4) on waiting movies; falls back to theatrical + 45 days.',
+        'icon': 'fa-calendar-check',
+        'color': 'cyan',
+    },
     'cleanup_non_video_files': {
         'label': 'Clean Up Non-Video Files',
         'description': 'Delete junk files (.nfo, .txt, .jpg, …) left in completed download folders, keeping only video files.',
         'icon': 'fa-broom',
         'color': 'yellow',
+    },
+    'poll_download_progress': {
+        'label': 'Poll Download Progress',
+        'description': 'Check qBittorrent for completed downloads and trigger file moves — runs in the background so the queue page does not need to be open.',
+        'icon': 'fa-rotate',
+        'color': 'brand',
     },
 }
 
@@ -161,14 +173,17 @@ def _dispatch(task_name):
     from apps.media_tracker.tasks import (
         sync_all_shows, queue_new_episodes,
         check_movie_releases, sync_download_progress,
-        cleanup_non_video_files,
+        cleanup_non_video_files, refresh_movie_release_dates,
     )
+    from apps.downloads.tasks import poll_download_progress
     mapping = {
         'sync_all_shows': sync_all_shows,
         'queue_new_episodes': queue_new_episodes,
         'check_movie_releases': check_movie_releases,
         'sync_download_progress': sync_download_progress,
         'cleanup_non_video_files': cleanup_non_video_files,
+        'refresh_movie_release_dates': refresh_movie_release_dates,
+        'poll_download_progress': poll_download_progress,
     }
     return mapping[task_name].delay()
 

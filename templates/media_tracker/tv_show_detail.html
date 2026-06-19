@@ -3,173 +3,255 @@
 {% block page_title %}{{ show.name }}{% endblock %}
 
 {% block header_actions %}
-<button onclick="openDownloadModal()" class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+<button onclick="openDownloadModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
   <i class="fa-solid fa-download"></i>
-  Download
+  <span class="hidden sm:inline">Download</span>
 </button>
 {% endblock %}
 
 {% block content %}
+
 <!-- Hero -->
-<div class="relative rounded-2xl overflow-hidden mb-8" style="min-height: 260px;">
+<div class="relative rounded-2xl overflow-hidden mb-6" style="min-height:200px;">
   {% if show.backdrop_url %}
-  <img src="{{ show.backdrop_url }}" alt="{{ show.name }}" class="absolute inset-0 w-full h-full object-cover opacity-30">
+  <img src="{{ show.backdrop_url }}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-20">
   {% endif %}
-  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/95 via-surface-950/70 to-transparent"></div>
-  <div class="relative flex gap-6 p-6 lg:p-8">
+  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/80 to-surface-950/30"></div>
+  <div class="relative flex gap-5 p-5 lg:p-7">
     {% if show.poster_url %}
-    <img src="{{ show.poster_url }}" alt="{{ show.name }}" class="hidden sm:block w-32 lg:w-40 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-brand-600/40">
+    <img src="{{ show.poster_url }}" alt="{{ show.name }}"
+         class="hidden sm:block w-28 lg:w-36 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-brand-600/30 self-start">
     {% endif %}
-    <div class="flex-1 min-w-0">
-      <div class="flex items-start gap-3 flex-wrap mb-2">
-        <h1 class="text-2xl lg:text-3xl font-bold text-white">{{ show.name }}</h1>
+    <div class="flex-1 min-w-0 pt-1">
+      <div class="flex flex-wrap items-start gap-2 mb-1">
+        <h1 class="text-2xl lg:text-3xl font-bold text-white leading-tight">{{ show.name }}</h1>
         <span class="mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
-          {% if show.status == 'returning' %}bg-green-500/20 text-green-400{% elif show.status == 'ended' %}bg-gray-500/20 text-gray-400{% else %}bg-yellow-500/20 text-yellow-400{% endif %}">
+          {% if show.status == 'returning' %}bg-green-500/20 text-green-400
+          {% elif show.status == 'ended' %}bg-gray-500/20 text-gray-400
+          {% else %}bg-yellow-500/20 text-yellow-400{% endif %}">
           {{ show.get_status_display }}
         </span>
       </div>
-      {% if show.first_air_date %}<p class="text-sm text-gray-400 mb-1">First aired {{ show.first_air_date|date:"Y" }}</p>{% endif %}
-      {% if show.networks %}<p class="text-sm text-gray-500 mb-3"><i class="fa-solid fa-broadcast-tower text-xs mr-1"></i>{{ show.networks }}</p>{% endif %}
-      {% if show.genres %}<p class="text-sm text-brand-400 mb-3">{{ show.genres }}</p>{% endif %}
-      <p class="text-sm text-gray-300 line-clamp-3 max-w-2xl mb-4">{{ show.overview }}</p>
-      <div class="flex items-center gap-4 text-sm">
-        <span class="text-gray-400"><i class="fa-solid fa-list text-brand-500 mr-1.5"></i>{{ show.number_of_seasons }} seasons</span>
-        <span class="text-gray-400"><i class="fa-solid fa-play text-brand-500 mr-1.5"></i>{{ show.number_of_episodes }} episodes</span>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500 mb-2">
+        {% if show.first_air_date %}<span>{{ show.first_air_date|date:"Y" }}</span>{% endif %}
+        {% if show.networks %}<span class="text-gray-700">·</span><span>{{ show.networks }}</span>{% endif %}
+        {% if show.genres %}<span class="text-gray-700">·</span><span class="text-brand-400">{{ show.genres }}</span>{% endif %}
+      </div>
+      {% if show.overview %}
+      <p class="text-sm text-gray-300 line-clamp-2 max-w-2xl mb-3">{{ show.overview }}</p>
+      {% endif %}
+      <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 mb-4">
+        <span><i class="fa-solid fa-layer-group text-brand-500 mr-1.5"></i>{{ show.number_of_seasons }} season{{ show.number_of_seasons|pluralize }}</span>
+        <span><i class="fa-solid fa-play text-brand-500 mr-1.5"></i>{{ show.number_of_episodes }} episodes</span>
         {% if show.vote_average > 0 %}
         <span class="text-yellow-400"><i class="fa-solid fa-star mr-1"></i>{{ show.vote_average|floatformat:1 }}</span>
         {% endif %}
       </div>
-      <div class="flex items-center gap-3 mt-4">
-        <button onclick="toggleFav({{ show.pk }})"
-                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="toggleFav({{ show.pk }})" id="favBtn"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                        {% if show.is_favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
-          <i class="fa-{% if show.is_favourite %}solid{% else %}regular{% endif %} fa-star"></i>
-          Favourite
+          <i class="fa-{% if show.is_favourite %}solid{% else %}regular{% endif %} fa-star" id="favIcon"></i>
+          <span class="hidden sm:inline" id="favLabel">{% if show.is_favourite %}Favourited{% else %}Favourite{% endif %}</span>
         </button>
-        <button onclick="toggleMonitor({{ show.pk }})"
-                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+        <button onclick="toggleMonitor({{ show.pk }})" id="monitorBtn"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                        {% if show.monitor_new_episodes %}bg-brand-500/20 text-brand-400 border border-brand-500/30{% else %}bg-surface-700 text-gray-400 hover:text-brand-400{% endif %}">
-          <i class="fa-solid fa-rss"></i>
-          Monitor new episodes
+          <i class="fa-solid fa-rss" id="monitorIcon"></i>
+          <span class="hidden sm:inline" id="monitorLabel">{% if show.monitor_new_episodes %}Monitoring{% else %}Monitor{% endif %}</span>
         </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Seasons & Episodes -->
-{% for season in seasons %}
-<div class="glass rounded-2xl mb-4 overflow-hidden" x-data="{ open: {{ forloop.first|yesno:'true,false' }} }">
-  <button @click="open = !open"
-          class="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-700/30 transition-colors">
-    <div class="flex items-center gap-4">
-      {% if season.poster_url %}
-      <img src="{{ season.poster_url }}" alt="{{ season.name }}" class="w-10 h-14 rounded object-cover flex-shrink-0">
+<!-- Seasons -->
+{% if seasons %}
+<div x-data="{ active: {{ seasons.0.season_number }} }">
+
+  <!-- Tab strip -->
+  <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-4 scrollbar-thin pb-1">
+    <div class="flex gap-1.5 min-w-max sm:min-w-0 sm:flex-wrap">
+      {% for season in seasons %}
+      <button @click="active = {{ season.season_number }}"
+              :class="active === {{ season.season_number }}
+                ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 scale-105'
+                : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
+              class="flex-shrink-0 flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150">
+        <span>S{{ season.season_number }}</span>
+        <!-- status dot -->
+        {% if season.downloaded_count == season.episode_count and season.episode_count > 0 %}
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0"></span>
+        {% elif season.downloaded_count > 0 or season.active_count > 0 %}
+        <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0"></span>
+        {% else %}
+        <span class="w-1.5 h-1.5 rounded-full bg-surface-600 flex-shrink-0"></span>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Season panels -->
+  {% for season in seasons %}
+  <div x-show="active === {{ season.season_number }}" x-cloak
+       x-transition:enter="transition ease-out duration-150"
+       x-transition:enter-start="opacity-0 translate-y-1"
+       x-transition:enter-end="opacity-100 translate-y-0">
+
+    <!-- Season header card -->
+    <div class="glass rounded-2xl p-4 mb-3 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        {% if season.poster_url %}
+        <img src="{{ season.poster_url }}" alt=""
+             class="w-9 h-12 rounded-lg object-cover flex-shrink-0">
+        {% endif %}
+        <div class="min-w-0">
+          <p class="font-semibold text-gray-100 text-sm leading-tight">{{ season.name }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">
+            {{ season.episode_count }} episode{{ season.episode_count|pluralize }}
+            {% if season.air_date %}· {{ season.air_date|date:"Y" }}{% endif %}
+            {% if season.downloaded_count > 0 %}
+            · <span class="text-green-400 font-medium">{{ season.downloaded_count }} downloaded</span>
+            {% endif %}
+            {% if season.active_count > 0 %}
+            · <span class="text-yellow-400 font-medium">{{ season.active_count }} in progress</span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      {% if season.downloaded_count == season.episode_count and season.episode_count > 0 %}
+      <span class="flex items-center gap-1.5 text-xs text-green-400 font-medium flex-shrink-0">
+        <i class="fa-solid fa-circle-check"></i> Complete
+      </span>
       {% else %}
-      <div class="w-10 h-14 rounded bg-surface-700 flex items-center justify-center flex-shrink-0">
-        <i class="fa-solid fa-tv text-gray-600 text-sm"></i>
+      <button onclick="queueSeason({{ show.pk }}, {{ season.season_number }}, this)"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30 flex-shrink-0">
+        <i class="fa-solid fa-download"></i> Download Season
+      </button>
+      {% endif %}
+
+      {% if season.episode_count > 0 %}
+      <div class="w-full h-1 bg-surface-700 rounded-full overflow-hidden -mt-1">
+        <div class="h-full rounded-full transition-all duration-700
+                    {% if season.downloaded_count == season.episode_count %}bg-green-500
+                    {% else %}bg-gradient-to-r from-brand-600 to-brand-400{% endif %}"
+             style="width:{% widthratio season.downloaded_count season.episode_count 100 %}%"></div>
       </div>
       {% endif %}
-      <div class="text-left">
-        <p class="font-semibold text-gray-100">{{ season.name }}</p>
-        <p class="text-sm text-gray-500">{{ season.episode_count }} episode{{ season.episode_count|pluralize }}
-          {% if season.air_date %}· {{ season.air_date|date:"Y" }}{% endif %}</p>
-      </div>
     </div>
-    <div class="flex items-center gap-3 flex-shrink-0">
-      <button onclick="event.stopPropagation(); queueSeason({{ show.pk }}, {{ season.season_number }})"
-              class="px-3 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
-        <i class="fa-solid fa-download"></i><span class="hidden sm:inline ml-1">Season</span>
-      </button>
-      <i class="fa-solid fa-chevron-down text-gray-500 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-    </div>
-  </button>
 
-  <div x-show="open" x-transition:enter="transition ease-out duration-150"
-       x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-       x-transition:leave="transition ease-in duration-100"
-       x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
-    <div class="border-t border-surface-700/50 divide-y divide-surface-700/30">
+    <!-- Episode list -->
+    <div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
       {% for ep in season.episodes.all %}
-      <div class="flex items-center gap-3 px-5 py-3 hover:bg-surface-700/20 transition-colors group">
+      <div class="flex items-center gap-3 px-4 py-3 hover:bg-surface-700/20 transition-colors group"
+           id="ep-row-{{ ep.pk }}">
+
+        <!-- Ep number -->
+        <span class="text-xs font-mono font-bold w-7 text-right flex-shrink-0
+                     {% if ep.download_status == 'downloaded' %}text-green-500
+                     {% elif ep.download_status == 'downloading' %}text-blue-400
+                     {% elif ep.download_status == 'queued' %}text-yellow-400
+                     {% else %}text-gray-600{% endif %}">
+          {{ ep.episode_number|stringformat:"02d" }}
+        </span>
+
+        <!-- Still -->
         {% if ep.still_url %}
-        <img src="{{ ep.still_url }}" alt="{{ ep.name }}" class="w-20 h-12 rounded object-cover flex-shrink-0 hidden sm:block">
+        <img src="{{ ep.still_url }}" alt=""
+             class="w-16 h-10 rounded object-cover flex-shrink-0 hidden sm:block">
+        {% else %}
+        <div class="w-16 h-10 rounded bg-surface-800 flex-shrink-0 hidden sm:block"></div>
         {% endif %}
+
+        <!-- Info -->
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-0.5">
-            <span class="text-xs font-mono text-gray-500 flex-shrink-0">
-              S{{ season.season_number|stringformat:"02d" }}E{{ ep.episode_number|stringformat:"02d" }}
-            </span>
-            <p class="text-sm font-medium text-gray-200 truncate">{{ ep.name }}</p>
-          </div>
-          <div class="flex items-center gap-3 text-xs text-gray-500">
-            {% if ep.air_date %}<span>{{ ep.air_date|date:"M d, Y" }}</span>{% endif %}
-            {% if ep.runtime %}<span>{{ ep.runtime }}m</span>{% endif %}
-            {% if ep.vote_average > 0 %}<span class="text-yellow-500"><i class="fa-solid fa-star text-xs"></i> {{ ep.vote_average|floatformat:1 }}</span>{% endif %}
+          <p class="text-sm font-medium leading-snug truncate
+                    {% if ep.download_status == 'downloaded' %}text-gray-400{% else %}text-gray-200{% endif %}">
+            {{ ep.name }}
+          </p>
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-0 mt-0.5 text-xs text-gray-600">
+            {% if ep.air_date %}<span>{{ ep.air_date|date:"M j, Y" }}</span>{% endif %}
+            {% if ep.runtime %}<span>· {{ ep.runtime }}m</span>{% endif %}
+            {% if ep.vote_average > 0 %}<span class="text-yellow-600"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>{{ ep.vote_average|floatformat:1 }}</span>{% endif %}
           </div>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <!-- Download status -->
+
+        <!-- Status / action -->
+        <div class="flex-shrink-0">
           {% if ep.download_status == 'downloaded' %}
-          <span class="text-green-400 text-xs"><i class="fa-solid fa-circle-check"></i></span>
+          <i class="fa-solid fa-circle-check text-green-400 text-base w-8 text-center block"></i>
           {% elif ep.download_status == 'downloading' %}
-          <span class="text-blue-400 text-xs"><i class="fa-solid fa-spinner fa-spin"></i></span>
+          <i class="fa-solid fa-spinner fa-spin text-blue-400 text-base w-8 text-center block"></i>
           {% elif ep.download_status == 'queued' %}
-          <span class="text-yellow-400 text-xs"><i class="fa-solid fa-clock"></i></span>
+          <i class="fa-solid fa-clock text-yellow-400 text-base w-8 text-center block"></i>
           {% else %}
-          <button onclick="queueEpisode({{ show.pk }}, {{ ep.pk }})"
-                  class="sm:opacity-0 sm:group-hover:opacity-100 px-2 py-1 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded text-xs transition-all border border-brand-600/30">
-            <i class="fa-solid fa-download"></i>
+          <button onclick="queueEpisode({{ show.pk }}, {{ ep.pk }}, this)"
+                  title="Download episode"
+                  class="w-8 h-8 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-brand-600/40 flex items-center justify-center text-gray-500 hover:text-brand-400 transition-all">
+            <i class="fa-solid fa-download text-xs"></i>
           </button>
           {% endif %}
         </div>
       </div>
+      {% empty %}
+      <div class="py-12 text-center text-gray-600">
+        <i class="fa-solid fa-film text-3xl mb-2 block text-gray-700"></i>
+        <p class="text-sm">No episodes available</p>
+      </div>
       {% endfor %}
     </div>
+
   </div>
+  {% endfor %}
+
 </div>
-{% endfor %}
+{% else %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-tv text-5xl text-gray-700 mb-4 block"></i>
+  <p class="text-gray-500">No seasons found</p>
+</div>
+{% endif %}
 
 <!-- Download Modal -->
-<div id="downloadModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" x-data="downloadModal()" x-show="$el.style.display !== 'none'">
-  <div class="absolute inset-0 bg-black/70" onclick="closeDownloadModal()"></div>
-  <div class="relative glass rounded-2xl w-full max-w-md p-6 animate-slide-in">
-    <h3 class="text-lg font-bold text-white mb-4">Download Options</h3>
+<div id="dlModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeDownloadModal()"></div>
+  <div class="relative glass rounded-2xl w-full max-w-sm p-6 animate-slide-in">
+    <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-download text-brand-400"></i> Download Options
+    </h3>
 
-    <div class="space-y-3 mb-5">
-      <label class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-700 cursor-pointer transition-colors">
-        <input type="radio" name="dlMode" value="whole" checked class="text-brand-500">
+    <div class="space-y-2 mb-5">
+      <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-700/50
+                    has-[:checked]:bg-brand-600/10 has-[:checked]:border-brand-600/30 border border-transparent">
+        <input type="radio" name="dlMode" value="whole" checked class="accent-brand-500">
         <div>
           <p class="text-sm font-medium text-gray-200">Entire Show</p>
-          <p class="text-xs text-gray-500">Download all {{ show.number_of_seasons }} seasons</p>
+          <p class="text-xs text-gray-500">All {{ show.number_of_seasons }} seasons</p>
         </div>
       </label>
-      <label class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-700 cursor-pointer transition-colors">
-        <input type="radio" name="dlMode" value="seasons" class="text-brand-500">
+      <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-700/50
+                    has-[:checked]:bg-brand-600/10 has-[:checked]:border-brand-600/30 border border-transparent">
+        <input type="radio" name="dlMode" value="seasons" class="accent-brand-500">
         <div>
           <p class="text-sm font-medium text-gray-200">Specific Seasons</p>
-          <p class="text-xs text-gray-500">Choose which seasons to download</p>
+          <p class="text-xs text-gray-500">Pick which seasons to queue</p>
         </div>
       </label>
-      {% if show.is_ongoing %}
-      <label class="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-700 cursor-pointer transition-colors border border-brand-600/30">
-        <input type="checkbox" name="monitor" id="monitorCheck" {% if show.monitor_new_episodes %}checked{% endif %} class="text-brand-500">
-        <div>
-          <p class="text-sm font-medium text-brand-300"><i class="fa-solid fa-rss mr-1"></i>Auto-download new episodes</p>
-          <p class="text-xs text-gray-500">Downloads new episodes as they air</p>
-        </div>
-      </label>
-      {% endif %}
     </div>
 
-    <!-- Season picker (shown when seasons mode selected) -->
-    <div id="seasonPicker" class="hidden mb-4">
-      <p class="text-xs text-gray-500 mb-2 uppercase tracking-wider font-semibold">Select Seasons</p>
+    <!-- Season picker -->
+    <div id="seasonPicker" class="hidden mb-5">
+      <p class="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider">Select Seasons</p>
       <div class="flex flex-wrap gap-2">
         {% for season in seasons %}
         <label class="cursor-pointer">
           <input type="checkbox" name="season_num" value="{{ season.season_number }}" class="hidden peer">
-          <span class="block px-3 py-1.5 rounded-lg text-sm border border-surface-600 peer-checked:bg-brand-600 peer-checked:border-brand-500 peer-checked:text-white text-gray-400 transition-colors">
+          <span class="block px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
+                       border-surface-600 text-gray-400
+                       peer-checked:bg-brand-600 peer-checked:border-brand-500 peer-checked:text-white">
             S{{ season.season_number }}
           </span>
         </label>
@@ -177,83 +259,125 @@
       </div>
     </div>
 
-    <div class="flex gap-3">
-      <button onclick="closeDownloadModal()" class="flex-1 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium transition-colors">
+    {% if show.is_ongoing %}
+    <label class="flex items-center gap-3 p-3 rounded-xl mb-5 cursor-pointer transition-colors
+                  bg-brand-600/10 border border-brand-600/20 hover:bg-brand-600/20">
+      <input type="checkbox" name="monitor" id="monitorCheck" {% if show.monitor_new_episodes %}checked{% endif %} class="accent-brand-500">
+      <div>
+        <p class="text-sm font-medium text-brand-300"><i class="fa-solid fa-rss mr-1.5"></i>Auto-download new episodes</p>
+        <p class="text-xs text-gray-500">Queue episodes automatically as they air</p>
+      </div>
+    </label>
+    {% endif %}
+
+    <div class="flex gap-2">
+      <button onclick="closeDownloadModal()"
+              class="flex-1 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium transition-colors">
         Cancel
       </button>
-      <button onclick="submitDownload({{ show.pk }})" class="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors">
-        <i class="fa-solid fa-download mr-2"></i>Queue Download
+      <button onclick="submitDownload({{ show.pk }})"
+              class="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors">
+        Queue Download
       </button>
     </div>
   </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const csrfToken = '{{ csrf_token }}';
 
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openDownloadModal() { document.getElementById('dlModal').style.display = 'flex'; }
+function closeDownloadModal() { document.getElementById('dlModal').style.display = 'none'; }
+
 document.querySelectorAll('input[name="dlMode"]').forEach(r => {
-  r.addEventListener('change', () => {
-    document.getElementById('seasonPicker').classList.toggle('hidden', r.value !== 'seasons');
-  });
+  r.addEventListener('change', () =>
+    document.getElementById('seasonPicker').classList.toggle('hidden', r.value !== 'seasons')
+  );
 });
 
-function openDownloadModal() {
-  document.getElementById('downloadModal').style.display = 'flex';
-}
-function closeDownloadModal() {
-  document.getElementById('downloadModal').style.display = 'none';
-}
-
 async function submitDownload(pk) {
-  const mode = document.querySelector('input[name="dlMode"]:checked').value;
+  const mode    = document.querySelector('input[name="dlMode"]:checked').value;
   const monitor = document.getElementById('monitorCheck')?.checked ? 'true' : 'false';
   const seasons = [...document.querySelectorAll('input[name="season_num"]:checked')].map(e => e.value);
-
   const fd = new FormData();
   fd.append('mode', mode);
   fd.append('monitor', monitor);
   seasons.forEach(s => fd.append('seasons', s));
-
-  const res = await fetch(`/shows/${pk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  const res  = await fetch(`/shows/${pk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
   const data = await res.json();
   closeDownloadModal();
-  showToast(`Queued ${data.queued} episode(s)`);
+  toast(`Queued ${data.queued} episode(s)`);
 }
 
-async function queueSeason(showPk, seasonNum) {
+// ── Per-season / per-episode download ─────────────────────────────────────────
+async function queueSeason(showPk, seasonNum, btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Queuing…'; }
   const fd = new FormData();
   fd.append('mode', 'seasons');
   fd.append('seasons', seasonNum);
-  const res = await fetch(`/shows/${showPk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  const res  = await fetch(`/shows/${showPk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
   const data = await res.json();
-  showToast(`Queued ${data.queued} episode(s) from season ${seasonNum}`);
+  toast(`Queued ${data.queued} episode(s)`);
+  if (data.queued > 0) setTimeout(() => location.reload(), 800);
+  else if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-download"></i> Download Season'; }
 }
 
-async function queueEpisode(showPk, epPk) {
+async function queueEpisode(showPk, epPk, btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i>'; }
   const fd = new FormData();
   fd.append('mode', 'episodes');
   fd.append('episode_ids', epPk);
-  const res = await fetch(`/shows/${showPk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
-  showToast('Episode queued for download');
+  await fetch(`/shows/${showPk}/queue/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+  // Replace button with queued icon in place
+  if (btn) {
+    btn.outerHTML = '<i class="fa-solid fa-clock text-yellow-400 text-base w-8 text-center block"></i>';
+  }
+  toast('Episode queued');
 }
 
+// ── Favourite / Monitor toggles (no page reload) ──────────────────────────────
 async function toggleFav(pk) {
-  await fetch(`/shows/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  location.reload();
-}
-async function toggleMonitor(pk) {
-  await fetch(`/shows/${pk}/monitor/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  location.reload();
+  const res  = await fetch(`/shows/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  const data = await res.json();
+  const btn  = document.getElementById('favBtn');
+  const icon = document.getElementById('favIcon');
+  const lbl  = document.getElementById('favLabel');
+  if (data.is_favourite) {
+    btn.className  = btn.className.replace('bg-surface-700 text-gray-400 hover:text-yellow-400', 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30');
+    icon.className = 'fa-solid fa-star';
+    if (lbl) lbl.textContent = 'Favourited';
+  } else {
+    btn.className  = btn.className.replace('bg-yellow-500/20 text-yellow-400 border border-yellow-500/30', 'bg-surface-700 text-gray-400 hover:text-yellow-400');
+    icon.className = 'fa-regular fa-star';
+    if (lbl) lbl.textContent = 'Favourite';
+  }
 }
 
-function showToast(msg) {
-  const t = document.createElement('div');
-  t.className = 'fixed bottom-6 right-6 z-50 px-4 py-3 glass rounded-xl text-sm text-green-400 border border-green-500/30 animate-slide-in';
-  t.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>${msg}`;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+async function toggleMonitor(pk) {
+  const res  = await fetch(`/shows/${pk}/monitor/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  const data = await res.json();
+  const btn  = document.getElementById('monitorBtn');
+  const lbl  = document.getElementById('monitorLabel');
+  if (data.monitor_new_episodes) {
+    btn.className = btn.className.replace('bg-surface-700 text-gray-400 hover:text-brand-400', 'bg-brand-500/20 text-brand-400 border border-brand-500/30');
+    if (lbl) lbl.textContent = 'Monitoring';
+  } else {
+    btn.className = btn.className.replace('bg-brand-500/20 text-brand-400 border border-brand-500/30', 'bg-surface-700 text-gray-400 hover:text-brand-400');
+    if (lbl) lbl.textContent = 'Monitor';
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 glass rounded-xl text-sm text-green-400 border border-green-500/30 animate-slide-in shadow-lg';
+  el.innerHTML = `<i class="fa-solid fa-circle-check"></i>${msg}`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 2500);
 }
 </script>
 {% endblock %}

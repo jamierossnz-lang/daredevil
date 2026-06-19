@@ -3,9 +3,10 @@
 {% block page_title %}TV Shows{% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'tmdb_search_tv' %}" class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+<a id="addShowBtn" href="{% url 'tmdb_search_tv' %}{% if q %}?q={{ q|urlencode }}{% endif %}"
+   class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
   <i class="fa-solid fa-plus"></i>
-  <span class="hidden sm:inline">Add Show</span>
+  <span class="hidden sm:inline" id="addShowLabel">{% if q %}Search TMDB{% else %}Add Show{% endif %}</span>
 </a>
 {% endblock %}
 
@@ -117,8 +118,8 @@
   <i class="fa-solid fa-tv text-6xl text-gray-700 mb-4"></i>
   <p class="text-xl font-semibold text-gray-400 mb-2">No TV shows yet</p>
   <p class="text-gray-600 mb-6">Search TMDB to add your first show</p>
-  <a href="{% url 'tmdb_search_tv' %}" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors">
-    <i class="fa-solid fa-plus mr-2"></i>Add TV Show
+  <a href="{% url 'tmdb_search_tv' %}{% if q %}?q={{ q|urlencode }}{% endif %}" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors">
+    <i class="fa-solid fa-plus mr-2"></i>{% if q %}Search TMDB for "{{ q }}"{% else %}Add TV Show{% endif %}
   </a>
 </div>
 {% endif %}
@@ -127,6 +128,22 @@
 {% block extra_js %}
 <script>
 const csrfToken = '{{ csrf_token }}';
+
+// Keep header "Add Show" button in sync with the search input
+(function() {
+  const input = document.querySelector('input[name="q"]');
+  const btn   = document.getElementById('addShowBtn');
+  const lbl   = document.getElementById('addShowLabel');
+  if (!input || !btn) return;
+  function sync() {
+    const q = input.value.trim();
+    const base = '{% url "tmdb_search_tv" %}';
+    btn.href = q ? base + '?q=' + encodeURIComponent(q) : base;
+    if (lbl) lbl.textContent = q ? 'Search TMDB' : 'Add Show';
+  }
+  input.addEventListener('input', sync);
+  sync();
+})();
 
 async function toggleFav(pk, btn) {
   const res = await fetch(`/shows/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
