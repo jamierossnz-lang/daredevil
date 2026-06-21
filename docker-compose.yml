@@ -1,5 +1,21 @@
 services:
 
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=daredevil
+      - POSTGRES_USER=daredevil
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-daredevil}
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daredevil -d daredevil"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -74,12 +90,18 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
-      - DB_PATH=/app/data/db.sqlite3
+      - DB_HOST=db
+      - DB_NAME=daredevil
+      - DB_USER=daredevil
+      - DB_PASSWORD=${DB_PASSWORD:-daredevil}
     depends_on:
-      - redis
-      - qbittorrent
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qbittorrent:
+        condition: service_started
     volumes:
-      - ${DATA_DIR:-./data}/app:/app/data
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
@@ -94,12 +116,18 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
-      - DB_PATH=/app/data/db.sqlite3
+      - DB_HOST=db
+      - DB_NAME=daredevil
+      - DB_USER=daredevil
+      - DB_PASSWORD=${DB_PASSWORD:-daredevil}
     depends_on:
-      - redis
-      - qbittorrent
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qbittorrent:
+        condition: service_started
     volumes:
-      - ${DATA_DIR:-./data}/app:/app/data
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
@@ -112,8 +140,13 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DB_PATH=/app/data/db.sqlite3
+      - DB_HOST=db
+      - DB_NAME=daredevil
+      - DB_USER=daredevil
+      - DB_PASSWORD=${DB_PASSWORD:-daredevil}
     depends_on:
-      - redis
-    volumes:
-      - ${DATA_DIR:-./data}/app:/app/data
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes: []

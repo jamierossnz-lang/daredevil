@@ -179,7 +179,102 @@ volumes:
 
 Apply the same mounts to the `web`, `worker`, and `qbittorrent` services. qBittorrent's mount must use `/downloads` as the container path.
 
-> **Note on SQLite + Docker:** The database lives in the `db_data` named volume, shared between web/worker/beat via file locking. Works well for personal use. Switch to PostgreSQL for multi-user production deployments.
+---
+
+### Unraid
+
+Unraid 6.12+ has built-in Docker Compose support via the **Compose Manager** plugin. If you're on an older version, install [Docker Compose Manager](https://forums.unraid.net/topic/114415-plugin-docker-compose-manager/) from Community Applications first.
+
+**1. Open a terminal**
+
+Unraid WebUI → Tools → Terminal (or SSH in).
+
+**2. Clone the repo into your appdata share**
+
+```bash
+cd /mnt/user/appdata
+git clone https://github.com/jamierossnz-lang/daredevil.git
+cd daredevil
+cp .env.example .env
+```
+
+**3. Edit `.env`**
+
+```bash
+nano .env
+```
+
+Key values to set:
+
+```env
+# Required
+TMDB_API_KEY=your_tmdb_api_key
+SECRET_KEY=change-me-to-a-long-random-string
+TZ=Pacific/Auckland          # your timezone
+
+# Unraid paths — adjust share names to match yours
+DATA_DIR=/mnt/user/appdata/daredevil
+DOWNLOADS_DIR=/mnt/user/data/torrents
+MOVIES_DIR=/mnt/user/media/movies
+TV_DIR=/mnt/user/media/tv
+
+# Unraid default UID/GID (nobody/users)
+PUID=99
+PGID=100
+
+# PostgreSQL password (change this)
+DB_PASSWORD=changeme
+
+# Plex — skip PLEX_CLAIM if Plex is already running as a CA app
+PLEX_CLAIM=claim-xxxxxxxxxxxxxx
+```
+
+> **Tip:** Check your user's UID/GID with `id <username>` in the terminal.
+
+**4. If qBittorrent or Plex is already installed via Community Applications**
+
+Skip those services in the compose file — they'll conflict. Comment out the `qbittorrent` and/or `plex` blocks in `docker-compose.yml`, then point Daredevil at your existing containers instead:
+
+```env
+# In .env — point at your existing CA containers
+QBITTORRENT_HOST=<your-qbt-container-ip-or-name>
+QBITTORRENT_PORT=8080
+PLEX_URL=http://<your-plex-container-ip>:32400
+PLEX_TOKEN=<your-plex-token>
+```
+
+**5. Start the stack**
+
+```bash
+docker compose up -d
+```
+
+**6. Create an admin user**
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+**Service URLs** (replace `tower` with your Unraid hostname or IP):
+
+| Service | URL |
+|---------|-----|
+| Daredevil | http://tower:8000 |
+| qBittorrent | http://tower:8081 (note: Unraid WebUI uses 8080) |
+| Jackett | http://tower:9118 |
+| Plex | http://tower:32400/web |
+| PostgreSQL | internal only (not exposed) |
+
+> **Port note:** Unraid's own WebUI runs on port 8080, so qBittorrent is mapped to **8081** in this stack to avoid the conflict.
+
+**Updating:**
+
+```bash
+cd /mnt/user/appdata/daredevil
+git pull
+docker compose build web worker beat
+docker compose up -d
+```
 
 ---
 
