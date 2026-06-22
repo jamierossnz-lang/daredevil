@@ -204,7 +204,7 @@ def tv_show_detail(request, pk):
             downloaded_count=Count('episodes', filter=Q(episodes__download_status='downloaded')),
             active_count=Count('episodes', filter=Q(episodes__download_status__in=['queued', 'downloading'])),
         )
-        .all()
+        .order_by('season_number')
     )
     context = {'show': show, 'seasons': seasons}
     return render(request, 'media_tracker/tv_show_detail.html', context)
