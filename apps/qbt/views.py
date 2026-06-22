@@ -215,6 +215,7 @@ def categories_page(request):
         categories[name] = {
             'name': name,
             'qbt_save_path': qbt_save_path,
+            'daredevil_qbt_save_path': row.qbt_save_path if row else '',
             'download_path': row.download_path if row else '',
             'completed_path': row.completed_path if row else '',
         }
@@ -230,17 +231,18 @@ def categories_page(request):
 def category_paths_save(request, name):
     """Save the download + completed paths for a category in Daredevil's DB."""
     from .models import CategoryPath
-    download_path = request.POST.get('download_path', '').strip()
+    qbt_save_path  = request.POST.get('qbt_save_path', '').strip()
+    download_path  = request.POST.get('download_path', '').strip()
     completed_path = request.POST.get('completed_path', '').strip()
     row, _ = CategoryPath.objects.get_or_create(category_name=name)
-    row.download_path = download_path
+    row.qbt_save_path  = qbt_save_path
+    row.download_path  = download_path
     row.completed_path = completed_path
     row.save()
-    log.info('category_paths_save: %r download=%r completed=%r', name, download_path, completed_path)
-    # Also push the download_path to qBittorrent as the category save_path if provided
-    if download_path:
+    log.info('category_paths_save: %r qbt=%r download=%r completed=%r', name, qbt_save_path, download_path, completed_path)
+    if qbt_save_path:
         try:
-            client.edit_category(name, save_path=download_path)
+            client.edit_category(name, save_path=qbt_save_path)
         except Exception as e:
             log.warning('category_paths_save: could not update qBT save_path — %s', e)
     return JsonResponse({'ok': True})

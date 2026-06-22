@@ -193,19 +193,30 @@
           </button>
         </div>
 
-        <!-- Path fields — single Alpine scope so both inputs share state -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-0 md:divide-x divide-white/5"
-             x-data="{ dlPath: '{{ cat.download_path|escapejs }}', compPath: '{{ cat.completed_path|escapejs }}', saved: false }"
-             @keydown.enter="savePaths('{{ name }}', dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)">
+        <!-- Path fields -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-0 md:divide-x divide-white/5"
+             x-data="{ qbtPath: '{{ cat.daredevil_qbt_save_path|escapejs }}', dlPath: '{{ cat.download_path|escapejs }}', compPath: '{{ cat.completed_path|escapejs }}', saved: false }"
+             @keydown.enter="savePaths('{{ name }}', qbtPath, dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)">
+
+          <!-- qBT save path -->
+          <div class="px-4 py-3">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-hard-drive text-yellow-400"></i> qBT Save Path
+              <span class="normal-case font-normal text-gray-600">qBittorrent's path for this category</span>
+            </p>
+            <input type="text" x-model="qbtPath"
+                   placeholder="e.g. /downloads"
+                   class="w-full px-2.5 py-1.5 bg-surface-700 border border-white/10 rounded-lg text-xs font-mono text-gray-300 focus:outline-none focus:border-yellow-500/40">
+          </div>
 
           <!-- Download path -->
           <div class="px-4 py-3">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <i class="fa-solid fa-arrow-down text-blue-400"></i> Download Path
-              <span class="normal-case font-normal text-gray-600">sent to qBittorrent as save location</span>
+              <span class="normal-case font-normal text-gray-600">same folder, Daredevil's container path</span>
             </p>
             <input type="text" x-model="dlPath"
-                   placeholder="e.g. /media/downloads/tv"
+                   placeholder="e.g. /media/downloads"
                    class="w-full px-2.5 py-1.5 bg-surface-700 border border-white/10 rounded-lg text-xs font-mono text-gray-300 focus:outline-none focus:border-blue-500/40">
           </div>
 
@@ -220,9 +231,9 @@
                    class="w-full px-2.5 py-1.5 bg-surface-700 border border-white/10 rounded-lg text-xs font-mono text-gray-300 focus:outline-none focus:border-green-500/40">
           </div>
 
-          <!-- Save row spanning both columns -->
+          <!-- Save row spanning all columns -->
           <div class="col-span-full px-4 pb-3 flex items-center gap-3">
-            <button @click="savePaths('{{ name }}', dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)"
+            <button @click="savePaths('{{ name }}', qbtPath, dlPath, compPath); saved = true; setTimeout(() => saved = false, 2000)"
                     class="px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/60 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium transition-colors">
               <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save Paths
             </button>
@@ -288,13 +299,14 @@ function categoriesApp() {
       if (!data.ok) { this.createError = data.error || 'Failed'; return; }
       // Also save paths if provided
       if (this.newDlPath.trim() || this.newCompPath.trim()) {
-        await this.savePaths(name, this.newDlPath.trim(), this.newCompPath.trim());
+        await this.savePaths(name, '', this.newDlPath.trim(), this.newCompPath.trim());
       }
       location.reload();
     },
 
-    async savePaths(name, dlPath, compPath) {
+    async savePaths(name, qbtPath, dlPath, compPath) {
       const fd = new FormData();
+      fd.append('qbt_save_path', qbtPath);
       fd.append('download_path', dlPath);
       fd.append('completed_path', compPath);
       await fetch(`/qbt/categories/${encodeURIComponent(name)}/paths/`, {

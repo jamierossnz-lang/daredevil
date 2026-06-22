@@ -208,14 +208,14 @@ def item_begin_download(request, pk):
         cfg = CategoryConfig.get()
         category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
-        save_path = cat_path.download_path if cat_path else None
+        qbt_save_path = cat_path.qbt_save_path if cat_path else None
         # Snapshot existing hashes so we can detect the newly added one
         try:
             hashes_before = {t.hash.lower() for t in get_torrents()}
         except Exception:
             hashes_before = set()
 
-        add_magnet(magnet, save_path=save_path or None, category=category or None)
+        add_magnet(magnet, save_path=qbt_save_path or None, category=category or None)
 
         # Prefer extracting hash from magnet URI (instant, no round-trip)
         m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[A-Z2-7]{32})', magnet, re.IGNORECASE)

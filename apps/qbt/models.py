@@ -34,8 +34,10 @@ class ExtraTab(models.Model):
 class CategoryPath(models.Model):
     """Per-category path configuration stored in Daredevil."""
     category_name = models.CharField(max_length=200, unique=True)
+    qbt_save_path = models.CharField(max_length=1000, blank=True,
+        help_text="Save path sent to qBittorrent when adding torrents (qBittorrent's container path, e.g. /downloads).")
     download_path = models.CharField(max_length=1000, blank=True,
-        help_text='Where qBittorrent saves files while downloading. Sent as save_path when adding a torrent.')
+        help_text="Where Daredevil looks for downloaded files (Daredevil's container path, e.g. /media/downloads).")
     completed_path = models.CharField(max_length=1000, blank=True,
         help_text='Where Daredevil moves files after the download finishes.')
 
