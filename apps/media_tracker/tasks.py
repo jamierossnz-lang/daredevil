@@ -7,9 +7,15 @@ from django.utils import timezone
 
 log = logging.getLogger('daredevil.tasks')
 
-_VIDEO_EXTENSIONS = {
-    '.mkv', '.mp4', '.avi', '.mov', '.m4v', '.wmv',
-    '.ts', '.m2ts', '.mpg', '.mpeg', '.webm', '.flv', '.3gp',
+_JUNK_EXTENSIONS = {
+    # metadata / info
+    '.nfo', '.txt', '.nzb', '.torrent', '.url', '.xml', '.html', '.htm',
+    # images (posters/covers left by torrent clients)
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
+    # checksums / verification
+    '.sfv', '.md5', '.sha1', '.sha256', '.srr',
+    # misc rubbish
+    '.log', '.db', '.lnk', '.ini', '.dat',
 }
 
 
@@ -17,8 +23,9 @@ _VIDEO_EXTENSIONS = {
 def cleanup_non_video_files():
     """
     Walk every download_path and completed_path configured in CategoryPath, delete
-    any file whose extension is not a recognised video format, then remove empty
-    directories left behind.
+    known junk files (.nfo, .txt, .jpg, etc.) then remove empty directories left behind.
+    Only explicitly listed extensions are removed — video, subtitle, and unknown files
+    are always left untouched.
     """
     from apps.qbt.models import CategoryPath
 
@@ -49,11 +56,11 @@ def cleanup_non_video_files():
             log.warning('cleanup_non_video_files: path %r does not exist, skipping', base_path)
             continue
 
-        # Delete non-video files (bottom-up so we can catch empty dirs in same pass)
+        # Delete known junk files (bottom-up so we can catch empty dirs in same pass)
         for root, _dirs, files in os.walk(base_path, topdown=False):
             for fname in files:
                 ext = os.path.splitext(fname)[1].lower()
-                if ext not in _VIDEO_EXTENSIONS:
+                if ext in _JUNK_EXTENSIONS:
                     fpath = os.path.join(root, fname)
                     try:
                         os.remove(fpath)
