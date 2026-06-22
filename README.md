@@ -183,7 +183,7 @@ Apply the same mounts to the `web`, `worker`, and `qbittorrent` services. qBitto
 
 ### Unraid
 
-Unraid 6.12+ has built-in Docker Compose support via the **Compose Manager** plugin. If you're on an older version, install [Docker Compose Manager](https://forums.unraid.net/topic/114415-plugin-docker-compose-manager/) from Community Applications first.
+**Before you start:** Install the **Docker Compose Manager** plugin by dcflachs from Community Applications. This adds `docker-compose` to Unraid — without it, compose commands won't work regardless of Unraid version.
 
 **1. Open a terminal**
 
@@ -246,13 +246,15 @@ PLEX_TOKEN=<your-plex-token>
 **5. Start the stack**
 
 ```bash
-docker compose up -d
+docker-compose up -d
 ```
+
+> **Note:** Unraid uses `docker-compose` (with a hyphen), not `docker compose`. Use the hyphenated form for all commands below.
 
 **6. Create an admin user**
 
 ```bash
-docker compose exec web python manage.py createsuperuser
+docker-compose exec web python manage.py createsuperuser
 ```
 
 **Service URLs** (replace `tower` with your Unraid hostname or IP):
@@ -272,8 +274,8 @@ docker compose exec web python manage.py createsuperuser
 ```bash
 cd /mnt/user/appdata/daredevil
 git pull
-docker compose build web worker beat
-docker compose up -d
+docker-compose build web worker beat
+docker-compose up -d
 ```
 
 ---

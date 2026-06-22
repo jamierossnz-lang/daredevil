@@ -54,7 +54,7 @@ services:
       - TZ=${TZ:-UTC}
       - AUTO_UPDATE=true
     ports:
-      - "${JACKETT_PORT:-9118}:9117"
+      - "${JACKETT_PORT:-9118}:9118"
     volumes:
       - ${DATA_DIR:-./data}/jackett:/config
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
@@ -66,14 +66,13 @@ services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     restart: unless-stopped
+    network_mode: host
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
       - VERSION=docker
       - PLEX_CLAIM=${PLEX_CLAIM:-}
-    ports:
-      - "32400:32400"
     volumes:
       - ${DATA_DIR:-./data}/plex:/config
       - ${MOVIES_DIR:-./movies}:/data/movies
