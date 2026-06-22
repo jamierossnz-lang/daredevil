@@ -615,6 +615,8 @@ def file_move_completed(request):
     def _parse_tv(name):
         """Return (show_name, year_or_None, season_num, ep_num_or_None)."""
         name = _strip_ext(name)
+        # Strip site watermark prefixes: "www.UIndex.org - ", "YTS.mx - " etc.
+        name = re.sub(r'^(?:www\.)?[\w-]+\.(?:com|org|net|info|to|xyz|me)\s*[-–]\s*', '', name, flags=re.IGNORECASE)
         m = re.search(r'[Ss](\d{1,2})[Ee](\d+)', name)
         if m:
             prefix = name[:m.start()]
@@ -645,6 +647,7 @@ def file_move_completed(request):
     def _parse_movie(name):
         """Return (title, year) from a movie filename or folder name."""
         name = _strip_ext(name)
+        name = re.sub(r'^(?:www\.)?[\w-]+\.(?:com|org|net|info|to|xyz|me)\s*[-–]\s*', '', name, flags=re.IGNORECASE)
         m = re.search(r'\((\d{4})\)', name)
         if m:
             return _sanitise(_clean(name[:m.start()])), int(m.group(1))
