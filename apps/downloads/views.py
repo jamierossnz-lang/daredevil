@@ -425,12 +425,30 @@ def _maybe_queue_file_move(item, torrent):
     # qBT-side path isn't valid here.
     torrent_name  = getattr(torrent, 'name', '')
     content_path  = getattr(torrent, 'content_path', None)
-    if content_path and os.path.exists(content_path):
-        source = content_path
-    elif cat_path.download_path and torrent_name:
-        source = os.path.join(cat_path.download_path, torrent_name)
-    else:
-        source = content_path or getattr(torrent, 'save_path', None)
+
+    # Translate content_path from qBT's container path to Daredevil's container path.
+    # e.g. /downloads/www.UIndex.org - Show S01E02/ → /media/downloads/www.UIndex.org - Show S01E02/
+    # This handles torrents whose folder name differs from torrent.name (site-prefixed releases).
+    source = None
+    if content_path and cat_path and cat_path.qbt_save_path and cat_path.download_path:
+        qbt_prefix = cat_path.qbt_save_path.rstrip('/')
+        if content_path.startswith(qbt_prefix):
+            translated = cat_path.download_path.rstrip('/') + content_path[len(qbt_prefix):]
+            # Use the top-level folder (first path component after the prefix) as source
+            rel = translated[len(cat_path.download_path.rstrip('/')):]
+            top = rel.lstrip('/').split('/')[0]
+            if top:
+                candidate = os.path.join(cat_path.download_path.rstrip('/'), top)
+                if os.path.exists(candidate):
+                    source = candidate
+
+    if source is None:
+        if content_path and os.path.exists(content_path):
+            source = content_path
+        elif cat_path and cat_path.download_path and torrent_name:
+            source = os.path.join(cat_path.download_path, torrent_name)
+        else:
+            source = content_path or getattr(torrent, 'save_path', None)
 
     if not source:
         log.warning('_maybe_queue_file_move item=%d: cannot determine source path, skipping', item.id)
