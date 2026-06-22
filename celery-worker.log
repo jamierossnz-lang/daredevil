@@ -13682,3 +13682,5 @@ KeyError: 'update_episode_statuses'
 [2026-06-22 22:56:54,637: INFO/ForkPoolWorker-1] Task auto_search_queue[25100c3a-fd88-46a4-8dbf-88d962f1a34b] succeeded in 0.011205499991774559s: 'dispatched 0'
 [2026-06-22 22:56:54,648: INFO/ForkPoolWorker-8] Task poll_download_progress[a95c2381-91de-4c5a-9904-3abb6bb1946e] succeeded in 0.023166499915532768s: 'checked 1, completed 0'
 [2026-06-22 22:56:54,651: INFO/ForkPoolWorker-9] Task update_episode_statuses[120760f4-dfd0-40c1-a8bf-6351f0dbbc78] succeeded in 0.01783570891711861s: 'moved 0 to waiting_for_download'
+[2026-06-22 22:59:48,525: INFO/MainProcess] Task refresh_movie_release_dates[0716ae05-170f-422e-ad74-ca614e0f14db] received
+[2026-06-22 22:59:53,413: INFO/ForkPoolWorker-8] Task refresh_movie_release_dates[0716ae05-170f-422e-ad74-ca614e0f14db] succeeded in 4.883589833043516s: 'updated 0 release dates'
