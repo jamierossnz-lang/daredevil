@@ -13652,3 +13652,33 @@ KeyError: 'update_episode_statuses'
 [2026-06-22 22:36:54,596: INFO/ForkPoolWorker-1] Task auto_search_queue[01910d70-5435-4768-bbb7-2350167354c7] succeeded in 0.008067541988566518s: 'dispatched 0'
 [2026-06-22 22:36:54,606: INFO/ForkPoolWorker-9] Task update_episode_statuses[6e54927e-77f4-4f95-8095-01b416ec9943] succeeded in 0.013749959063716233s: 'moved 0 to waiting_for_download'
 [2026-06-22 22:36:54,610: INFO/ForkPoolWorker-8] Task poll_download_progress[a9359e62-ca35-4802-b987-e536367a9a66] succeeded in 0.03077658300753683s: 'checked 1, completed 0'
+[2026-06-22 22:41:54,597: INFO/MainProcess] Task auto_search_queue[3ea40fca-08ee-4789-88f6-2933a70dbdce] received
+[2026-06-22 22:41:54,604: INFO/MainProcess] Task update_episode_statuses[f4e1f53f-cc62-43cd-a518-ec252f00b7d5] received
+[2026-06-22 22:41:54,608: INFO/MainProcess] Task poll_download_progress[7b883a5a-df3e-499e-a3f1-ea47bd6b308e] received
+[2026-06-22 22:41:54,616: INFO/ForkPoolWorker-8] Task auto_search_queue[3ea40fca-08ee-4789-88f6-2933a70dbdce] succeeded in 0.015162958996370435s: 'dispatched 0'
+[2026-06-22 22:41:54,626: INFO/ForkPoolWorker-1] Task update_episode_statuses[f4e1f53f-cc62-43cd-a518-ec252f00b7d5] succeeded in 0.019593458040617406s: 'moved 0 to waiting_for_download'
+[2026-06-22 22:41:54,636: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /
+[2026-06-22 22:41:54,646: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPSConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /
+[2026-06-22 22:41:54,652: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /api/v2/auth/login
+[2026-06-22 22:41:54,654: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /
+[2026-06-22 22:41:54,663: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPSConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /
+[2026-06-22 22:41:54,665: WARNING/ForkPoolWorker-9] Retrying (Retry(total=0, connect=0, read=1, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 61] Connection refused")': /api/v2/auth/login
+[2026-06-22 22:41:54,668: INFO/ForkPoolWorker-9] Task poll_download_progress[7b883a5a-df3e-499e-a3f1-ea47bd6b308e] succeeded in 0.056935459026135504s: 'checked 1, completed 0'
+[2026-06-22 22:46:54,600: INFO/MainProcess] Task auto_search_queue[37e5aae8-0b7d-4de3-b100-f66ab9f20e86] received
+[2026-06-22 22:46:54,602: INFO/MainProcess] Task update_episode_statuses[ac287cc2-bedc-47c0-b67c-241e11bd1575] received
+[2026-06-22 22:46:54,607: INFO/MainProcess] Task poll_download_progress[138efccd-9dfe-4bf1-a204-a9f6d577730f] received
+[2026-06-22 22:46:54,618: INFO/ForkPoolWorker-1] Task update_episode_statuses[ac287cc2-bedc-47c0-b67c-241e11bd1575] succeeded in 0.014227750012651086s: 'moved 0 to waiting_for_download'
+[2026-06-22 22:46:54,620: INFO/ForkPoolWorker-8] Task auto_search_queue[37e5aae8-0b7d-4de3-b100-f66ab9f20e86] succeeded in 0.017254124977625906s: 'dispatched 0'
+[2026-06-22 22:46:54,641: INFO/ForkPoolWorker-9] Task poll_download_progress[138efccd-9dfe-4bf1-a204-a9f6d577730f] succeeded in 0.03177162492647767s: 'checked 1, completed 0'
+[2026-06-22 22:51:54,605: INFO/MainProcess] Task update_episode_statuses[f4d4f182-e8d7-445f-9b1e-5119b7f8ab42] received
+[2026-06-22 22:51:54,607: INFO/MainProcess] Task auto_search_queue[d5f2fa67-f388-4ed9-a5a2-dc8a47e265c1] received
+[2026-06-22 22:51:54,609: INFO/MainProcess] Task poll_download_progress[c02c24ac-8051-4795-8d12-9c7ab1532a6b] received
+[2026-06-22 22:51:54,624: INFO/ForkPoolWorker-1] Task auto_search_queue[d5f2fa67-f388-4ed9-a5a2-dc8a47e265c1] succeeded in 0.014610584010370076s: 'dispatched 0'
+[2026-06-22 22:51:54,626: INFO/ForkPoolWorker-8] Task update_episode_statuses[f4d4f182-e8d7-445f-9b1e-5119b7f8ab42] succeeded in 0.01787995803169906s: 'moved 0 to waiting_for_download'
+[2026-06-22 22:51:54,640: INFO/ForkPoolWorker-9] Task poll_download_progress[c02c24ac-8051-4795-8d12-9c7ab1532a6b] succeeded in 0.028946875012479722s: 'checked 1, completed 0'
+[2026-06-22 22:56:54,620: INFO/MainProcess] Task poll_download_progress[a95c2381-91de-4c5a-9904-3abb6bb1946e] received
+[2026-06-22 22:56:54,623: INFO/MainProcess] Task auto_search_queue[25100c3a-fd88-46a4-8dbf-88d962f1a34b] received
+[2026-06-22 22:56:54,630: INFO/MainProcess] Task update_episode_statuses[120760f4-dfd0-40c1-a8bf-6351f0dbbc78] received
+[2026-06-22 22:56:54,637: INFO/ForkPoolWorker-1] Task auto_search_queue[25100c3a-fd88-46a4-8dbf-88d962f1a34b] succeeded in 0.011205499991774559s: 'dispatched 0'
+[2026-06-22 22:56:54,648: INFO/ForkPoolWorker-8] Task poll_download_progress[a95c2381-91de-4c5a-9904-3abb6bb1946e] succeeded in 0.023166499915532768s: 'checked 1, completed 0'
+[2026-06-22 22:56:54,651: INFO/ForkPoolWorker-9] Task update_episode_statuses[120760f4-dfd0-40c1-a8bf-6351f0dbbc78] succeeded in 0.01783570891711861s: 'moved 0 to waiting_for_download'

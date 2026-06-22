@@ -86,9 +86,19 @@
         </div>
       </template>
 
-      <!-- Item count + refresh -->
+      <!-- Item count + page size + refresh -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <span x-show="currentPath" class="text-xs text-gray-600" x-text="`${entries.length} item${entries.length !== 1 ? 's' : ''}`"></span>
+        <span x-show="currentPath" class="text-xs text-gray-600"
+              x-text="total > 0 ? `${pageStart}–${pageEnd} of ${total}` : '0 items'"></span>
+        <template x-if="currentPath && total > 25">
+          <select x-model.number="pageSize" @change="page = 1; refresh()"
+                  class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-400 focus:outline-none focus:border-brand-500 cursor-pointer">
+            <option value="25">25 / page</option>
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+            <option value="200">200 / page</option>
+          </select>
+        </template>
         <button x-show="currentPath" @click="refresh()"
                 class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors" title="Refresh">
           <i class="fa-solid fa-rotate-right text-sm" :class="loading && 'animate-spin'"></i>
@@ -197,6 +207,36 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Pagination footer -->
+    <div x-show="!loading && totalPages > 1"
+         class="flex items-center justify-between px-4 py-2.5 border-t border-white/5 flex-shrink-0">
+      <button @click="goToPage(page - 1)" :disabled="page <= 1"
+              :class="page <= 1 ? 'text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+        <i class="fa-solid fa-chevron-left text-xs"></i> Prev
+      </button>
+
+      <div class="flex items-center gap-1">
+        <template x-for="p in pageRange" :key="p">
+          <template x-if="p === '...'">
+            <span class="px-2 text-xs text-gray-600">…</span>
+          </template>
+          <template x-if="p !== '...'">
+            <button @click="goToPage(p)"
+                    :class="p === page ? 'bg-brand-600 text-white' : 'text-gray-500 hover:bg-surface-700 hover:text-gray-300'"
+                    class="w-7 h-7 rounded-lg text-xs font-medium transition-colors"
+                    x-text="p"></button>
+          </template>
+        </template>
+      </div>
+
+      <button @click="goToPage(page + 1)" :disabled="page >= totalPages"
+              :class="page >= totalPages ? 'text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+        Next <i class="fa-solid fa-chevron-right text-xs"></i>
+      </button>
+    </div>
   </div>
 
   <!-- ── Add Folder Modal ────────────────────────────────────────────────── -->
@@ -300,6 +340,27 @@ function fileBrowser() {
     addTabPath: '',
     addTabError: '',
     addTabSaving: false,
+    // Pagination
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 1,
+
+    get pageStart() { return this.total === 0 ? 0 : (this.page - 1) * this.pageSize + 1; },
+    get pageEnd()   { return Math.min(this.page * this.pageSize, this.total); },
+
+    get pageRange() {
+      const tp = this.totalPages, p = this.page;
+      if (tp <= 7) return Array.from({length: tp}, (_, i) => i + 1);
+      const pages = new Set([1, tp, p, p - 1, p + 1].filter(x => x >= 1 && x <= tp));
+      const sorted = [...pages].sort((a, b) => a - b);
+      const result = [];
+      for (let i = 0; i < sorted.length; i++) {
+        if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('...');
+        result.push(sorted[i]);
+      }
+      return result;
+    },
 
     rootMatches(root) {
       return this.currentPath === root || this.currentPath.startsWith(root + '/') || this.currentPath.startsWith(root + '\\');
@@ -307,28 +368,40 @@ function fileBrowser() {
 
     async openRoot(path) {
       this.selected = new Set();
+      this.page = 1;
       await this.open(path);
     },
 
-    async open(path) {
+    async open(path, resetPage = true) {
+      if (resetPage) this.page = 1;
       this.loading = true;
       this.error   = '';
       try {
-        const res  = await fetch(`/qbt/files/list/?path=${encodeURIComponent(path)}`);
+        const url = `/qbt/files/list/?path=${encodeURIComponent(path)}&page=${this.page}&page_size=${this.pageSize}`;
+        const res  = await fetch(url);
         const data = await res.json();
         if (!res.ok) { this.error = data.error || 'Failed to load'; this.loading = false; return; }
         this.currentPath = data.path;
         this.parent      = data.parent;
         this.breadcrumb  = data.breadcrumb;
         this.entries     = data.entries;
+        this.total       = data.total ?? data.entries.length;
+        this.totalPages  = data.total_pages ?? 1;
+        this.page        = data.page ?? this.page;
       } catch (e) {
         this.error = 'Network error: ' + e.message;
       }
       this.loading = false;
     },
 
-    goUp()    { if (this.parent) this.open(this.parent); },
-    refresh() { if (this.currentPath) this.open(this.currentPath); },
+    goUp() { if (this.parent) this.open(this.parent); },
+    refresh() { if (this.currentPath) this.open(this.currentPath, false); },
+
+    goToPage(n) {
+      if (n < 1 || n > this.totalPages || n === this.page) return;
+      this.page = n;
+      this.open(this.currentPath, false);
+    },
 
     toggleSelect(path) {
       const s = new Set(this.selected);

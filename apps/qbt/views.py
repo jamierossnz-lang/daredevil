@@ -530,11 +530,33 @@ def file_browser_list(request):
                 node = os.path.join(node, part)
                 breadcrumb.append({'name': part, 'path': node})
 
+    all_entries = dirs + files
+    total = len(all_entries)
+
+    try:
+        page_size = max(1, min(500, int(request.GET.get('page_size', 50))))
+    except (ValueError, TypeError):
+        page_size = 50
+
+    total_pages = max(1, (total + page_size - 1) // page_size)
+
+    try:
+        page = max(1, min(total_pages, int(request.GET.get('page', 1))))
+    except (ValueError, TypeError):
+        page = 1
+
+    start = (page - 1) * page_size
+    entries = all_entries[start:start + page_size]
+
     return JsonResponse({
-        'path':       path,
-        'parent':     parent,
-        'breadcrumb': breadcrumb,
-        'entries':    dirs + files,
+        'path':        path,
+        'parent':      parent,
+        'breadcrumb':  breadcrumb,
+        'entries':     entries,
+        'total':       total,
+        'page':        page,
+        'page_size':   page_size,
+        'total_pages': total_pages,
     })
 
 
