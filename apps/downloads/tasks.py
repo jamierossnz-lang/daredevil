@@ -94,13 +94,44 @@ def poll_download_progress():
 
 
 @shared_task(name='execute_file_move')
-def execute_file_move(file_move_id):
+def execute_file_move(file_move_id, detected_type=None, completed_path=None):
     from .models import FileMove
 
     try:
         move = FileMove.objects.get(pk=file_move_id)
     except FileMove.DoesNotExist:
         return
+
+    # TMDB enrichment — do this in the worker so the HTTP request returns immediately.
+    if detected_type and completed_path:
+        try:
+            from apps.qbt.file_naming import (
+                parse_movie, parse_tv, sanitise,
+                tmdb_enrich_movie, tmdb_enrich_tv,
+            )
+            basename = os.path.basename(move.source_path.rstrip('/\\'))
+            base = completed_path.rstrip(os.sep)
+            if detected_type == 'movie':
+                title, year = parse_movie(basename)
+                movie_obj, proper_title, proper_year = tmdb_enrich_movie(title, year)
+                if movie_obj:
+                    move.movie_pk = movie_obj.pk
+                    folder = f'{proper_title} ({proper_year})' if proper_year else proper_title
+                    move.dest_path = os.path.join(base, sanitise(folder))
+            else:
+                show, year, season, ep_num = parse_tv(basename)
+                ep_obj, proper_show, proper_year, ep_title = tmdb_enrich_tv(show, year, season, ep_num)
+                if ep_obj:
+                    move.episode_pk = ep_obj.pk
+                show_folder = sanitise(f'{proper_show} ({proper_year})' if proper_year else proper_show)
+                season_folder = f'Season {season:02d}' if season else 'Season 01'
+                if ep_title and ep_num is not None:
+                    move.dest_path = os.path.join(base, show_folder, season_folder, sanitise(f'E{ep_num:02d}-{ep_title}'))
+                else:
+                    move.dest_path = os.path.join(base, show_folder, season_folder)
+            move.save(update_fields=['dest_path', 'movie_pk', 'episode_pk'])
+        except Exception as enrich_err:
+            log.warning('execute_file_move id=%d: TMDB enrich failed — %s', file_move_id, enrich_err)
 
     move.status = FileMove.Status.MOVING
     move.save(update_fields=['status'])

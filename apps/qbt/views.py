@@ -599,7 +599,6 @@ def file_move_completed(request):
     Move selected files/folders to their completed_path with Plex-standard naming.
     Auto-detects movie vs TV from filenames; falls back to user-supplied media_type.
     """
-    import re
     from .models import CategoryPath
 
     paths = request.POST.getlist('paths')
@@ -613,139 +612,7 @@ def file_move_completed(request):
     def _permitted(p):
         return any(p == a or p.startswith(a + os.sep) for a in allowed)
 
-    def _sanitise(name):
-        return re.sub(r'\s+', ' ', re.sub(r'[<>:"/\\|?*]', '', name or '')).strip().rstrip('. ') or 'Unknown'
-
-    def _detect_type(path):
-        """Heuristic: TV if any filename contains SxxExx pattern."""
-        if os.path.isfile(path):
-            return 'tv' if re.search(r'[Ss]\d+[Ee]\d+', os.path.basename(path)) else 'movie'
-        for _root, _dirs, files in os.walk(path):
-            for f in files:
-                if re.search(r'[Ss]\d+[Ee]\d+', f):
-                    return 'tv'
-        return 'movie'
-
-    def _clean(raw):
-        """Replace dots/underscores/dashes with spaces and collapse runs."""
-        return re.sub(r'\s+', ' ', re.sub(r'[._\-]+', ' ', raw)).strip().strip(' -_')
-
-    def _strip_ext(name):
-        """Remove media file extension for cleaner parsing."""
-        return re.sub(r'\.(mkv|mp4|avi|mov|m4v|wmv|ts|m2ts|mpg|mpeg|webm|flv)$', '', name, flags=re.IGNORECASE)
-
-    def _parse_tv(name):
-        """Return (show_name, year_or_None, season_num, ep_num_or_None)."""
-        name = _strip_ext(name)
-        # Strip site watermark prefixes: "www.UIndex.org - ", "YTS.mx - " etc.
-        name = re.sub(r'^(?:www\.)?[\w-]+\.(?:com|org|net|info|to|xyz|me)\s*[-–]\s*', '', name, flags=re.IGNORECASE)
-        m = re.search(r'[Ss](\d{1,2})[Ee](\d+)', name)
-        if m:
-            prefix = name[:m.start()]
-            season = int(m.group(1))
-            ep = int(m.group(2))
-            ym = re.search(r'\((\d{4})\)', prefix)
-            if ym:
-                show = _sanitise(_clean(prefix[:ym.start()]))
-                return show or 'Unknown Show', int(ym.group(1)), season, ep
-            ym = re.search(r'(?<=[. _])(\d{4})(?=[. _]|$)', prefix)
-            if ym:
-                show = _sanitise(_clean(prefix[:ym.start()]))
-                return show or 'Unknown Show', int(ym.group(1)), season, ep
-            show = _sanitise(_clean(prefix))
-            return show or 'Unknown Show', None, season, ep
-        # Season-only folder: "Season 2", "S02"
-        m = re.search(r'[Ss]eason\s*(\d+)|[Ss](\d{2})(?:\b|$)', name)
-        if m:
-            season = int(m.group(1) or m.group(2))
-            prefix = name[:m.start()]
-            ym = re.search(r'\((\d{4})\)', prefix)
-            year = int(ym.group(1)) if ym else None
-            raw = prefix[:ym.start()] if ym else prefix
-            show = _sanitise(_clean(raw))
-            return show or 'Unknown Show', year, season, None
-        return _sanitise(_clean(name)) or 'Unknown Show', None, 1, None
-
-    def _parse_movie(name):
-        """Return (title, year) from a movie filename or folder name."""
-        name = _strip_ext(name)
-        name = re.sub(r'^(?:www\.)?[\w-]+\.(?:com|org|net|info|to|xyz|me)\s*[-–]\s*', '', name, flags=re.IGNORECASE)
-        m = re.search(r'\((\d{4})\)', name)
-        if m:
-            return _sanitise(_clean(name[:m.start()])), int(m.group(1))
-        m = re.search(r'(?<=[. _])(\d{4})(?=[. _]|$)', name)
-        if m:
-            return _sanitise(_clean(name[:m.start()])), int(m.group(1))
-        return _sanitise(_clean(name)), None
-
-    def _dest_for_path(src, completed_path, detected_type):
-        basename = os.path.basename(src.rstrip('/\\'))
-        base = completed_path.rstrip(os.sep)
-
-        if detected_type == 'movie':
-            title, year = _parse_movie(basename)
-            folder = f'{title} ({year})' if year else title
-            return os.path.join(base, folder), title, year, None, None
-
-        show, year, season, ep_num = _parse_tv(basename)
-        show_folder = f'{show} ({year})' if year else show
-        season_folder = f'Season {season:02d}'
-        return os.path.join(base, show_folder, season_folder), show, year, season, ep_num
-
-    def _tmdb_enrich_movie(title, year):
-        """Search TMDB for the movie, sync to DB, return (movie_obj, proper_title, proper_year)."""
-        from apps.media_tracker.tmdb import tmdb
-        from apps.media_tracker.models import Movie
-        query = f'{title} {year}' if year else title
-        results = tmdb.search_movie(query).get('results', [])
-        if not results:
-            results = tmdb.search_movie(title).get('results', [])
-        if not results:
-            return None, title, year
-        best = results[0]
-        tmdb_id = best['id']
-        movie = Movie.objects.filter(tmdb_id=tmdb_id).first()
-        if not movie:
-            movie = tmdb.sync_movie_to_db(tmdb_id)
-        proper_year = (best.get('release_date') or '')[:4]
-        return movie, best.get('title', title), int(proper_year) if proper_year else year
-
-    def _tmdb_enrich_tv(show, year, season, ep_num):
-        """Search TMDB for the show+episode, sync to DB, return (episode_obj, proper_show, proper_year, ep_title)."""
-        from apps.media_tracker.tmdb import tmdb
-        from apps.media_tracker.models import TVShow, Season as SeasonModel, Episode as EpisodeModel
-        query = f'{show} {year}' if year else show
-        results = tmdb.search_tv(query).get('results', [])
-        if not results:
-            results = tmdb.search_tv(show).get('results', [])
-        if not results:
-            return None, show, year, None
-
-        best = results[0]
-        tmdb_id = best['id']
-        proper_show = best.get('name', show)
-        first_air = (best.get('first_air_date') or '')[:4]
-        proper_year = int(first_air) if first_air else year
-
-        # Ensure show is in DB
-        show_obj = TVShow.objects.filter(tmdb_id=tmdb_id).first()
-        if not show_obj:
-            show_obj = tmdb.sync_show_to_db(tmdb_id)
-
-        ep_obj = None
-        ep_title = None
-        if ep_num is not None and season is not None:
-            # Ensure season + episode exist in DB
-            season_obj = SeasonModel.objects.filter(show=show_obj, season_number=season).first()
-            if not season_obj:
-                tmdb.sync_show_to_db(tmdb_id)  # full re-sync to pick up seasons
-                season_obj = SeasonModel.objects.filter(show=show_obj, season_number=season).first()
-            if season_obj:
-                ep_obj = EpisodeModel.objects.filter(season=season_obj, episode_number=ep_num).first()
-                if ep_obj:
-                    ep_title = ep_obj.name or None
-
-        return ep_obj, proper_show, proper_year, ep_title
+    from apps.qbt.file_naming import detect_type, raw_dest as _raw_dest
 
     # Find completed_paths for each category
     movie_completed = None
@@ -770,55 +637,25 @@ def file_move_completed(request):
             results.append({'path': raw, 'error': 'Path not found'})
             continue
 
-        detected = media_type if media_type in ('movie', 'tv') else _detect_type(src)
+        detected = media_type if media_type in ('movie', 'tv') else detect_type(src)
         completed_path = movie_completed if detected == 'movie' else tv_completed
         if not completed_path:
             results.append({'path': raw, 'error': f'No completed path configured for {detected}'})
             continue
 
         basename = os.path.basename(src.rstrip('/\\'))
-        base = completed_path.rstrip(os.sep)
-        movie_pk = None
-        episode_pk = None
-
-        try:
-            if detected == 'movie':
-                raw_dest, title, year, _s, _e = _dest_for_path(src, completed_path, 'movie')
-                movie_obj, proper_title, proper_year = _tmdb_enrich_movie(title, year)
-                if movie_obj:
-                    movie_pk = movie_obj.pk
-                    folder = f'{proper_title} ({proper_year})' if proper_year else proper_title
-                    dest = os.path.join(base, _sanitise(folder))
-                else:
-                    dest = raw_dest
-            else:
-                raw_dest, show, year, season, ep_num = _dest_for_path(src, completed_path, 'tv')
-                ep_obj, proper_show, proper_year, ep_title = _tmdb_enrich_tv(show, year, season, ep_num)
-                if ep_obj:
-                    episode_pk = ep_obj.pk
-                show_folder = _sanitise(f'{proper_show} ({proper_year})' if proper_year else proper_show)
-                season_folder = f'Season {season:02d}' if season else 'Season 01'
-                if ep_title and ep_num is not None:
-                    ep_folder = _sanitise(f'E{ep_num:02d}-{ep_title}')
-                    dest = os.path.join(base, show_folder, season_folder, ep_folder)
-                else:
-                    dest = os.path.join(base, show_folder, season_folder)
-        except Exception as enrich_err:
-            log.warning('file_move_completed: TMDB enrich failed for %r — %s', src, enrich_err)
-            dest, *_ = _dest_for_path(src, completed_path, detected)
+        dest, *_ = _raw_dest(src, completed_path, detected)
 
         from apps.downloads.models import FileMove
+        from apps.downloads.tasks import execute_file_move
         move = FileMove.objects.create(
             title=basename,
             source_path=src,
             dest_path=dest,
             status=FileMove.Status.PENDING,
-            movie_pk=movie_pk,
-            episode_pk=episode_pk,
         )
-        from apps.downloads.tasks import execute_file_move
-        execute_file_move.delay(move.id)
-        log.info('file_move_completed: queued FileMove id=%d  %r → %r', move.id, src, dest)
+        execute_file_move.delay(move.id, detected_type=detected, completed_path=completed_path)
+        log.info('file_move_completed: queued FileMove id=%d  %r (type=%s)', move.id, src, detected)
         results.append({'path': raw, 'move_id': move.id, 'dest': dest, 'type': detected})
 
     return JsonResponse({'results': results})
