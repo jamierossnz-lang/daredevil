@@ -4,32 +4,51 @@
 
 {% block content %}
 
-<!-- Service selector -->
-<div class="overflow-x-auto -mx-4 px-4 mb-5 pb-1">
-  <div class="flex gap-2 w-max">
-    {% for p in providers %}
-    <a href="?provider={{ p.key }}&type={{ media_type }}"
-       class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm whitespace-nowrap transition-all
-              {% if p.key == provider_key %}{{ p.bg }} text-white ring-2 ring-offset-1 ring-offset-surface-900 {{ p.ring }}
-              {% else %}bg-surface-800 text-gray-400 hover:text-white hover:bg-surface-700{% endif %}">
-      {{ p.name }}
-    </a>
-    {% endfor %}
-  </div>
+<!-- Service grid -->
+<div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+  {% for p in providers %}
+  <a href="?provider={{ p.key }}&type={{ media_type }}&genre={{ genre_id }}"
+     class="relative flex flex-col items-center justify-center py-4 rounded-2xl font-bold text-white transition-all
+            bg-gradient-to-br {{ p.gradient }}
+            {% if p.key == provider_key %}ring-2 ring-offset-2 ring-offset-surface-900 {{ p.ring }} scale-[1.03]
+            {% else %}opacity-50 hover:opacity-80{% endif %}">
+    <span class="text-2xl font-black tracking-tight leading-none mb-1">{{ p.abbr }}</span>
+    <span class="text-[10px] font-medium text-white/70 leading-none">{{ p.name }}</span>
+    {% if p.key == provider_key %}
+    <div class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white/80"></div>
+    {% endif %}
+  </a>
+  {% endfor %}
 </div>
 
-<!-- Movie / TV toggle -->
-<div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit mb-6">
-  <a href="?provider={{ provider_key }}&type=movie"
-     class="px-4 py-2 rounded-lg text-sm font-medium transition-all
-            {% if media_type == 'movie' %}bg-cyan-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
-    <i class="fa-solid fa-film mr-1.5"></i>Movies
-  </a>
-  <a href="?provider={{ provider_key }}&type=tv"
-     class="px-4 py-2 rounded-lg text-sm font-medium transition-all
-            {% if media_type == 'tv' %}bg-brand-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
-    <i class="fa-solid fa-tv mr-1.5"></i>TV Shows
-  </a>
+<!-- Movie / TV toggle + genre row -->
+<div class="flex flex-col gap-3 mb-5">
+  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit">
+    <a href="?provider={{ provider_key }}&type=movie&genre="
+       class="px-4 py-2 rounded-lg text-sm font-medium transition-all
+              {% if media_type == 'movie' %}bg-cyan-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+      <i class="fa-solid fa-film mr-1.5"></i>Movies
+    </a>
+    <a href="?provider={{ provider_key }}&type=tv&genre="
+       class="px-4 py-2 rounded-lg text-sm font-medium transition-all
+              {% if media_type == 'tv' %}bg-brand-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+      <i class="fa-solid fa-tv mr-1.5"></i>TV Shows
+    </a>
+  </div>
+
+  <!-- Genre chips -->
+  <div class="overflow-x-auto -mx-4 px-4 pb-0.5">
+    <div class="flex gap-1.5 w-max">
+      {% for g in genres %}
+      <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ g.id }}"
+         class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all
+                {% if genre_id|stringformat:'s' == g.id|stringformat:'s' %}bg-brand-600 text-white
+                {% else %}bg-surface-800 text-gray-400 hover:text-white hover:bg-surface-700{% endif %}">
+        {{ g.name }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 
 {% if error %}
@@ -82,14 +101,14 @@
 {% if total_pages > 1 %}
 <div class="flex items-center justify-center gap-3 mt-8">
   {% if page > 1 %}
-  <a href="?provider={{ provider_key }}&type={{ media_type }}&page={{ page|add:"-1" }}"
+  <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ genre_id }}&page={{ page|add:"-1" }}"
      class="px-4 py-2 glass rounded-xl text-sm text-gray-400 hover:text-white transition-colors">
     <i class="fa-solid fa-chevron-left mr-1"></i>Prev
   </a>
   {% endif %}
   <span class="text-sm text-gray-500">{{ page }} / {{ total_pages }}</span>
   {% if page < total_pages %}
-  <a href="?provider={{ provider_key }}&type={{ media_type }}&page={{ page|add:"1" }}"
+  <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ genre_id }}&page={{ page|add:"1" }}"
      class="px-4 py-2 glass rounded-xl text-sm text-gray-400 hover:text-white transition-colors">
     Next<i class="fa-solid fa-chevron-right ml-1"></i>
   </a>
@@ -100,8 +119,8 @@
 {% else %}
 <div class="glass rounded-2xl p-12 text-center">
   <i class="fa-solid fa-satellite-dish text-4xl text-gray-700 mb-4 block"></i>
-  <p class="text-gray-500">No results found for {{ provider.name }}</p>
-  <p class="text-sm text-gray-600 mt-1">Try switching to TV Shows or a different service.</p>
+  <p class="text-gray-500">No results found</p>
+  <p class="text-sm text-gray-600 mt-1">Try a different service, type, or genre.</p>
 </div>
 {% endif %}
 

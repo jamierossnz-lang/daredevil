@@ -743,36 +743,72 @@ def _queue_movie(movie, quality='1080p'):
 # ── Streaming browse ─────────────────────────────────────────────────────────
 
 STREAMING_PROVIDERS = [
-    {'key': 'netflix',  'id': 8,    'name': 'Netflix',      'bg': 'bg-red-700',     'ring': 'ring-red-500'},
-    {'key': 'disney',   'id': 337,  'name': 'Disney+',      'bg': 'bg-blue-800',    'ring': 'ring-blue-400'},
-    {'key': 'max',      'id': 1899, 'name': 'Max',          'bg': 'bg-purple-800',  'ring': 'ring-purple-400'},
-    {'key': 'peacock',  'id': 386,  'name': 'Peacock',      'bg': 'bg-yellow-600',  'ring': 'ring-yellow-400'},
-    {'key': 'appletv',  'id': 350,  'name': 'Apple TV+',    'bg': 'bg-gray-600',    'ring': 'ring-gray-400'},
-    {'key': 'amazon',   'id': 9,    'name': 'Prime Video',  'bg': 'bg-cyan-700',    'ring': 'ring-cyan-400'},
+    {'key': 'netflix',  'id': 8,    'name': 'Netflix',      'abbr': 'N',   'gradient': 'from-red-700 to-red-900',       'ring': 'ring-red-500'},
+    {'key': 'disney',   'id': 337,  'name': 'Disney+',      'abbr': 'D+',  'gradient': 'from-blue-700 to-blue-900',     'ring': 'ring-blue-400'},
+    {'key': 'max',      'id': 1899, 'name': 'Max',          'abbr': 'Max', 'gradient': 'from-purple-700 to-purple-900', 'ring': 'ring-purple-400'},
+    {'key': 'peacock',  'id': 386,  'name': 'Peacock',      'abbr': 'Pea', 'gradient': 'from-teal-600 to-teal-800',    'ring': 'ring-teal-400'},
+    {'key': 'appletv',  'id': 350,  'name': 'Apple TV+',    'abbr': 'A',   'gradient': 'from-gray-600 to-gray-800',    'ring': 'ring-gray-400'},
+    {'key': 'amazon',   'id': 9,    'name': 'Prime',        'abbr': 'P',   'gradient': 'from-cyan-600 to-cyan-900',    'ring': 'ring-cyan-400'},
+]
+
+MOVIE_GENRES = [
+    {'id': '',     'name': 'All'},
+    {'id': 28,     'name': 'Action'},
+    {'id': 35,     'name': 'Comedy'},
+    {'id': 18,     'name': 'Drama'},
+    {'id': 27,     'name': 'Horror'},
+    {'id': 878,    'name': 'Sci-Fi'},
+    {'id': 53,     'name': 'Thriller'},
+    {'id': 10749,  'name': 'Romance'},
+    {'id': 16,     'name': 'Animation'},
+    {'id': 80,     'name': 'Crime'},
+    {'id': 99,     'name': 'Documentary'},
+    {'id': 10751,  'name': 'Family'},
+    {'id': 14,     'name': 'Fantasy'},
+]
+
+TV_GENRES = [
+    {'id': '',     'name': 'All'},
+    {'id': 10759,  'name': 'Action'},
+    {'id': 35,     'name': 'Comedy'},
+    {'id': 18,     'name': 'Drama'},
+    {'id': 10765,  'name': 'Sci-Fi'},
+    {'id': 80,     'name': 'Crime'},
+    {'id': 9648,   'name': 'Mystery'},
+    {'id': 16,     'name': 'Animation'},
+    {'id': 99,     'name': 'Documentary'},
+    {'id': 10751,  'name': 'Family'},
+    {'id': 10764,  'name': 'Reality'},
 ]
 
 
 def streaming_browse(request):
     provider_key = request.GET.get('provider', 'netflix')
     media_type = request.GET.get('type', 'movie')
+    genre_id = request.GET.get('genre', '')
     try:
         page = max(1, int(request.GET.get('page', 1)))
     except (ValueError, TypeError):
         page = 1
 
     provider = next((p for p in STREAMING_PROVIDERS if p['key'] == provider_key), STREAMING_PROVIDERS[0])
+    genres = MOVIE_GENRES if media_type == 'movie' else TV_GENRES
+
+    discover_kwargs = {
+        'with_watch_providers': provider['id'],
+        'watch_region': 'US',
+        'sort_by': 'popularity.desc',
+        'page': page,
+    }
+    if genre_id:
+        discover_kwargs['with_genres'] = genre_id
 
     items = []
     total_pages = 1
     error = None
     try:
         if media_type == 'tv':
-            data = tmdb.discover_tv(
-                with_watch_providers=provider['id'],
-                watch_region='US',
-                sort_by='popularity.desc',
-                page=page,
-            )
+            data = tmdb.discover_tv(**discover_kwargs)
             existing_ids = set(TVShow.objects.values_list('tmdb_id', flat=True))
             for r in data.get('results', []):
                 items.append({
@@ -785,12 +821,7 @@ def streaming_browse(request):
                     'media': 'tv',
                 })
         else:
-            data = tmdb.discover_movie(
-                with_watch_providers=provider['id'],
-                watch_region='US',
-                sort_by='popularity.desc',
-                page=page,
-            )
+            data = tmdb.discover_movie(**discover_kwargs)
             existing_ids = set(Movie.objects.values_list('tmdb_id', flat=True))
             for r in data.get('results', []):
                 items.append({
@@ -812,6 +843,8 @@ def streaming_browse(request):
         'provider': provider,
         'provider_key': provider_key,
         'media_type': media_type,
+        'genre_id': genre_id,
+        'genres': genres,
         'page': page,
         'total_pages': total_pages,
         'error': error,
