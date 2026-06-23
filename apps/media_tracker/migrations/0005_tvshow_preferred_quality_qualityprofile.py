@@ -20,7 +20,7 @@ def _seed_defaults(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('media_tracker', '0003_episode_air_datetime_tvshow_tvmaze_id'),
+        ('media_tracker', '0004_alter_episode_download_status'),
     ]
 
     operations = [
