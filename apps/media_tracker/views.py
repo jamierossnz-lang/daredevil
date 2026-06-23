@@ -315,7 +315,8 @@ def tv_show_queue_download(request, pk):
     created = 0
     for ep, season_num in ep_pairs:
         if ep.download_status not in (Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED):
-            sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} 1080p'
+            ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
+            sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} {ep_quality}'
             item, is_new = DownloadItem.objects.get_or_create(
                 media_type=DownloadItem.MediaType.EPISODE,
                 episode_id=ep.id,
@@ -325,6 +326,7 @@ def tv_show_queue_download(request, pk):
                     'poster_path': show.poster_path,
                     'status': DownloadItem.Status.SEARCHING,
                     'release_date': ep.air_date,
+                    'quality': ep_quality,
                     'search_query': sq,
                 },
             )
@@ -664,6 +666,40 @@ def ntfy_test(request):
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@require_POST
+def quality_profiles_save(request):
+    """Save size brackets for all quality+media_type combos. Accepts JSON list."""
+    from .models import QualityProfile
+    data = json.loads(request.body)
+    valid = {('1080p', 'tv'), ('2160p', 'tv'), ('1080p', 'movie'), ('2160p', 'movie')}
+    for item in data:
+        key = (item.get('quality'), item.get('media_type'))
+        if key not in valid:
+            continue
+        QualityProfile.objects.update_or_create(
+            quality=key[0],
+            media_type=key[1],
+            defaults={
+                'min_size_mb': int(item.get('min_size_mb') or 0) or None,
+                'max_size_mb': int(item.get('max_size_mb') or 0) or None,
+            },
+        )
+    return JsonResponse({'ok': True})
+
+
+@require_POST
+def tv_show_quality_save(request, pk):
+    """Set preferred_quality on a TVShow ('auto', '1080p', or '2160p')."""
+    show = get_object_or_404(TVShow, pk=pk)
+    data = json.loads(request.body)
+    quality = data.get('quality', 'auto')
+    if quality not in ('auto', '1080p', '2160p'):
+        return JsonResponse({'error': 'Invalid quality'}, status=400)
+    show.preferred_quality = quality
+    show.save(update_fields=['preferred_quality'])
+    return JsonResponse({'preferred_quality': show.preferred_quality})
 
 
 def _queue_movie(movie, quality='1080p'):

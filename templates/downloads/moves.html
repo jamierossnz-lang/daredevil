@@ -5,44 +5,52 @@
 {% block content %}
 <div x-data="movesApp()" class="space-y-6">
 
-  <!-- Stats bar -->
+  <!-- Stats / filter bar -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-    <div class="glass rounded-xl p-4 flex items-center gap-3">
+    <a href="?status=pending"
+       class="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-gray-400/30
+              {% if status_filter == 'pending' %}ring-2 ring-gray-400/40{% endif %}">
       <div class="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center flex-shrink-0">
         <i class="fa-solid fa-clock text-gray-400 text-sm"></i>
       </div>
       <div>
         <p class="text-xl font-bold text-gray-100">{{ counts.pending }}</p>
-        <p class="text-xs text-gray-500">Pending</p>
+        <p class="text-xs {% if status_filter == 'pending' %}text-gray-300{% else %}text-gray-500{% endif %}">Pending</p>
       </div>
-    </div>
-    <div class="glass rounded-xl p-4 flex items-center gap-3">
+    </a>
+    <a href="?status=moving"
+       class="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-blue-500/30
+              {% if status_filter == 'moving' %}ring-2 ring-blue-400/40{% endif %}">
       <div class="w-8 h-8 rounded-lg bg-blue-900/30 flex items-center justify-center flex-shrink-0">
         <i class="fa-solid fa-arrows-rotate text-blue-400 text-sm animate-spin"></i>
       </div>
       <div>
         <p class="text-xl font-bold text-blue-300">{{ counts.moving }}</p>
-        <p class="text-xs text-gray-500">Moving</p>
+        <p class="text-xs {% if status_filter == 'moving' %}text-blue-300{% else %}text-gray-500{% endif %}">Moving</p>
       </div>
-    </div>
-    <div class="glass rounded-xl p-4 flex items-center gap-3">
+    </a>
+    <a href="?status=completed"
+       class="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-green-500/30
+              {% if status_filter == 'completed' %}ring-2 ring-green-400/40{% endif %}">
       <div class="w-8 h-8 rounded-lg bg-green-900/30 flex items-center justify-center flex-shrink-0">
         <i class="fa-solid fa-circle-check text-green-400 text-sm"></i>
       </div>
       <div>
         <p class="text-xl font-bold text-green-300">{{ counts.completed }}</p>
-        <p class="text-xs text-gray-500">Completed</p>
+        <p class="text-xs {% if status_filter == 'completed' %}text-green-300{% else %}text-gray-500{% endif %}">Completed</p>
       </div>
-    </div>
-    <div class="glass rounded-xl p-4 flex items-center gap-3">
+    </a>
+    <a href="?status=failed"
+       class="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-red-500/30
+              {% if status_filter == 'failed' %}ring-2 ring-red-400/40{% endif %}">
       <div class="w-8 h-8 rounded-lg bg-red-900/30 flex items-center justify-center flex-shrink-0">
         <i class="fa-solid fa-triangle-exclamation text-red-400 text-sm"></i>
       </div>
       <div>
         <p class="text-xl font-bold text-red-300">{{ counts.failed }}</p>
-        <p class="text-xs text-gray-500">Failed</p>
+        <p class="text-xs {% if status_filter == 'failed' %}text-red-300{% else %}text-gray-500{% endif %}">Failed</p>
       </div>
-    </div>
+    </a>
   </div>
 
   <!-- Move list -->
@@ -51,10 +59,18 @@
       <div class="w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
         <i class="fa-solid fa-folder-open text-yellow-400"></i>
       </div>
-      <div>
-        <h2 class="text-base font-semibold text-gray-100">Move History</h2>
+      <div class="flex-1 min-w-0">
+        <h2 class="text-base font-semibold text-gray-100">
+          Move History
+          {% if status_filter %}<span class="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-surface-700 text-gray-400 capitalize">{{ status_filter }}</span>{% endif %}
+        </h2>
         <p class="text-xs text-gray-500">Files Daredevil has moved from download location to completed location</p>
       </div>
+      {% if status_filter %}
+      <a href="?" class="flex-shrink-0 text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1">
+        <i class="fa-solid fa-xmark"></i> Clear filter
+      </a>
+      {% endif %}
     </div>
 
     {% if moves %}
@@ -148,7 +164,7 @@
     {% if page_obj.has_other_pages %}
     <div class="flex items-center justify-center gap-2 mt-6">
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}"
+      <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.previous_page_number }}"
          class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-sm transition-colors">
         <i class="fa-solid fa-chevron-left text-xs mr-1"></i>Prev
       </a>
@@ -158,7 +174,7 @@
         <span class="text-gray-700 ml-1">({{ page_obj.paginator.count }} total)</span>
       </span>
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}"
+      <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.next_page_number }}"
          class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-sm transition-colors">
         Next<i class="fa-solid fa-chevron-right text-xs ml-1"></i>
       </a>

@@ -69,6 +69,52 @@
     </div>
   </div>
 
+  <!-- ── Quality Size Brackets ── -->
+  <div class="glass rounded-2xl p-6" x-data="qualityBrackets()">
+    <div class="flex items-center justify-between mb-1">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-brand-600/20 flex items-center justify-center">
+          <i class="fa-solid fa-sliders text-brand-400"></i>
+        </div>
+        <div>
+          <h2 class="text-base font-semibold text-gray-100">Quality Size Brackets</h2>
+          <p class="text-xs text-gray-500">Preferred torrent size range per quality tier — searches within range first, then falls back to any size</p>
+        </div>
+      </div>
+      <span x-show="qbMsg" x-text="qbMsg" x-cloak
+            :class="qbOk ? 'text-green-400' : 'text-red-400'"
+            class="text-xs"></span>
+    </div>
+
+    <div class="mt-4 space-y-2">
+      <template x-for="row in rows" :key="row.key">
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-3 py-2.5 bg-surface-800/40 rounded-xl border border-white/5">
+          <div>
+            <p class="text-sm font-medium text-gray-300" x-text="row.label"></p>
+            <p class="text-xs text-gray-600" x-text="row.hint"></p>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <input type="number" x-model.number="row.min_size_gb" min="0" step="0.1"
+                   class="w-20 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500/50 text-right">
+            <span class="text-xs text-gray-600 whitespace-nowrap">GB min</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <input type="number" x-model.number="row.max_size_gb" min="0" step="0.1"
+                   class="w-20 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500/50 text-right">
+            <span class="text-xs text-gray-600 whitespace-nowrap">GB max</span>
+          </div>
+          <span class="text-xs text-gray-700 font-mono whitespace-nowrap hidden lg:block"
+                x-text="(row.min_size_gb || 0).toFixed(1) + '–' + (row.max_size_gb || 0).toFixed(1) + ' GB'"></span>
+        </div>
+      </template>
+    </div>
+
+    <button @click="save()"
+            class="mt-4 flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+      <i class="fa-solid fa-floppy-disk"></i> Save Brackets
+    </button>
+  </div>
+
   <!-- ── Folder Structure Reference ── -->
   <div class="glass rounded-2xl p-6">
     <div class="flex items-center gap-3 mb-4">
@@ -323,6 +369,42 @@ function categoriesApp() {
       const data = await res.json();
       if (data.ok) location.reload();
       else alert(data.error || 'Failed to delete');
+    },
+  };
+}
+
+function qualityBrackets() {
+  const initial = {{ quality_profiles|default:'{}'|safe }};
+  function _p(key) { return initial[key] || {min_size_gb: 0, max_size_gb: 0}; }
+  return {
+    qbMsg: '', qbOk: true,
+    rows: [
+      { key: 'tv_1080p',    quality: '1080p', media_type: 'tv',    label: 'HD (1080p) — TV episode',  hint: 'per episode', ..._p('tv_1080p') },
+      { key: 'tv_2160p',    quality: '2160p', media_type: 'tv',    label: '4K (2160p) — TV episode',  hint: 'per episode', ..._p('tv_2160p') },
+      { key: 'movie_1080p', quality: '1080p', media_type: 'movie', label: 'HD (1080p) — Movie',       hint: 'per file',    ..._p('movie_1080p') },
+      { key: 'movie_2160p', quality: '2160p', media_type: 'movie', label: '4K (2160p) — Movie',       hint: 'per file',    ..._p('movie_2160p') },
+    ],
+    async save() {
+      const payload = this.rows.map(r => ({
+        quality: r.quality,
+        media_type: r.media_type,
+        min_size_mb: Math.round((r.min_size_gb || 0) * 1000),
+        max_size_mb: Math.round((r.max_size_gb || 0) * 1000),
+      }));
+      try {
+        const res = await fetch("{% url 'quality_profiles_save' %}", {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+          body: JSON.stringify(payload),
+        });
+        const d = await res.json();
+        this.qbOk = d.ok;
+        this.qbMsg = d.ok ? 'Saved' : 'Error saving';
+      } catch {
+        this.qbOk = false;
+        this.qbMsg = 'Error saving';
+      }
+      setTimeout(() => { this.qbMsg = ''; }, 3000);
     },
   };
 }

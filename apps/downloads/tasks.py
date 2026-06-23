@@ -156,6 +156,7 @@ def execute_file_move(file_move_id, detected_type=None, completed_path=None):
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('execute_file_move id=%d: done', file_move_id)
         _mark_moved_downloaded(move)
+        _remove_torrent_from_qbt(move)
         from apps.notifications.notify import send as ntfy
         ntfy('Ready to Watch', f'{move.title} moved to library', priority='low', tags=['tada'], category='file_moved')
     except Exception as e:
@@ -165,6 +166,21 @@ def execute_file_move(file_move_id, detected_type=None, completed_path=None):
         log.error('execute_file_move id=%d: failed — %s', file_move_id, e)
         from apps.notifications.notify import send as ntfy
         ntfy('File Move Failed', f'{move.title} — {e}', priority='high', tags=['x'], category='file_failed')
+
+
+def _remove_torrent_from_qbt(move):
+    """After a successful file move, remove the torrent (not the files) from qBittorrent."""
+    try:
+        if not move.download_item:
+            return
+        torrent_hash = move.download_item.torrent_hash
+        if not torrent_hash:
+            return
+        from apps.qbt.client import delete_torrent
+        delete_torrent(torrent_hash, delete_files=False)
+        log.info('execute_file_move id=%d: removed torrent %s from qBittorrent', move.pk, torrent_hash)
+    except Exception as e:
+        log.warning('execute_file_move id=%d: could not remove torrent from qBittorrent — %s', move.pk, e)
 
 
 def _mark_moved_downloaded(move):

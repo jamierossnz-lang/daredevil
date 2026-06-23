@@ -61,6 +61,20 @@
           <i class="fa-solid fa-rss" id="monitorIcon"></i>
           <span class="hidden sm:inline" id="monitorLabel">{% if show.monitor_new_episodes %}Monitoring{% else %}Monitor{% endif %}</span>
         </button>
+
+        <!-- Quality preference -->
+        <div x-data="qualityPicker('{{ show.preferred_quality }}', {{ show.pk }})"
+             class="flex items-center gap-0.5 bg-surface-800 rounded-lg border border-surface-600 p-0.5">
+          <template x-for="opt in opts" :key="opt.val">
+            <button @click="pick(opt.val)"
+                    :class="quality === opt.val
+                      ? 'bg-brand-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'"
+                    class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                    x-text="opt.label"></button>
+          </template>
+        </div>
+
         <button onclick="resetDownload({{ show.pk }})"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20">
           <i class="fa-solid fa-rotate-left"></i>
@@ -402,6 +416,23 @@ async function resetDownload(pk) {
   if (!confirm('Reset all episode download statuses? This removes all download records so you can re-queue episodes from scratch.')) return;
   await fetch(`/shows/${pk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
   location.reload();
+}
+
+// ── Quality picker ────────────────────────────────────────────────────────────
+function qualityPicker(initial, pk) {
+  return {
+    quality: initial || 'auto',
+    opts: [{val: 'auto', label: 'Auto'}, {val: '1080p', label: 'HD'}, {val: '2160p', label: '4K'}],
+    async pick(val) {
+      if (val === this.quality) return;
+      this.quality = val;
+      await fetch(`/shows/${pk}/quality/`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({quality: val}),
+      });
+    },
+  };
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────

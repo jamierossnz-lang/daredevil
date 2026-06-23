@@ -102,108 +102,121 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
     </div>
     <div class="space-y-3" id="activeList">
       {% for item in active %}
-      <div class="glass rounded-2xl p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
+      <div class="glass rounded-2xl p-3 sm:p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
            data-sel-pk="{{ item.pk }}"{% if item.torrent_hash %} data-sel-hash="{{ item.torrent_hash }}"{% endif %}
            {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}
            :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
-        <div class="flex items-start gap-3">
+        <div class="flex items-start gap-2 min-w-0">
           <!-- Checkbox -->
           <div class="flex-shrink-0 pt-1">
             <input type="checkbox" class="w-3.5 h-3.5 rounded cursor-pointer"
                    :checked="selected.has({{ item.pk }})"
                    @change="toggleSelect({{ item.pk }})">
           </div>
-        <div class="flex items-start gap-4 flex-1">
-          {% if item.poster_url %}
-          <img src="{{ item.poster_url }}" alt="" class="w-12 h-16 rounded-lg object-cover flex-shrink-0">
-          {% else %}
-          <div class="w-12 h-16 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
-            <i class="fa-solid {% if item.media_type == 'episode' %}fa-tv{% else %}fa-film{% endif %} text-gray-600"></i>
-          </div>
-          {% endif %}
+          <div class="flex items-start gap-2 sm:gap-4 flex-1 min-w-0">
+            {% if item.poster_url %}
+            <img src="{{ item.poster_url }}" alt="" class="w-10 h-14 sm:w-12 sm:h-16 rounded-lg object-cover flex-shrink-0">
+            {% else %}
+            <div class="w-10 h-14 sm:w-12 sm:h-16 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
+              <i class="fa-solid {% if item.media_type == 'episode' %}fa-tv{% else %}fa-film{% endif %} text-gray-600"></i>
+            </div>
+            {% endif %}
 
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div class="min-w-0">
-                <p class="text-sm font-semibold text-gray-100 truncate">{{ item.title }}</p>
-                {% if item.subtitle %}<p class="text-xs text-gray-500 truncate">{{ item.subtitle }}</p>{% endif %}
+            <div class="flex-1 min-w-0">
+              <!-- Title + action buttons row -->
+              <div class="flex items-start justify-between gap-1 mb-1">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-gray-100 truncate">{{ item.title }}</p>
+                  {% if item.subtitle %}<p class="text-xs text-gray-500 truncate">{{ item.subtitle }}</p>{% endif %}
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <!-- Status badge: desktop only in this row -->
+                  <span class="hidden sm:inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+                    {% if item.status == 'downloading' %}bg-blue-500/20 text-blue-400
+                    {% elif item.status == 'searching' %}bg-yellow-500/20 text-yellow-400
+                    {% elif item.status == 'pending' %}bg-gray-500/20 text-gray-400
+                    {% else %}bg-purple-500/20 text-purple-400{% endif %}">
+                    {{ item.get_status_display }}
+                  </span>
+                  {% if item.torrent_hash %}
+                  <button onclick="pauseItem('{{ item.torrent_hash }}')"
+                          class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-yellow-800/40 flex items-center justify-center text-gray-400 hover:text-yellow-400 transition-colors" title="Pause">
+                    <i class="fa-solid fa-pause text-xs"></i>
+                  </button>
+                  {% endif %}
+                  <button onclick="removeItem({{ item.pk }}, false)"
+                          class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors" title="Remove">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                  </button>
+                </div>
               </div>
-              <div class="flex items-center gap-1.5 flex-shrink-0">
-                <span class="px-2 py-0.5 rounded-full text-xs font-medium
+
+              <!-- Status badge: mobile only, sits below title -->
+              <div class="sm:hidden mb-1.5">
+                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
                   {% if item.status == 'downloading' %}bg-blue-500/20 text-blue-400
                   {% elif item.status == 'searching' %}bg-yellow-500/20 text-yellow-400
                   {% elif item.status == 'pending' %}bg-gray-500/20 text-gray-400
                   {% else %}bg-purple-500/20 text-purple-400{% endif %}">
                   {{ item.get_status_display }}
                 </span>
-                {% if item.torrent_hash %}
-                <button onclick="pauseItem('{{ item.torrent_hash }}')"
-                        class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-yellow-800/40 flex items-center justify-center text-gray-400 hover:text-yellow-400 transition-colors" title="Pause">
-                  <i class="fa-solid fa-pause text-xs"></i>
-                </button>
-                {% endif %}
-                <button onclick="removeItem({{ item.pk }}, false)"
-                        class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors" title="Remove">
-                  <i class="fa-solid fa-xmark text-xs"></i>
-                </button>
               </div>
-            </div>
 
-            {% if item.status == 'downloading' %}
-            <div class="mb-2">
-              <div class="flex justify-between text-xs text-gray-500 mb-1">
-                <span class="text-blue-400 font-medium" id="pct-{{ item.pk }}">{{ item.progress|floatformat:1 }}%</span>
-                <span id="spd-{{ item.pk }}">{{ item.speed_formatted }}</span>
+              {% if item.status == 'downloading' %}
+              <div class="mb-2">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                  <span class="text-blue-400 font-medium" id="pct-{{ item.pk }}">{{ item.progress|floatformat:1 }}%</span>
+                  <span id="spd-{{ item.pk }}">{{ item.speed_formatted }}</span>
+                </div>
+                <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                  <div class="progress-bar h-full rounded-full transition-all duration-1000"
+                       id="bar-{{ item.pk }}" style="width:{{ item.progress|floatformat:0 }}%"></div>
+                </div>
               </div>
-              <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden">
-                <div class="progress-bar h-full rounded-full transition-all duration-1000"
-                     id="bar-{{ item.pk }}" style="width:{{ item.progress|floatformat:0 }}%"></div>
+              {% elif item.status == 'searching' %}
+              <div class="mb-2 space-y-1.5" id="search-info-{{ item.pk }}">
+                <!-- Status line -->
+                <div class="flex items-center gap-2 text-xs text-yellow-400 min-w-0">
+                  <i class="fa-solid fa-spinner fa-spin flex-shrink-0" id="search-icon-{{ item.pk }}"></i>
+                  <span class="font-mono flex-1 min-w-0 truncate" id="search-stage-{{ item.pk }}">{% if item.search_query %}Searching…{% else %}Ready — enter query and press Search{% endif %}</span>
+                </div>
+                <!-- Editable query + button -->
+                <div class="flex gap-1.5">
+                  <input type="text"
+                         id="search-q-{{ item.pk }}"
+                         value="{{ item.search_query }}"
+                         placeholder="e.g. Show S01E11 1080p"
+                         class="flex-1 min-w-0 px-2 py-1 text-xs bg-surface-700 border border-white/10 rounded text-gray-300 font-mono focus:outline-none focus:border-yellow-500/40">
+                  <button onclick="manualSearch({{ item.pk }})"
+                          class="px-2.5 py-1 bg-yellow-600/30 hover:bg-yellow-600/60 text-yellow-300 rounded text-xs font-medium transition-colors whitespace-nowrap">
+                    <i class="fa-solid fa-magnifying-glass"></i><span class="hidden sm:inline ml-1">Search</span>
+                  </button>
+                </div>
+                <!-- Result count -->
+                <p class="text-xs truncate" id="search-count-{{ item.pk }}">
+                  {% if item.result_count >= 0 %}
+                    <span class="{% if item.result_count > 0 %}text-green-400{% else %}text-red-400{% endif %}">
+                      {{ item.result_count }} result{{ item.result_count|pluralize }} found
+                    </span>
+                  {% else %}
+                    <span class="text-gray-600">{% if item.search_query %}Waiting for results…{% else %}No query set{% endif %}</span>
+                  {% endif %}
+                </p>
               </div>
-            </div>
-            {% elif item.status == 'searching' %}
-            <div class="mb-2 space-y-1.5" id="search-info-{{ item.pk }}">
-              <!-- Status line -->
-              <div class="flex items-center gap-2 text-xs text-yellow-400">
-                <i class="fa-solid fa-spinner fa-spin flex-shrink-0" id="search-icon-{{ item.pk }}"></i>
-                <span class="font-mono" id="search-stage-{{ item.pk }}">{% if item.search_query %}Searching…{% else %}Ready — enter query and press Search{% endif %}</span>
+              {% elif item.status == 'pending' %}
+              <div class="mb-2 flex items-center gap-2 text-xs text-gray-500">
+                <i class="fa-solid fa-clock"></i> Waiting to start…
               </div>
-              <!-- Editable query + button -->
-              <div class="flex gap-1.5 pl-5">
-                <input type="text"
-                       id="search-q-{{ item.pk }}"
-                       value="{{ item.search_query }}"
-                       placeholder="e.g. Show S01E11 1080p"
-                       class="flex-1 min-w-0 px-2 py-1 text-xs bg-surface-700 border border-white/10 rounded text-gray-300 font-mono focus:outline-none focus:border-yellow-500/40">
-                <button onclick="manualSearch({{ item.pk }})"
-                        class="px-2.5 py-1 bg-yellow-600/30 hover:bg-yellow-600/60 text-yellow-300 rounded text-xs font-medium transition-colors whitespace-nowrap">
-                  <i class="fa-solid fa-magnifying-glass mr-1"></i>Search
-                </button>
-              </div>
-              <!-- Result count -->
-              <p class="text-xs pl-5" id="search-count-{{ item.pk }}">
-                {% if item.result_count >= 0 %}
-                  <span class="{% if item.result_count > 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                    {{ item.result_count }} result{{ item.result_count|pluralize }} found
-                  </span>
-                {% else %}
-                  <span class="text-gray-600">{% if item.search_query %}Waiting for results…{% else %}No query set{% endif %}</span>
-                {% endif %}
-              </p>
-            </div>
-            {% elif item.status == 'pending' %}
-            <div class="mb-2 flex items-center gap-2 text-xs text-gray-500">
-              <i class="fa-solid fa-clock"></i> Waiting to start…
-            </div>
-            {% endif %}
+              {% endif %}
 
-            <div class="flex items-center gap-3 text-xs text-gray-600">
-              <span><i class="fa-solid fa-{% if item.media_type == 'episode' %}tv{% else %}film{% endif %} mr-1"></i>{{ item.get_media_type_display }}</span>
-              {% if item.size_bytes > 0 %}<span>{{ item.size_formatted }}</span>{% endif %}
-              <span>Added {{ item.added_at|date:"M d H:i" }}</span>
+              <div class="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs text-gray-600">
+                <span><i class="fa-solid fa-{% if item.media_type == 'episode' %}tv{% else %}film{% endif %} mr-1"></i>{{ item.get_media_type_display }}</span>
+                {% if item.size_bytes > 0 %}<span>{{ item.size_formatted }}</span>{% endif %}
+                <span>{{ item.added_at|date:"M d H:i" }}</span>
+              </div>
             </div>
-          </div>
-        </div>{# closes flex items-start gap-4 flex-1 #}
-        </div>{# closes flex items-start gap-3 (outer row with checkbox) #}
+          </div>{# closes flex items-start gap-4 flex-1 #}
+        </div>{# closes flex items-start gap-2 min-w-0 (outer row with checkbox) #}
       </div>
       {% endfor %}
     </div>

@@ -30,10 +30,14 @@ urlpatterns = [
     # App Settings
     path('settings/', views.app_settings_view, name='app_settings'),
     path('settings/save/', views.app_settings_save, name='app_settings_save'),
+    path('settings/quality-profiles/', views.quality_profiles_save, name='quality_profiles_save'),
     path('settings/ping/', views.server_ping, name='server_ping'),
     path('settings/restart/', views.server_restart, name='server_restart'),
     path('settings/celery-restart/', views.celery_restart, name='celery_restart'),
     path('settings/ntfy-test/', views.ntfy_test, name='ntfy_test'),
+
+    # Per-show quality preference
+    path('shows/<int:pk>/quality/', views.tv_show_quality_save, name='tv_show_quality_save'),
 
     # Background Tasks
     path('tasks/', task_views.tasks_dashboard, name='tasks_dashboard'),

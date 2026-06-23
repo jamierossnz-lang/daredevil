@@ -539,9 +539,14 @@ def moves_page(request):
         'completed': all_moves.filter(status=FileMove.Status.COMPLETED).count(),
         'failed': all_moves.filter(status=FileMove.Status.FAILED).count(),
     }
-    paginator = Paginator(all_moves, 5)
+    status_filter = request.GET.get('status', '')
+    valid_statuses = {s.value for s in FileMove.Status}
+    filtered = all_moves.filter(status=status_filter) if status_filter in valid_statuses else all_moves
+    paginator = Paginator(filtered, 25)
     moves = paginator.get_page(request.GET.get('page', 1))
-    return render(request, 'downloads/moves.html', {'moves': moves, 'counts': counts, 'page_obj': moves})
+    return render(request, 'downloads/moves.html', {
+        'moves': moves, 'counts': counts, 'page_obj': moves, 'status_filter': status_filter,
+    })
 
 
 @require_POST

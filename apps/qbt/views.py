@@ -220,10 +220,19 @@ def categories_page(request):
             'completed_path': row.completed_path if row else '',
         }
     config = CategoryConfig.get()
+    from apps.media_tracker.models import QualityProfile
+    quality_profiles = {
+        f'{p.media_type}_{p.quality}': {
+            'min_size_gb': round((p.min_size_mb or 0) / 1000, 1),
+            'max_size_gb': round((p.max_size_mb or 0) / 1000, 1),
+        }
+        for p in QualityProfile.objects.all()
+    }
     return render(request, 'qbt/categories.html', {
         'connected': connected,
         'categories': categories,
         'config': config,
+        'quality_profiles': quality_profiles,
     })
 
 

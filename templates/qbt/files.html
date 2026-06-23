@@ -3,7 +3,7 @@
 {% block page_title %}File Browser{% endblock %}
 
 {% block content %}
-<div x-data="fileBrowser()" class="flex flex-col gap-4" style="height:calc(100vh - 9rem)">
+<div x-data="fileBrowser()" class="flex flex-col gap-4" style="height:calc(100dvh - 9rem - env(safe-area-inset-top, 0px))">
 
   <!-- ── Folder tabs ──────────────────────────────────────────────────────── -->
   <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-1 flex-shrink-0">
@@ -73,26 +73,26 @@
 
       <!-- Bulk actions (shown when items selected) -->
       <template x-if="selected.size > 0">
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <span class="text-xs text-gray-500" x-text="`${selected.size} selected`"></span>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <span class="text-xs text-gray-500 hidden sm:inline" x-text="`${selected.size} sel.`"></span>
           <button @click="deleteSelected()"
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
-            <i class="fa-solid fa-trash text-xs"></i> Delete
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
+            <i class="fa-solid fa-trash text-xs"></i><span class="hidden sm:inline ml-1">Delete</span>
           </button>
           <button @click="showMoveModal = true"
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium transition-colors">
-            <i class="fa-solid fa-folder-arrow-up text-xs"></i> Move to Completed
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-600/30 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium transition-colors">
+            <i class="fa-solid fa-folder-arrow-up text-xs"></i><span class="hidden sm:inline ml-1">Move</span>
           </button>
         </div>
       </template>
 
       <!-- Item count + page size + refresh -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <span x-show="currentPath" class="text-xs text-gray-600"
+        <span x-show="currentPath" class="hidden sm:inline text-xs text-gray-600"
               x-text="total > 0 ? `${pageStart}–${pageEnd} of ${total}` : '0 items'"></span>
         <template x-if="currentPath && total > 25">
           <select x-model.number="pageSize" @change="page = 1; refresh()"
-                  class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-400 focus:outline-none focus:border-brand-500 cursor-pointer">
+                  class="hidden sm:block bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-400 focus:outline-none focus:border-brand-500 cursor-pointer">
             <option value="25">25 / page</option>
             <option value="50">50 / page</option>
             <option value="100">100 / page</option>
@@ -145,8 +145,8 @@
                      class="w-3.5 h-3.5 rounded text-brand-500 cursor-pointer">
             </th>
             <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-            <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 text-right">Size</th>
-            <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Type</th>
+            <th class="hidden sm:table-cell px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 text-right">Size</th>
+            <th class="hidden sm:table-cell px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Type</th>
             <th class="px-3 py-2 w-10"></th>
           </tr>
         </thead>
@@ -176,17 +176,26 @@
                       <i :class="fileIcon(entry.ext)" class="text-sm"></i>
                     </template>
                   </span>
-                  <span class="truncate text-gray-200 group-hover:text-white text-sm" x-text="entry.name"></span>
+                  <div class="min-w-0 flex-1">
+                    <span class="block truncate text-gray-200 group-hover:text-white text-sm" x-text="entry.name"></span>
+                    <!-- Size + ext visible on mobile only -->
+                    <div class="flex items-center gap-2 sm:hidden">
+                      <span class="text-xs text-gray-600 font-mono" x-show="entry.type === 'file' && entry.size > 0" x-text="fmtSize(entry.size)"></span>
+                      <span class="text-xs px-1 py-0.5 rounded font-mono" x-show="entry.type === 'file' && entry.ext"
+                            :class="extClass(entry.ext)" x-text="entry.ext"></span>
+                      <span class="text-xs text-yellow-600" x-show="entry.type === 'dir'">folder</span>
+                    </div>
+                  </div>
                 </div>
               </td>
 
-              <!-- Size -->
-              <td class="px-3 py-2.5 text-right text-xs text-gray-500 font-mono">
+              <!-- Size (desktop only) -->
+              <td class="hidden sm:table-cell px-3 py-2.5 text-right text-xs text-gray-500 font-mono">
                 <span x-text="entry.type === 'file' ? fmtSize(entry.size) : ''"></span>
               </td>
 
-              <!-- Type chip -->
-              <td class="px-3 py-2.5">
+              <!-- Type chip (desktop only) -->
+              <td class="hidden sm:table-cell px-3 py-2.5">
                 <span x-show="entry.type === 'dir'"
                       class="text-xs px-1.5 py-0.5 rounded bg-yellow-900/20 text-yellow-600 border border-yellow-900/30">folder</span>
                 <span x-show="entry.type === 'file' && entry.ext"

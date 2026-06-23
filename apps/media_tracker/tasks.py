@@ -271,7 +271,8 @@ def queue_waiting_episodes():
         show = ep.season.show
         season_num = ep.season.season_number
 
-        sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} 1080p'
+        ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
+        sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} {ep_quality}'
         item, created = DownloadItem.objects.get_or_create(
             media_type=DownloadItem.MediaType.EPISODE,
             episode_id=ep.id,
@@ -281,7 +282,7 @@ def queue_waiting_episodes():
                 'poster_path': show.poster_path,
                 'status': DownloadItem.Status.SEARCHING,
                 'release_date': ep.air_date,
-                'quality': '1080p',
+                'quality': ep_quality,
                 'search_query': sq,
             },
         )
@@ -485,7 +486,7 @@ def search_and_download(download_item_id):
         cfg = CategoryConfig.get()
         category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
-        save_path = cat_path.download_path if cat_path else None
+        save_path = cat_path.qbt_save_path if cat_path else None
         add_magnet(magnet, save_path=save_path or None, category=category or None)
 
         item.status = DownloadItem.Status.DOWNLOADING
@@ -562,7 +563,7 @@ def _build_queries(item):
 
     if item.media_type == DownloadItem.MediaType.EPISODE:
         try:
-            ep = Episode.objects.select_related('season').get(pk=item.episode_id)
+            ep = Episode.objects.select_related('season__show').get(pk=item.episode_id)
             base = f'{item.title} S{ep.season.season_number:02d}E{ep.episode_number:02d}'
             ep_name = (ep.name or '').strip()
         except Episode.DoesNotExist:
@@ -570,7 +571,11 @@ def _build_queries(item):
             base = subtitle.split(' - ')[0].strip() if ' - ' in subtitle else subtitle or item.title
             ep_name = ''
 
-        quality = '1080p'
+        try:
+            preferred = ep.season.show.preferred_quality
+        except Exception:
+            preferred = 'auto'
+        quality = preferred if preferred != 'auto' else '1080p'
         queries = [f'{base} {quality}']
         if ep_name:
             queries.append(f'{base} {ep_name} {quality}')
@@ -588,8 +593,21 @@ def _build_queries(item):
 
 _MIN_SEEDS = 3  # don't pick a torrent with fewer seeds than this
 
-_TV_SIZE_MIN = 1 * 1024 ** 3      # 1 GB — lower bound of preferred range
-_TV_SIZE_MAX = 2 * 1024 ** 3      # 2 GB — upper bound of preferred range
+
+def _size_brackets(quality, media_type):
+    """Return (min_bytes, max_bytes) for the given quality+media_type from DB.
+    Falls back to sensible hardcoded defaults if no profile exists."""
+    try:
+        from apps.media_tracker.models import QualityProfile
+        p = QualityProfile.objects.get(quality=quality, media_type=media_type)
+        min_b = (p.min_size_mb or 0) * 1024 * 1024
+        max_b = (p.max_size_mb or 0) * 1024 * 1024
+        return min_b, max_b
+    except Exception:
+        # Hardcoded fallbacks
+        if media_type == 'tv':
+            return 500 * 1024 * 1024, 3 * 1024 ** 3
+        return 1024 ** 3, 20 * 1024 ** 3
 
 
 def _norm_title(s):
@@ -659,27 +677,30 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
     else:
         candidates = list(results)
 
-    # ── Seed filter ───────────────────────────────────────────────────────────
+    # ── Seed filter (used for fallback only for TV) ───────────────────────────
     seeded = [r for r in candidates if (r.get('nbSeeders') or 0) >= _MIN_SEEDS]
-    pool   = seeded if seeded else candidates
 
     # ── TV size tiers ─────────────────────────────────────────────────────────
     if media_type == DownloadItem.MediaType.EPISODE:
         def _size(r):
             return r.get('fileSize') or 0
 
-        in_range = [r for r in pool if _TV_SIZE_MIN <= _size(r) <= _TV_SIZE_MAX]
+        size_min, size_max = _size_brackets(quality or '1080p', 'tv')
+        # Check bracket against ALL quality-matched candidates, ignoring seed count.
+        # A result inside the bracket is preferred over a higher-seeded result outside.
+        in_range = [r for r in candidates if size_min <= _size(r) <= size_max]
         if in_range:
-            best = max(in_range, key=lambda r: r.get('nbSeeders', 0))
+            seeded_in_range = [r for r in in_range if (r.get('nbSeeders') or 0) >= _MIN_SEEDS]
+            best = max(seeded_in_range or in_range, key=lambda r: r.get('nbSeeders', 0))
+            log.info('_pick_best: %d in bracket (%d seeded) — picked best-seeded in range',
+                     len(in_range), len(seeded_in_range))
         else:
-            larger = [r for r in pool if _size(r) > _TV_SIZE_MAX]
-            if larger:
-                # Smallest file above the range (least unnecessary quality)
-                best = min(larger, key=_size)
-            else:
-                # Nothing in range or above — take the best-seeded fallback
-                best = max(pool, key=lambda r: r.get('nbSeeders', 0))
+            # Nothing in bracket — fall back to most-seeded across all quality matches
+            pool = seeded if seeded else candidates
+            best = max(pool, key=lambda r: r.get('nbSeeders', 0))
+            log.info('_pick_best: bracket empty — fell back to most-seeded (%d candidates)', len(candidates))
     else:
+        pool = seeded if seeded else candidates
         best = max(pool, key=lambda r: r.get('nbSeeders', 0))
 
     sz_gb = (best.get('fileSize') or 0) / 1024 ** 3

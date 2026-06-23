@@ -27,6 +27,11 @@ class TVShow(models.Model):
     monitor_new_episodes = models.BooleanField(default=False)
     monitor_from = models.DateField(null=True, blank=True,
         help_text='Only auto-queue episodes that air on or after this date. Advances as new episodes are queued.')
+    preferred_quality = models.CharField(
+        max_length=10,
+        choices=[('auto', 'Auto'), ('1080p', 'HD (1080p)'), ('2160p', '4K (2160p)')],
+        default='auto',
+    )
     added_at = models.DateTimeField(auto_now_add=True)
     last_synced = models.DateTimeField(null=True, blank=True)
 
@@ -189,3 +194,26 @@ class Movie(models.Model):
         if self.digital_release_date:
             return self.digital_release_date <= timezone.now().date()
         return False
+
+
+class QualityProfile(models.Model):
+    """Stores preferred torrent size brackets (in MB) per quality tier and media type."""
+
+    class Quality(models.TextChoices):
+        HD = '1080p', 'HD (1080p)'
+        UHD = '2160p', '4K (2160p)'
+
+    class MediaType(models.TextChoices):
+        TV = 'tv', 'TV'
+        MOVIE = 'movie', 'Movie'
+
+    quality = models.CharField(max_length=10, choices=Quality.choices)
+    media_type = models.CharField(max_length=10, choices=MediaType.choices)
+    min_size_mb = models.PositiveIntegerField(null=True, blank=True)
+    max_size_mb = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('quality', 'media_type')
+
+    def __str__(self):
+        return f'{self.get_quality_display()} {self.get_media_type_display()}'

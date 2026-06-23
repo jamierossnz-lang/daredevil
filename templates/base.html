@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full overflow-x-hidden">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07071a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,7 +57,7 @@
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <style>
-    body { background-color: #07071a; }
+    body { background-color: #07071a; overflow-x: hidden; overscroll-behavior-x: none; max-width: 100vw; }
     .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: #0e0e2e; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #5500d4; border-radius: 2px; }
@@ -100,6 +100,11 @@
     /* iOS safe-area: main content clears the bottom nav + home indicator */
     @media (max-width: 1023px) {
       main { padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); }
+      /* Prevent sidebar flash before Alpine.js initialises */
+      aside { transform: translateX(-100%); }
+    }
+    @media (min-width: 1024px) {
+      aside { transform: translateX(0); }
     }
   </style>
   {% block extra_head %}{% endblock %}
@@ -111,7 +116,8 @@
          :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
 
     <!-- Logo -->
-    <div class="flex items-center gap-3 px-6 py-5 border-b border-purple-900/40">
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-purple-900/40"
+         style="padding-top: calc(1.25rem + env(safe-area-inset-top, 0px))">
       <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow">
         <i class="fa-solid fa-tornado text-white text-sm"></i>
       </div>
@@ -119,7 +125,8 @@
     </div>
 
     <!-- Nav Links -->
-    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin"
+         @click="if ($event.target.closest('a[href]')) sidebarOpen = false">
       {% url 'dashboard' as url_dashboard %}
       {% url 'tv_shows' as url_shows %}
       {% url 'movies' as url_movies %}
@@ -291,7 +298,8 @@
   <div class="lg:pl-64 min-h-full flex flex-col">
 
     <!-- Top Bar -->
-    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-3">
+    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-3"
+            style="padding-top: calc(0.75rem + env(safe-area-inset-top, 0px))">
       <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-400 hover:text-white">
         <i class="fa-solid fa-bars text-lg"></i>
       </button>
