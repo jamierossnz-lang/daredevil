@@ -154,7 +154,7 @@ async function addShowFromStream(tmdbId, title, btn) {
     const res = await fetch('/shows/add/', { method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken } });
     const data = await res.json();
     if (data.status === 'added' || data.status === 'exists') {
-      markAdded(btn);
+      window.location.href = `/shows/${data.pk}/`;
     } else {
       btn.disabled = false;
       btn.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-0.5"></i>Error';
