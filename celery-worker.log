@@ -14838,3 +14838,9 @@ KeyError: 'update_episode_statuses'
 [2026-06-23 21:21:30,186: INFO/MainProcess] Task update_episode_statuses[081ff5a8-5155-4c8f-af20-e5ace5d7e44c] received
 [2026-06-23 21:21:30,199: INFO/ForkPoolWorker-1] Task update_episode_statuses[081ff5a8-5155-4c8f-af20-e5ace5d7e44c] succeeded in 0.011691167019307613s: 'moved 0 to waiting_for_download'
 [2026-06-23 21:21:30,203: INFO/ForkPoolWorker-8] Task poll_download_progress[3c2b5171-9a03-4d59-b672-785d64a3324b] succeeded in 0.01884020899888128s: 'checked 6, completed 0'
+[2026-06-23 21:26:30,149: INFO/MainProcess] Task auto_search_queue[14b4fa31-5dd1-411f-9708-93ee8ebc6563] received
+[2026-06-23 21:26:30,158: INFO/ForkPoolWorker-8] Task auto_search_queue[14b4fa31-5dd1-411f-9708-93ee8ebc6563] succeeded in 0.006731749977916479s: 'dispatched 0'
+[2026-06-23 21:26:30,187: INFO/MainProcess] Task poll_download_progress[4fbef65c-369d-4e01-8397-8f048295893d] received
+[2026-06-23 21:26:30,192: INFO/MainProcess] Task update_episode_statuses[232ae844-23a0-4d13-970b-0cb8ca707ea4] received
+[2026-06-23 21:26:30,205: INFO/ForkPoolWorker-1] Task update_episode_statuses[232ae844-23a0-4d13-970b-0cb8ca707ea4] succeeded in 0.011251499992795289s: 'moved 0 to waiting_for_download'
+[2026-06-23 21:26:30,208: INFO/ForkPoolWorker-8] Task poll_download_progress[4fbef65c-369d-4e01-8397-8f048295893d] succeeded in 0.021225166972726583s: 'checked 6, completed 0'

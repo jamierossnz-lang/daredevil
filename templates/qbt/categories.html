@@ -374,7 +374,7 @@ function categoriesApp() {
 }
 
 function qualityBrackets() {
-  const initial = {{ quality_profiles|default:'{}'|safe }};
+  const initial = {{ quality_profiles_json|default:'{}'|safe }};
   function _p(key) { return initial[key] || {min_size_gb: 0, max_size_gb: 0}; }
   return {
     qbMsg: '', qbOk: true,
