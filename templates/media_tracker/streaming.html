@@ -8,10 +8,9 @@
 <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
   {% for p in providers %}
   <a href="?provider={{ p.key }}&type={{ media_type }}&genre={{ genre_id }}"
+     style="background: {{ p.bg }};{% if p.key == provider_key %} box-shadow: 0 0 0 2px {{ p.ring_color }}, 0 0 0 4px #0d0d14;{% endif %}"
      class="relative flex flex-col items-center justify-center py-4 rounded-2xl font-bold text-white transition-all
-            bg-gradient-to-br {{ p.gradient }}
-            {% if p.key == provider_key %}ring-2 ring-offset-2 ring-offset-surface-900 {{ p.ring }} scale-[1.03]
-            {% else %}opacity-50 hover:opacity-80{% endif %}">
+            {% if p.key == provider_key %}scale-[1.03]{% else %}opacity-50 hover:opacity-80{% endif %}">
     <span class="text-2xl font-black tracking-tight leading-none mb-1">{{ p.abbr }}</span>
     <span class="text-[10px] font-medium text-white/70 leading-none">{{ p.name }}</span>
     {% if p.key == provider_key %}

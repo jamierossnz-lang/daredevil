@@ -743,12 +743,12 @@ def _queue_movie(movie, quality='1080p'):
 # ── Streaming browse ─────────────────────────────────────────────────────────
 
 STREAMING_PROVIDERS = [
-    {'key': 'netflix',  'id': 8,    'name': 'Netflix',      'abbr': 'N',   'gradient': 'from-red-700 to-red-900',       'ring': 'ring-red-500'},
-    {'key': 'disney',   'id': 337,  'name': 'Disney+',      'abbr': 'D+',  'gradient': 'from-blue-700 to-blue-900',     'ring': 'ring-blue-400'},
-    {'key': 'max',      'id': 1899, 'name': 'Max',          'abbr': 'Max', 'gradient': 'from-purple-700 to-purple-900', 'ring': 'ring-purple-400'},
-    {'key': 'peacock',  'id': 386,  'name': 'Peacock',      'abbr': 'Pea', 'gradient': 'from-teal-600 to-teal-800',    'ring': 'ring-teal-400'},
-    {'key': 'appletv',  'id': 350,  'name': 'Apple TV+',    'abbr': 'A',   'gradient': 'from-gray-600 to-gray-800',    'ring': 'ring-gray-400'},
-    {'key': 'amazon',   'id': 9,    'name': 'Prime',        'abbr': 'P',   'gradient': 'from-cyan-600 to-cyan-900',    'ring': 'ring-cyan-400'},
+    {'key': 'netflix',  'id': 8,    'name': 'Netflix',   'abbr': 'N',   'bg': 'linear-gradient(135deg,#b20710,#e50914)', 'ring_color': '#e50914'},
+    {'key': 'disney',   'id': 337,  'name': 'Disney+',   'abbr': 'D+',  'bg': 'linear-gradient(135deg,#001f6b,#0063e5)', 'ring_color': '#0063e5'},
+    {'key': 'max',      'id': 1899, 'name': 'Max',       'abbr': 'Max', 'bg': 'linear-gradient(135deg,#001a6e,#002be7)', 'ring_color': '#6f7bff'},
+    {'key': 'peacock',  'id': 386,  'name': 'Peacock',   'abbr': 'Pea', 'bg': 'linear-gradient(135deg,#000000,#000000)', 'ring_color': '#ffffff'},
+    {'key': 'appletv',  'id': 350,  'name': 'Apple TV+', 'abbr': 'TV+', 'bg': 'linear-gradient(135deg,#1c1c1e,#3a3a3c)', 'ring_color': '#f5f5f7'},
+    {'key': 'amazon',   'id': 9,    'name': 'Prime',     'abbr': 'P',   'bg': 'linear-gradient(135deg,#00a8e0,#006799)', 'ring_color': '#00a8e0'},
 ]
 
 MOVIE_GENRES = [
