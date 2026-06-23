@@ -92,6 +92,7 @@ services:
   # ── Daredevil web server ───────────────────────────────────────────────────
   web:
     build: .
+    image: daredevil-app
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
@@ -118,7 +119,7 @@ services:
 
   # ── Celery worker ──────────────────────────────────────────────────────────
   worker:
-    build: .
+    image: daredevil-app
     restart: unless-stopped
     command: celery -A config worker -l info --concurrency 6
     env_file: .env
@@ -144,7 +145,7 @@ services:
 
   # ── Celery beat scheduler ──────────────────────────────────────────────────
   beat:
-    build: .
+    image: daredevil-app
     restart: unless-stopped
     command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file: .env

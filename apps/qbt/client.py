@@ -49,13 +49,17 @@ def get_torrent(torrent_hash):
 
 
 def add_magnet(magnet_link, save_path=None, category=None):
+    import qbittorrentapi
     c = get_client()
     kwargs = {'urls': magnet_link}
     if save_path:
         kwargs['save_path'] = save_path
     if category:
         kwargs['category'] = category
-    c.torrents_add(**kwargs)
+    try:
+        c.torrents_add(**kwargs)
+    except qbittorrentapi.Conflict409Error:
+        pass  # torrent already exists in qBittorrent — that's fine, carry on
 
 
 def pause_torrent(torrent_hash):
