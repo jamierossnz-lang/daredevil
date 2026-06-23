@@ -3910,3 +3910,6 @@ django.db.utils.OperationalError: database is locked
 [2026-06-23 09:16:30,182: INFO/MainProcess] Scheduler: Sending due task Poll download progress (poll_download_progress)
 [2026-06-23 09:16:30,184: INFO/MainProcess] Scheduler: Sending due task Update episode air statuses (update_episode_statuses)
 [2026-06-23 09:16:30,986: INFO/MainProcess] Scheduler: Sending due task Queue waiting episodes for download (queue_waiting_episodes)
+[2026-06-23 09:21:30,144: INFO/MainProcess] Scheduler: Sending due task Auto-search queue (auto_search_queue)
+[2026-06-23 09:21:30,183: INFO/MainProcess] Scheduler: Sending due task Poll download progress (poll_download_progress)
+[2026-06-23 09:21:30,185: INFO/MainProcess] Scheduler: Sending due task Update episode air statuses (update_episode_statuses)
