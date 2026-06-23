@@ -740,3 +740,81 @@ def _queue_movie(movie, quality='1080p'):
     return item
 
 
+# ── Streaming browse ─────────────────────────────────────────────────────────
+
+STREAMING_PROVIDERS = [
+    {'key': 'netflix',  'id': 8,    'name': 'Netflix',      'bg': 'bg-red-700',     'ring': 'ring-red-500'},
+    {'key': 'disney',   'id': 337,  'name': 'Disney+',      'bg': 'bg-blue-800',    'ring': 'ring-blue-400'},
+    {'key': 'max',      'id': 1899, 'name': 'Max',          'bg': 'bg-purple-800',  'ring': 'ring-purple-400'},
+    {'key': 'peacock',  'id': 386,  'name': 'Peacock',      'bg': 'bg-yellow-600',  'ring': 'ring-yellow-400'},
+    {'key': 'appletv',  'id': 350,  'name': 'Apple TV+',    'bg': 'bg-gray-600',    'ring': 'ring-gray-400'},
+    {'key': 'amazon',   'id': 9,    'name': 'Prime Video',  'bg': 'bg-cyan-700',    'ring': 'ring-cyan-400'},
+]
+
+
+def streaming_browse(request):
+    provider_key = request.GET.get('provider', 'netflix')
+    media_type = request.GET.get('type', 'movie')
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+    except (ValueError, TypeError):
+        page = 1
+
+    provider = next((p for p in STREAMING_PROVIDERS if p['key'] == provider_key), STREAMING_PROVIDERS[0])
+
+    items = []
+    total_pages = 1
+    error = None
+    try:
+        if media_type == 'tv':
+            data = tmdb.discover_tv(
+                with_watch_providers=provider['id'],
+                watch_region='US',
+                sort_by='popularity.desc',
+                page=page,
+            )
+            existing_ids = set(TVShow.objects.values_list('tmdb_id', flat=True))
+            for r in data.get('results', []):
+                items.append({
+                    'id': r['id'],
+                    'title': r.get('name', ''),
+                    'year': (r.get('first_air_date') or '')[:4],
+                    'poster_path': r.get('poster_path', ''),
+                    'vote_average': r.get('vote_average', 0),
+                    'already_added': r['id'] in existing_ids,
+                    'media': 'tv',
+                })
+        else:
+            data = tmdb.discover_movie(
+                with_watch_providers=provider['id'],
+                watch_region='US',
+                sort_by='popularity.desc',
+                page=page,
+            )
+            existing_ids = set(Movie.objects.values_list('tmdb_id', flat=True))
+            for r in data.get('results', []):
+                items.append({
+                    'id': r['id'],
+                    'title': r.get('title', ''),
+                    'year': (r.get('release_date') or '')[:4],
+                    'poster_path': r.get('poster_path', ''),
+                    'vote_average': r.get('vote_average', 0),
+                    'already_added': r['id'] in existing_ids,
+                    'media': 'movie',
+                })
+        total_pages = min(data.get('total_pages', 1), 20)
+    except Exception as e:
+        error = str(e)
+
+    return render(request, 'media_tracker/streaming.html', {
+        'items': items,
+        'providers': STREAMING_PROVIDERS,
+        'provider': provider,
+        'provider_key': provider_key,
+        'media_type': media_type,
+        'page': page,
+        'total_pages': total_pages,
+        'error': error,
+    })
+
+

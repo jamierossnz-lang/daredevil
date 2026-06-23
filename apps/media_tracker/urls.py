@@ -36,6 +36,9 @@ urlpatterns = [
     path('settings/celery-restart/', views.celery_restart, name='celery_restart'),
     path('settings/ntfy-test/', views.ntfy_test, name='ntfy_test'),
 
+    # Streaming browse
+    path('streaming/', views.streaming_browse, name='streaming_browse'),
+
     # Per-show quality preference
     path('shows/<int:pk>/quality/', views.tv_show_quality_save, name='tv_show_quality_save'),
 

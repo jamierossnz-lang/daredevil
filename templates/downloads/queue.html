@@ -102,7 +102,7 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
     </div>
     <div class="space-y-3" id="activeList">
       {% for item in active %}
-      <div class="glass rounded-2xl p-3 sm:p-4 animate-slide-in" id="dl-item-{{ item.pk }}"
+      <div class="glass rounded-2xl p-3 sm:p-4 animate-slide-in overflow-hidden" id="dl-item-{{ item.pk }}"
            data-sel-pk="{{ item.pk }}"{% if item.torrent_hash %} data-sel-hash="{{ item.torrent_hash }}"{% endif %}
            {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}
            :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
@@ -164,9 +164,9 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
 
               {% if item.status == 'downloading' %}
               <div class="mb-2">
-                <div class="flex justify-between text-xs text-gray-500 mb-1">
-                  <span class="text-blue-400 font-medium" id="pct-{{ item.pk }}">{{ item.progress|floatformat:1 }}%</span>
-                  <span id="spd-{{ item.pk }}">{{ item.speed_formatted }}</span>
+                <div class="flex justify-between text-xs text-gray-500 mb-1 gap-2">
+                  <span class="text-blue-400 font-medium flex-shrink-0" id="pct-{{ item.pk }}">{{ item.progress|floatformat:1 }}%</span>
+                  <span class="truncate text-right" id="spd-{{ item.pk }}">{{ item.speed_formatted }}</span>
                 </div>
                 <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden">
                   <div class="progress-bar h-full rounded-full transition-all duration-1000"

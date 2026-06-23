@@ -130,6 +130,7 @@
       {% url 'dashboard' as url_dashboard %}
       {% url 'tv_shows' as url_shows %}
       {% url 'movies' as url_movies %}
+      {% url 'streaming_browse' as url_streaming %}
       {% url 'download_queue' as url_queue %}
       {% url 'moves_page' as url_moves %}
       {% url 'qbt_dashboard' as url_qbt %}
@@ -161,6 +162,13 @@
                 {% if url_movies in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-film w-4 text-center"></i>
         Movies
+      </a>
+
+      <a href="{{ url_streaming }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_streaming in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-satellite-dish w-4 text-center"></i>
+        Streaming
       </a>
 
       <a href="{{ url_plex }}"
@@ -420,12 +428,12 @@
         <span class="text-[10px] font-medium">Queue</span>
       </a>
 
-      <a href="{{ url_qbt }}"
+      <a href="{{ url_streaming }}"
          class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
-                {% if url_qbt in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
-        {% if url_qbt in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
-        <i class="fa-solid fa-seedling text-lg"></i>
-        <span class="text-[10px] font-medium">Torrents</span>
+                {% if url_streaming in request.path %}text-brand-400{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+        {% if url_streaming in request.path %}<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>{% endif %}
+        <i class="fa-solid fa-satellite-dish text-lg"></i>
+        <span class="text-[10px] font-medium">Streaming</span>
       </a>
 
     </div>
