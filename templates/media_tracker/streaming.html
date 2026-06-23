@@ -57,18 +57,27 @@
 </div>
 
 {% elif items %}
-<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+<div id="streamGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
   {% for item in items %}
-  <div class="glass rounded-xl overflow-hidden card-hover animate-slide-in flex flex-col"
-       style="animation-delay: {{ forloop.counter0 }}0ms">
-    {% if item.poster_path %}
-    <img src="https://image.tmdb.org/t/p/w342{{ item.poster_path }}" alt="{{ item.title }}"
-         class="w-full aspect-[2/3] object-cover">
-    {% else %}
-    <div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center">
-      <i class="fa-solid {% if item.media == 'tv' %}fa-tv{% else %}fa-film{% endif %} text-2xl text-gray-600"></i>
+  <div class="stream-card glass rounded-xl overflow-hidden card-hover flex flex-col">
+    <div class="stream-poster relative overflow-hidden cursor-pointer" onclick="toggleStreamInfo(this)">
+      {% if item.poster_path %}
+      <img src="https://image.tmdb.org/t/p/w342{{ item.poster_path }}" alt="{{ item.title|escapejs }}"
+           class="w-full aspect-[2/3] object-cover">
+      {% else %}
+      <div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center">
+        <i class="fa-solid {% if item.media == 'tv' %}fa-tv{% else %}fa-film{% endif %} text-2xl text-gray-600"></i>
+      </div>
+      {% endif %}
+      {% if item.overview %}
+      <div class="stream-overview hidden absolute inset-0 bg-black/90 p-2 flex-col justify-end overflow-y-auto">
+        <p class="text-[10px] text-gray-200 leading-snug">{{ item.overview }}</p>
+      </div>
+      <div class="stream-info-hint absolute bottom-1 right-1 text-[9px] bg-black/60 px-1.5 py-0.5 rounded-full text-gray-400 pointer-events-none">
+        <i class="fa-solid fa-circle-info"></i>
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
     <div class="p-2 flex flex-col flex-1">
       <p class="text-xs font-medium text-gray-200 truncate mb-0.5 leading-tight">{{ item.title }}</p>
       <p class="text-[10px] text-gray-600 mb-2">
@@ -96,24 +105,13 @@
   {% endfor %}
 </div>
 
-<!-- Pagination -->
-{% if total_pages > 1 %}
-<div class="flex items-center justify-center gap-3 mt-8">
-  {% if page > 1 %}
-  <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ genre_id }}&page={{ page|add:"-1" }}"
-     class="px-4 py-2 glass rounded-xl text-sm text-gray-400 hover:text-white transition-colors">
-    <i class="fa-solid fa-chevron-left mr-1"></i>Prev
-  </a>
-  {% endif %}
-  <span class="text-sm text-gray-500">{{ page }} / {{ total_pages }}</span>
-  {% if page < total_pages %}
-  <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ genre_id }}&page={{ page|add:"1" }}"
-     class="px-4 py-2 glass rounded-xl text-sm text-gray-400 hover:text-white transition-colors">
-    Next<i class="fa-solid fa-chevron-right ml-1"></i>
-  </a>
-  {% endif %}
+<!-- Infinite scroll sentinel -->
+<div id="streamSentinel" class="flex items-center justify-center py-8">
+  <div id="streamLoader" class="hidden text-gray-600 text-sm">
+    <i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading more…
+  </div>
+  <div id="streamEnd" class="hidden text-gray-700 text-xs">All caught up</div>
 </div>
-{% endif %}
 
 {% else %}
 <div class="glass rounded-2xl p-12 text-center">
@@ -126,9 +124,26 @@
 {% endblock %}
 
 {% block extra_js %}
+<style>
+/* Desktop hover shows overview */
+@media (hover: hover) {
+  .stream-poster:hover .stream-overview { display: flex; }
+  .stream-poster:hover .stream-info-hint { opacity: 0; }
+}
+</style>
 <script>
 const csrfToken = '{{ csrf_token }}';
 
+/* ── Overview toggle (mobile tap) ── */
+function toggleStreamInfo(posterEl) {
+  const ov = posterEl.querySelector('.stream-overview');
+  if (!ov) return;
+  const showing = !ov.classList.contains('hidden');
+  ov.classList.toggle('hidden', showing);
+  ov.classList.toggle('flex', !showing);
+}
+
+/* ── Add helpers ── */
 function markAdded(btn) {
   btn.disabled = true;
   btn.className = 'w-full py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium';
@@ -136,12 +151,7 @@ function markAdded(btn) {
 }
 
 function addMovieFromStream(tmdbId, title, btn) {
-  openMovieAddModal({
-    mode: 'add',
-    tmdbId: tmdbId,
-    title: title,
-    onSuccess: () => markAdded(btn),
-  });
+  openMovieAddModal({ mode: 'add', tmdbId, title, onSuccess: () => markAdded(btn) });
 }
 
 async function addShowFromStream(tmdbId, title, btn) {
@@ -163,5 +173,96 @@ async function addShowFromStream(tmdbId, title, btn) {
     btn.innerHTML = '<i class="fa-solid fa-plus mr-0.5"></i>Add';
   }
 }
+
+/* ── Card renderer (for infinite scroll) ── */
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildStreamCard(item) {
+  const poster = item.poster_path
+    ? `<img src="https://image.tmdb.org/t/p/w342${_esc(item.poster_path)}" alt="${_esc(item.title)}" class="w-full aspect-[2/3] object-cover">`
+    : `<div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center"><i class="fa-solid ${item.media === 'tv' ? 'fa-tv' : 'fa-film'} text-2xl text-gray-600"></i></div>`;
+
+  const infoOverlay = item.overview ? `
+    <div class="stream-overview hidden absolute inset-0 bg-black/90 p-2 flex-col justify-end overflow-y-auto">
+      <p class="text-[10px] text-gray-200 leading-snug">${_esc(item.overview)}</p>
+    </div>
+    <div class="stream-info-hint absolute bottom-1 right-1 text-[9px] bg-black/60 px-1.5 py-0.5 rounded-full text-gray-400 pointer-events-none">
+      <i class="fa-solid fa-circle-info"></i>
+    </div>` : '';
+
+  let addBtn;
+  if (item.already_added) {
+    addBtn = `<span class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30"><i class="fa-solid fa-circle-check"></i> Added</span>`;
+  } else if (item.media === 'movie') {
+    addBtn = `<button onclick="addMovieFromStream(${item.id},${JSON.stringify(item.title)},this)" class="w-full py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+  } else {
+    addBtn = `<button onclick="addShowFromStream(${item.id},${JSON.stringify(item.title)},this)" class="w-full py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+  }
+
+  const rating = item.vote_average > 0 ? ` · ★ ${item.vote_average.toFixed(1)}` : '';
+
+  return `<div class="stream-card glass rounded-xl overflow-hidden card-hover flex flex-col">
+    <div class="stream-poster relative overflow-hidden cursor-pointer" onclick="toggleStreamInfo(this)">
+      ${poster}${infoOverlay}
+    </div>
+    <div class="p-2 flex flex-col flex-1">
+      <p class="text-xs font-medium text-gray-200 truncate mb-0.5 leading-tight">${_esc(item.title)}</p>
+      <p class="text-[10px] text-gray-600 mb-2">${_esc(item.year)}${rating}</p>
+      <div class="mt-auto">${addBtn}</div>
+    </div>
+  </div>`;
+}
+
+/* ── Infinite scroll ── */
+(function() {
+  const grid     = document.getElementById('streamGrid');
+  const sentinel = document.getElementById('streamSentinel');
+  const loader   = document.getElementById('streamLoader');
+  const endMsg   = document.getElementById('streamEnd');
+  if (!grid || !sentinel) return;
+
+  let page    = {{ page }};
+  let loading = false;
+  let done    = {{ page }} >= {{ total_pages }};
+
+  if (done) { endMsg && (endMsg.classList.remove('hidden')); }
+
+  const params = new URLSearchParams(window.location.search);
+
+  async function loadMore() {
+    if (loading || done) return;
+    loading = true;
+    loader && loader.classList.remove('hidden');
+    try {
+      params.set('page', page + 1);
+      params.set('json', '1');
+      const res  = await fetch(`${window.location.pathname}?${params}`);
+      const data = await res.json();
+      data.items.forEach(item => {
+        grid.insertAdjacentHTML('beforeend', buildStreamCard(item));
+      });
+      page = data.page;
+      if (!data.has_more) {
+        done = true;
+        observer.disconnect();
+        loader && loader.classList.add('hidden');
+        endMsg && endMsg.classList.remove('hidden');
+      }
+    } catch(e) {
+      console.error('Stream load error', e);
+    } finally {
+      loading = false;
+      if (!done) loader && loader.classList.add('hidden');
+    }
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) loadMore();
+  }, { rootMargin: '200px' });
+
+  observer.observe(sentinel);
+})();
 </script>
 {% endblock %}

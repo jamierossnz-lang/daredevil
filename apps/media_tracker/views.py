@@ -826,6 +826,7 @@ def streaming_browse(request):
                     'year': (r.get('first_air_date') or '')[:4],
                     'poster_path': r.get('poster_path', ''),
                     'vote_average': r.get('vote_average', 0),
+                    'overview': r.get('overview', ''),
                     'already_added': r['id'] in existing_ids,
                     'media': 'tv',
                 })
@@ -839,12 +840,16 @@ def streaming_browse(request):
                     'year': (r.get('release_date') or '')[:4],
                     'poster_path': r.get('poster_path', ''),
                     'vote_average': r.get('vote_average', 0),
+                    'overview': r.get('overview', ''),
                     'already_added': r['id'] in existing_ids,
                     'media': 'movie',
                 })
-        total_pages = min(data.get('total_pages', 1), 20)
+        total_pages = min(data.get('total_pages', 1), 500)
     except Exception as e:
         error = str(e)
+
+    if request.GET.get('json') == '1':
+        return JsonResponse({'items': items, 'has_more': page < total_pages, 'page': page})
 
     return render(request, 'media_tracker/streaming.html', {
         'items': items,
