@@ -512,24 +512,33 @@ def tv_show_reset_download(request, pk):
 
 def app_settings_view(request):
     from django.conf import settings as s
+    from dotenv import dotenv_values
+    env_file = s.BASE_DIR / '.env'
+    env = dotenv_values(env_file) if env_file.exists() else {}
+
+    def _get(key, default=''):
+        # File is authoritative (all workers see the same file); fall back to
+        # the module-level setting for keys not yet written to the file.
+        return env.get(key, str(getattr(s, key, default)))
+
     return render(request, 'app_settings.html', {
         'cfg': {
-            'TMDB_API_KEY':        s.TMDB_API_KEY,
-            'DOWNLOAD_PATH':       s.DOWNLOAD_PATH,
-            'REDIS_URL':           s.REDIS_URL,
-            'TZ':                  s.TIME_ZONE,
-            'DEBUG':               s.DEBUG,
-            'ALLOWED_HOSTS':       ','.join(s.ALLOWED_HOSTS),
-            'PLEX_CLAIM':          s.PLEX_CLAIM,
-            'PLEX_URL':            s.PLEX_URL,
-            'PLEX_TOKEN':          s.PLEX_TOKEN,
-            'PLEX_MOVIE_SECTION':  s.PLEX_MOVIE_SECTION,
-            'PLEX_TV_SECTION':     s.PLEX_TV_SECTION,
-            'NTFY_URL':            s.NTFY_URL,
-            'NTFY_TOPIC':          s.NTFY_TOPIC,
-            'NTFY_TOKEN':          s.NTFY_TOKEN,
-            'PUID':                s.PUID,
-            'PGID':                s.PGID,
+            'TMDB_API_KEY':        _get('TMDB_API_KEY'),
+            'DOWNLOAD_PATH':       _get('DOWNLOAD_PATH'),
+            'REDIS_URL':           _get('REDIS_URL'),
+            'TZ':                  _get('TZ', s.TIME_ZONE),
+            'DEBUG':               _get('DEBUG', str(s.DEBUG)) == 'True',
+            'ALLOWED_HOSTS':       _get('ALLOWED_HOSTS', ','.join(s.ALLOWED_HOSTS)),
+            'PLEX_CLAIM':          _get('PLEX_CLAIM'),
+            'PLEX_URL':            _get('PLEX_URL'),
+            'PLEX_TOKEN':          _get('PLEX_TOKEN'),
+            'PLEX_MOVIE_SECTION':  _get('PLEX_MOVIE_SECTION'),
+            'PLEX_TV_SECTION':     _get('PLEX_TV_SECTION'),
+            'NTFY_URL':            _get('NTFY_URL'),
+            'NTFY_TOPIC':          _get('NTFY_TOPIC'),
+            'NTFY_TOKEN':          _get('NTFY_TOKEN'),
+            'PUID':                _get('PUID'),
+            'PGID':                _get('PGID'),
         }
     })
 

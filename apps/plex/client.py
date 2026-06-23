@@ -5,9 +5,21 @@ from django.conf import settings
 log = logging.getLogger('daredevil.plex')
 
 
+def _plex_setting(key, fallback_attr):
+    """Read from .env file first (shared across all gunicorn workers), then fall back to module settings."""
+    from dotenv import dotenv_values
+    from pathlib import Path
+    env_file = Path(settings.BASE_DIR) / '.env'
+    if env_file.exists():
+        val = dotenv_values(env_file).get(key, '')
+        if val:
+            return val
+    return getattr(settings, fallback_attr, '')
+
+
 def get_plex():
-    url = getattr(settings, 'PLEX_URL', '')
-    token = getattr(settings, 'PLEX_TOKEN', '')
+    url   = _plex_setting('PLEX_URL',   'PLEX_URL')
+    token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
     if not url or not token:
         return None
     try:
