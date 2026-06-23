@@ -4,6 +4,16 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=4GB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+      -c max_connections=50
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c synchronous_commit=off
     environment:
       - POSTGRES_DB=daredevil
       - POSTGRES_USER=daredevil
@@ -20,6 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
     volumes:
       - ${DATA_DIR:-./data}/redis:/data
 
@@ -109,7 +120,7 @@ services:
   worker:
     build: .
     restart: unless-stopped
-    command: celery -A config worker -l info --concurrency 2
+    command: celery -A config worker -l info --concurrency 6
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
