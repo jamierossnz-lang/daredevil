@@ -65,7 +65,7 @@ services:
       - TZ=${TZ:-UTC}
       - AUTO_UPDATE=true
     ports:
-      - "${JACKETT_PORT:-9118}:9118"
+      - "${JACKETT_PORT:-9118}:9117"
     volumes:
       - ${DATA_DIR:-./data}/jackett:/config
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
