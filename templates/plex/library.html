@@ -401,7 +401,7 @@
             <div class="flex items-center gap-2 flex-shrink-0">
               <template x-if="state === 'idle'">
                 <div class="flex items-center gap-2">
-                  <button @click="doDelete('{{ item.rating_key }}', '{{ item.title|escapejs }}')"
+                  <button @click="doDelete('{{ item.rating_key }}', '{{ item.title|escapejs }}', '{{ item.type }}', '{{ item.size_display|escapejs }}')"
                           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
                     <i class="fa-solid fa-trash-can text-[10px]"></i> Delete from Plex
                   </button>
@@ -452,8 +452,12 @@ const _csrfToken = '{{ csrf_token }}';
 
 function plexCleanup() {
   return {
-    async doDelete(ratingKey, title) {
-      if (!confirm(`Delete "${title}" from Plex?\n\nThis will also delete the files if "Allow media deletion" is enabled in Plex.`)) return;
+    async doDelete(ratingKey, title, type, size) {
+      const what = type === 'show'
+        ? `ALL files for "${title}" — every season and episode`
+        : `"${title}" and its files`;
+      const sizeNote = size ? ` (${size})` : '';
+      if (!confirm(`⚠️ Permanently delete ${what}${sizeNote}?\n\nThis cannot be undone.`)) return;
       const el = document.getElementById(`cleanup-${ratingKey}`);
       const scope = Alpine.$data(el);
       scope.state = 'deleting';
