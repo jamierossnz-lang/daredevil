@@ -7,5 +7,6 @@ urlpatterns = [
     path('', views.library, name='library'),
     path('thumb/', views.thumb, name='thumb'),
     path('delete/<str:rating_key>/', views.plex_delete, name='delete'),
+    path('episodes/<str:rating_key>/', views.plex_episodes, name='episodes'),
     path('ignore/<str:rating_key>/', views.plex_ignore, name='ignore'),
 ]

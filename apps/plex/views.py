@@ -7,9 +7,9 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
-from .client import get_plex, movie_to_dict, show_to_dict, item_to_dict
+from .client import get_plex, movie_to_dict, show_to_dict, item_to_dict, _file_size, _fmt_bytes
 from .utils import get_disk_usage
 
 log = logging.getLogger('daredevil.plex')
@@ -318,7 +318,7 @@ def plex_delete(request, rating_key):
         try:
             for section in plex.library.sections():
                 if (item_type == 'movie' and section.type == 'movie') or \
-                   (item_type == 'show'  and section.type == 'show'):
+                   (item_type in ('show', 'season', 'episode') and section.type == 'show'):
                     section.update()
         except Exception as exc:
             log.warning('plex_delete: library scan failed: %s', exc)
@@ -340,6 +340,36 @@ def plex_delete(request, rating_key):
         return JsonResponse({'ok': True, 'deleted': deleted_paths, 'warnings': errors})
     except Exception as e:
         log.warning('plex_delete failed for ratingKey=%s: %s', rating_key, e)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_GET
+def plex_episodes(request, rating_key):
+    """Return all episodes for a show grouped by season, for the episode picker modal."""
+    plex = get_plex()
+    if not plex:
+        return JsonResponse({'error': 'Plex not connected'}, status=503)
+    try:
+        show = plex.fetchItem(int(rating_key))
+        seasons = []
+        for season in show.seasons():
+            eps = []
+            for ep in season.episodes():
+                eps.append({
+                    'rating_key': str(ep.ratingKey),
+                    'title':      ep.title or '',
+                    'season':     ep.parentIndex or 0,
+                    'episode':    ep.index or 0,
+                    'viewed':     bool(getattr(ep, 'viewCount', 0)),
+                    'size':       _fmt_bytes(_file_size(ep)),
+                })
+            seasons.append({
+                'title':    season.title or f'Season {season.index}',
+                'index':    season.index or 0,
+                'episodes': eps,
+            })
+        return JsonResponse({'title': show.title, 'seasons': seasons})
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
 
