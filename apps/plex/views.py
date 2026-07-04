@@ -81,6 +81,29 @@ def library(request):
     except Exception as e:
         log.warning('Plex watched merge failed: %s', e)
 
+    # Recently watched individual items (movies + episodes) for the delete tab
+    watched_items = []
+    try:
+        raw_watched = []
+        try:
+            ms = plex.library.section(settings.PLEX_MOVIE_SECTION)
+            raw_watched += [m for m in ms.search(sort='lastViewedAt:desc', maxresults=60)
+                            if getattr(m, 'viewCount', 0)]
+        except Exception as e:
+            log.warning('Plex watched movies fetch: %s', e)
+        try:
+            ts = plex.library.section(settings.PLEX_TV_SECTION)
+            raw_watched += [e for e in ts.search(sort='lastViewedAt:desc', libtype='episode', maxresults=60)
+                            if getattr(e, 'viewCount', 0)]
+        except Exception as e:
+            log.warning('Plex watched episodes fetch: %s', e)
+        watched_items = sorted(
+            [d for d in (item_to_dict(i) for i in raw_watched) if d],
+            key=lambda x: x.get('last_viewed') or 0, reverse=True
+        )[:80]
+    except Exception as e:
+        log.warning('Plex watched_items fetch failed: %s', e)
+
     # ── Cross-reference with Daredevil ──
     from apps.media_tracker.models import Movie, TVShow, Episode
 
@@ -144,6 +167,7 @@ def library(request):
         'missing_movies': missing_movies,
         'missing_shows': missing_shows,
         'candidates': candidates,
+        'watched_items': watched_items,
         'drives': drives,
     })
 

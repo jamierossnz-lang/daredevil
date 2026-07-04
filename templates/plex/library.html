@@ -88,6 +88,12 @@
       </span>
       {% endif %}
     </button>
+    <button @click="tab = 'delete'"
+            :class="tab === 'delete' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+      <i class="fa-solid fa-fire mr-1.5 text-xs"></i>Delete Watched
+      {% if watched_items %}<span class="ml-1 text-xs text-gray-500">{{ watched_items|length }}</span>{% endif %}
+    </button>
   </div>
 
   <!-- ── Recently Added ── -->
@@ -454,6 +460,76 @@
 
 </div>
 
+<!-- ── Delete Watched ── -->
+<div x-show="tab === 'delete'" x-cloak x-data="deleteWatched()">
+
+  {% if not watched_items %}
+  <div class="text-center py-16 text-gray-600">
+    <i class="fa-solid fa-check-circle text-3xl mb-3 opacity-40"></i>
+    <p class="text-sm font-medium">No recently watched items</p>
+  </div>
+  {% else %}
+
+  <!-- Toolbar -->
+  <div class="flex items-center gap-3 mb-4 flex-wrap">
+    <span class="text-xs text-gray-500"><span x-text="selected.size"></span> selected</span>
+    <button @click="selectAll()" class="text-xs text-brand-400 hover:text-brand-300 transition-colors">Select all</button>
+    <button @click="clearAll()" class="text-xs text-gray-500 hover:text-gray-300 transition-colors">Clear</button>
+    <div class="flex-1"></div>
+    <button @click="deleteSelected()"
+            :disabled="selected.size === 0 || deleting"
+            class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+      <i class="fa-solid fa-trash-can text-[10px]"></i>
+      <span x-text="deleting ? 'Deleting…' : ('Delete Selected (' + selected.size + ')')"></span>
+    </button>
+  </div>
+
+  <!-- Item list -->
+  <div class="space-y-1">
+    {% for item in watched_items %}
+    <label id="watched-{{ item.rating_key }}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border"
+           :class="selected.has('{{ item.rating_key }}') ? 'bg-red-500/8 border-red-500/20' : 'bg-surface-800/50 border-surface-700/30 hover:bg-surface-800'">
+      <input type="checkbox"
+             value="{{ item.rating_key }}"
+             :checked="selected.has('{{ item.rating_key }}')"
+             @change="toggle('{{ item.rating_key }}')"
+             class="w-4 h-4 accent-red-500 flex-shrink-0">
+
+      <!-- Thumb -->
+      {% if item.thumb %}
+      <img src="{% url 'plex:thumb' %}?path={{ item.thumb }}"
+           class="w-8 h-12 object-cover rounded flex-shrink-0" loading="lazy">
+      {% else %}
+      <div class="w-8 h-12 bg-surface-700 rounded flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid {% if item.type == 'movie' %}fa-film{% else %}fa-tv{% endif %} text-gray-600 text-xs"></i>
+      </div>
+      {% endif %}
+
+      <!-- Info -->
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-semibold text-gray-200 truncate">{{ item.title }}</p>
+        {% if item.subtitle %}<p class="text-[10px] text-gray-500 truncate">{{ item.subtitle }}</p>{% endif %}
+        {% if item.last_viewed %}
+        <p class="text-[10px] text-gray-600">Watched {{ item.last_viewed|date:"M j, Y" }}</p>
+        {% endif %}
+      </div>
+
+      <!-- Meta -->
+      <div class="flex flex-col items-end gap-1 flex-shrink-0">
+        <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide
+          {% if item.type == 'movie' %}bg-cyan-500/20 text-cyan-400{% else %}bg-purple-500/20 text-purple-400{% endif %}">
+          {{ item.type }}
+        </span>
+        {% if item.size_display %}<span class="text-[10px] text-gray-600">{{ item.size_display }}</span>{% endif %}
+      </div>
+    </label>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
 <!-- Episode picker modal -->
 <div x-data="episodePicker()" @open-episode-picker.window="open($event.detail.ratingKey, $event.detail.title)" x-cloak>
   <template x-if="show">
@@ -582,6 +658,55 @@ function plexCleanup() {
       } catch (e) {
         scope.state = 'error';
       }
+    },
+  };
+}
+
+function deleteWatched() {
+  return {
+    selected: new Set(),
+    deleting: false,
+
+    toggle(key) {
+      if (this.selected.has(key)) this.selected.delete(key);
+      else this.selected.add(key);
+      this.selected = new Set(this.selected);
+    },
+
+    selectAll() {
+      document.querySelectorAll('[id^="watched-"]').forEach(el => {
+        const key = el.id.replace('watched-', '');
+        this.selected.add(key);
+      });
+      this.selected = new Set(this.selected);
+    },
+
+    clearAll() {
+      this.selected = new Set();
+    },
+
+    async deleteSelected() {
+      if (!this.selected.size) return;
+      const count = this.selected.size;
+      if (!confirm(`Permanently delete ${count} item${count > 1 ? 's' : ''}?\n\nThis cannot be undone.`)) return;
+      this.deleting = true;
+      let failed = 0;
+      const keys = [...this.selected];
+      for (const key of keys) {
+        try {
+          const r = await fetch(`/plex/delete/${key}/`, { method: 'POST', headers: { 'X-CSRFToken': _csrfToken } });
+          if (r.ok) {
+            const el = document.getElementById(`watched-${key}`);
+            if (el) el.remove();
+            this.selected.delete(key);
+            this.selected = new Set(this.selected);
+          } else {
+            failed++;
+          }
+        } catch { failed++; }
+      }
+      this.deleting = false;
+      if (failed) alert(`${failed} item(s) failed to delete.`);
     },
   };
 }
