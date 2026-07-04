@@ -332,13 +332,16 @@
       <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow flex-shrink-0">
         <i class="fa-solid fa-tornado text-white"></i>
       </div>
-      <span class="text-2xl font-bold text-gradient flex-1">Daredevil</span>
-      <button @click="sidebarOpen = false"
-              class="-m-2 p-2 text-gray-400 hover:text-white rounded-xl transition-colors"
-              aria-label="Close menu">
-        <i class="fa-solid fa-xmark text-2xl"></i>
-      </button>
+      <span class="text-2xl font-bold text-gradient">Daredevil</span>
     </div>
+
+    <!-- Close button (bottom right) -->
+    <button @click="sidebarOpen = false"
+            class="fixed bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-surface-700 border border-surface-600 text-gray-300 hover:text-white hover:bg-surface-600 shadow-xl flex items-center justify-center transition-colors"
+            style="bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))"
+            aria-label="Close menu">
+      <i class="fa-solid fa-xmark text-2xl"></i>
+    </button>
 
     <!-- Scrollable grid -->
     <div class="flex-1 overflow-y-auto px-4 pt-5 pb-28">
