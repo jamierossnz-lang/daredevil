@@ -270,20 +270,18 @@ def plex_delete(request, rating_key):
         item_title = getattr(item, 'title', '')
         tmdb_id    = extract_tmdb_id(item)
 
-        # Plex reports paths as it sees them inside its container.
-        # Translate to paths the web container can access.
-        plex_movies_base = settings.PLEX_MOVIES_BASE.rstrip('/')
-        plex_tv_base     = settings.PLEX_TV_BASE.rstrip('/')
+        # Plex runs in our docker-compose with /data/movies and /data/tv mounts.
+        # The web container has the same dirs at /media/movies and /media/tv.
         path_map = [
-            (plex_movies_base, '/media/movies'),
-            (plex_tv_base,     '/media/tv'),
+            ('/data/movies', '/media/movies'),
+            ('/data/tv',     '/media/tv'),
         ]
 
         def translate(plex_path):
             for plex_prefix, local_prefix in path_map:
                 if plex_path.startswith(plex_prefix + '/') or plex_path == plex_prefix:
                     return local_prefix + plex_path[len(plex_prefix):]
-            return plex_path  # already accessible (e.g. local dev)
+            return plex_path
 
         locations = []
         try:

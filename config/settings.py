@@ -124,11 +124,6 @@ PLEX_URL = os.environ.get('PLEX_URL', 'http://localhost:32400')
 PLEX_TOKEN = os.environ.get('PLEX_TOKEN', '')
 PLEX_MOVIE_SECTION = os.environ.get('PLEX_MOVIE_SECTION', 'Movies')
 PLEX_TV_SECTION = os.environ.get('PLEX_TV_SECTION', 'TV Shows')
-# How the movies/TV dirs appear inside the Plex container.
-# Set PLEX_MOVIES_BASE / PLEX_TV_BASE in .env to match your Plex volume mount.
-# The web container always sees them at /media/movies and /media/tv.
-PLEX_MOVIES_BASE = os.environ.get('PLEX_MOVIES_BASE', '/data/movies')
-PLEX_TV_BASE     = os.environ.get('PLEX_TV_BASE',     '/data/tv')
 
 # ntfy push notifications — https://ntfy.sh
 NTFY_URL   = os.environ.get('NTFY_URL',   'https://ntfy.sh')
