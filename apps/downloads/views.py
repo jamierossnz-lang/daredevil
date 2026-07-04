@@ -83,7 +83,15 @@ def queue_status_json(request):
                 return re.sub(r'[._\-]+', ' ', (s or '').strip().lower())
 
             stored_norm = _norm(item.torrent_name)
-            title_norm = _norm(item.title)
+            title_norm  = _norm(item.title)
+
+            # For TV episodes extract the SxxExx code so we never match the wrong
+            # episode — item.title is just the show name which would match any episode.
+            ep_code = None
+            if item.media_type == DownloadItem.MediaType.EPISODE and item.subtitle:
+                m = re.search(r's\d+e\d+', item.subtitle, re.IGNORECASE)
+                if m:
+                    ep_code = m.group(0).lower()
 
             for t in torrent_map.values():
                 qbt_norm = _norm(t.name)
@@ -91,10 +99,15 @@ def queue_status_json(request):
                 if stored_norm and qbt_norm == stored_norm:
                     torrent = t
                     break
-                # Strategy 2: normalised title is a prefix of the qBT name (catches year/quality suffix differences)
-                if title_norm and len(title_norm) >= 8 and qbt_norm.startswith(title_norm):
-                    torrent = t
-                    break
+                # Strategy 2: title match — episodes require SxxExx code in name
+                if item.media_type == DownloadItem.MediaType.EPISODE:
+                    if ep_code and ep_code in qbt_norm and title_norm and title_norm in qbt_norm:
+                        torrent = t
+                        break
+                else:
+                    if title_norm and len(title_norm) >= 8 and qbt_norm.startswith(title_norm):
+                        torrent = t
+                        break
 
             if torrent:
                 item.torrent_hash = torrent.hash.lower()
