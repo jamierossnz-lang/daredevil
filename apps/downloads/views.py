@@ -445,10 +445,30 @@ def _maybe_queue_file_move(item, torrent):
     if source is None:
         if content_path and os.path.exists(content_path):
             source = content_path
+        elif content_path and cat_path and cat_path.download_path:
+            # qbt_save_path not configured or prefix didn't match — try resolving
+            # the actual filename from content_path against our download_path.
+            # This handles cases where torrent.name differs from the real file name.
+            fname = os.path.basename(content_path.rstrip('/'))
+            candidate = os.path.join(cat_path.download_path.rstrip('/'), fname)
+            if os.path.exists(candidate):
+                source = candidate
+            elif cat_path.download_path and torrent_name:
+                source = os.path.join(cat_path.download_path, torrent_name)
+            else:
+                source = content_path or getattr(torrent, 'save_path', None)
         elif cat_path and cat_path.download_path and torrent_name:
             source = os.path.join(cat_path.download_path, torrent_name)
         else:
             source = content_path or getattr(torrent, 'save_path', None)
+
+    log.info(
+        '_maybe_queue_file_move item=%d: torrent_name=%r content_path=%r qbt_save_path=%r download_path=%r → source=%r',
+        item.id, torrent_name, content_path,
+        cat_path.qbt_save_path if cat_path else None,
+        cat_path.download_path if cat_path else None,
+        source,
+    )
 
     if not source:
         log.warning('_maybe_queue_file_move item=%d: cannot determine source path, skipping', item.id)
