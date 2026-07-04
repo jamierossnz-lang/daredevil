@@ -84,21 +84,20 @@ def library(request):
     # Recently watched individual items (movies + episodes) for the delete tab
     watched_items = []
     try:
-        raw_watched = []
+        # Movies: reuse the already-fetched plex_movies dicts
+        watched_movie_dicts = [m for m in plex_movies if m.get('last_viewed')]
+
+        # Episodes: same search pattern that works for recently-added episodes
+        watched_ep_dicts = []
         try:
-            ms = plex.library.section(settings.PLEX_MOVIE_SECTION)
-            raw_watched += [m for m in ms.all()
-                            if getattr(m, 'lastViewedAt', None)]
-        except Exception as e:
-            log.warning('Plex watched movies fetch: %s', e)
-        try:
-            ts = plex.library.section(settings.PLEX_TV_SECTION)
-            raw_watched += [e for e in ts.searchEpisodes()
-                            if getattr(e, 'lastViewedAt', None)]
+            ts_sec = plex.library.section(settings.PLEX_TV_SECTION)
+            eps_raw = ts_sec.search(libtype='episode', sort='lastViewedAt:desc', maxresults=100)
+            watched_ep_dicts = [d for d in (item_to_dict(e) for e in eps_raw) if d and d.get('last_viewed')]
         except Exception as e:
             log.warning('Plex watched episodes fetch: %s', e)
+
         watched_items = sorted(
-            [d for d in (item_to_dict(i) for i in raw_watched) if d],
+            watched_movie_dicts + watched_ep_dicts,
             key=lambda x: x.get('last_viewed') or 0, reverse=True
         )[:80]
     except Exception as e:
