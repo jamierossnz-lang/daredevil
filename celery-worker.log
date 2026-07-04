@@ -21128,3 +21128,15 @@ KeyError: 'update_episode_statuses'
 [2026-07-04 20:18:31,413: INFO/ForkPoolWorker-1] Task auto_search_queue[c6c8881d-65da-4b36-a5f3-23d18ab33254] succeeded in 0.008907165960408747s: 'dispatched 0'
 [2026-07-04 20:18:31,428: INFO/ForkPoolWorker-9] Task update_episode_statuses[ad79f4d1-f8f2-4065-b7fe-37639da2fbf7] succeeded in 0.020641042036004364s: 'moved 0 to waiting_for_download'
 [2026-07-04 20:18:31,441: INFO/ForkPoolWorker-8] Task poll_download_progress[75b8ff6a-9fb0-4c56-bfe6-8fd512f51b7d] succeeded in 0.03767866699490696s: 'checked 11, completed 0'
+[2026-07-04 20:23:31,406: INFO/MainProcess] Task auto_search_queue[22539fb2-4dd7-472c-8754-8985bb5e0b02] received
+[2026-07-04 20:23:31,408: INFO/MainProcess] Task update_episode_statuses[a349fa50-ed77-44d0-be56-6e907e429e59] received
+[2026-07-04 20:23:31,410: INFO/MainProcess] Task poll_download_progress[ae421fd7-736f-429a-b226-012e2baa3418] received
+[2026-07-04 20:23:31,426: INFO/ForkPoolWorker-1] Task update_episode_statuses[a349fa50-ed77-44d0-be56-6e907e429e59] succeeded in 0.016570833045989275s: 'moved 0 to waiting_for_download'
+[2026-07-04 20:23:31,433: INFO/ForkPoolWorker-8] Task auto_search_queue[22539fb2-4dd7-472c-8754-8985bb5e0b02] succeeded in 0.025533041916787624s: 'dispatched 0'
+[2026-07-04 20:23:31,445: INFO/ForkPoolWorker-9] Task poll_download_progress[ae421fd7-736f-429a-b226-012e2baa3418] succeeded in 0.033961875014938414s: 'checked 11, completed 0'
+[2026-07-04 20:23:40,411: INFO/MainProcess] Task check_movie_releases[16d5b4cd-4bfc-46e8-81b0-9ef39b1edf8a] received
+[2026-07-04 20:23:40,413: INFO/MainProcess] Task check_movie_releases[7e84e79e-ea7b-4852-a420-c7b467722d21] received
+[2026-07-04 20:23:40,452: INFO/MainProcess] Task queue_waiting_episodes[7835cfd2-fc6c-4506-a68e-d3d1d6ce5f82] received
+[2026-07-04 20:23:40,458: INFO/ForkPoolWorker-9] Task queue_waiting_episodes[7835cfd2-fc6c-4506-a68e-d3d1d6ce5f82] succeeded in 0.005070541054010391s: 'queued 0 waiting episodes'
+[2026-07-04 20:23:44,576: INFO/ForkPoolWorker-1] Task check_movie_releases[7e84e79e-ea7b-4852-a420-c7b467722d21] succeeded in 4.161829041084275s: 'checked 8 waiting, queued 0'
+[2026-07-04 20:23:44,578: INFO/ForkPoolWorker-8] Task check_movie_releases[16d5b4cd-4bfc-46e8-81b0-9ef39b1edf8a] succeeded in 4.166023375000805s: 'checked 8 waiting, queued 0'
