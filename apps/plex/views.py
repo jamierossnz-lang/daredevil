@@ -87,14 +87,14 @@ def library(request):
         raw_watched = []
         try:
             ms = plex.library.section(settings.PLEX_MOVIE_SECTION)
-            raw_watched += [m for m in ms.search(sort='lastViewedAt:desc', maxresults=60)
-                            if getattr(m, 'viewCount', 0)]
+            raw_watched += [m for m in ms.all()
+                            if getattr(m, 'lastViewedAt', None)]
         except Exception as e:
             log.warning('Plex watched movies fetch: %s', e)
         try:
             ts = plex.library.section(settings.PLEX_TV_SECTION)
-            raw_watched += [e for e in ts.search(sort='lastViewedAt:desc', libtype='episode', maxresults=60)
-                            if getattr(e, 'viewCount', 0)]
+            raw_watched += [e for e in ts.searchEpisodes()
+                            if getattr(e, 'lastViewedAt', None)]
         except Exception as e:
             log.warning('Plex watched episodes fetch: %s', e)
         watched_items = sorted(
