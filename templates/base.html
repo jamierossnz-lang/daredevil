@@ -149,7 +149,7 @@
   </script>
   {% block extra_head %}{% endblock %}
 </head>
-<body class="font-sans text-gray-100 h-full overflow-x-hidden" x-data="{ sidebarOpen: false }">
+<body class="font-sans text-gray-100 h-full overflow-x-hidden" x-data="{ sidebarOpen: false }" @open-sidebar.window="sidebarOpen = true">
 
   <!-- Sidebar -->
   <aside class="fixed inset-y-0 left-0 z-50 w-64 glass-dark flex flex-col transition-transform duration-300"
@@ -158,10 +158,15 @@
     <!-- Logo -->
     <div class="flex items-center gap-3 px-6 py-5 border-b border-white/5"
          style="padding-top: calc(1.25rem + env(safe-area-inset-top, 0px))">
-      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow flex-shrink-0">
         <i class="fa-solid fa-tornado text-white text-sm"></i>
       </div>
-      <span class="text-xl font-bold text-gradient">Daredevil</span>
+      <span class="text-xl font-bold text-gradient flex-1">Daredevil</span>
+      <button @click="sidebarOpen = false"
+              class="lg:hidden -m-2 p-2 text-gray-500 hover:text-gray-300 rounded-lg transition-colors"
+              aria-label="Close menu">
+        <i class="fa-solid fa-xmark text-xl"></i>
+      </button>
     </div>
 
     <!-- Nav Links -->
@@ -187,27 +192,27 @@
       <!-- Library -->
       <p class="nav-section">Library</p>
       <a href="{{ url_dashboard }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if p == url_dashboard %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gauge-high w-4 text-center"></i> Dashboard
       </a>
       <a href="{{ url_shows }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_shows in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-tv w-4 text-center"></i> TV Shows
       </a>
       <a href="{{ url_movies }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_movies in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-film w-4 text-center"></i> Movies
       </a>
       <a href="{{ url_streaming }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_streaming in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-satellite-dish w-4 text-center"></i> Streaming
       </a>
       <a href="{{ url_plex }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_plex in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-server w-4 text-center"></i> Plex Library
       </a>
@@ -215,12 +220,12 @@
       <!-- Downloads -->
       <p class="nav-section mt-2">Downloads</p>
       <a href="{{ url_queue }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if p == url_queue %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-download w-4 text-center"></i> Queue
       </a>
       <a href="{{ url_moves }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_moves in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-file-export w-4 text-center"></i> File Moves
       </a>
@@ -228,27 +233,27 @@
       <!-- Torrents -->
       <p class="nav-section mt-2">Torrents</p>
       <a href="{{ url_qbt }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if p == url_qbt %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-seedling w-4 text-center"></i> Manager
       </a>
       <a href="{{ url_qbt_search }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_search in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-magnifying-glass w-4 text-center"></i> Search
       </a>
       <a href="{{ url_qbt_files }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_files in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-folder-open w-4 text-center"></i> File Browser
       </a>
       <a href="{{ url_qbt_categories }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_categories in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-folder-tree w-4 text-center"></i> Categories
       </a>
       <a href="{{ url_qbt_settings }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_settings in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-sliders w-4 text-center"></i> Settings
       </a>
@@ -256,12 +261,12 @@
       <!-- System -->
       <p class="nav-section mt-2">System</p>
       <a href="{{ url_tasks }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_tasks in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gears w-4 text-center"></i> Background Tasks
       </a>
       <a href="{{ url_app_settings }}"
-         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if p == url_app_settings %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gear w-4 text-center"></i> App Settings
       </a>
@@ -326,8 +331,10 @@
     <!-- Top Bar -->
     <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-3"
             style="padding-top: calc(0.75rem + env(safe-area-inset-top, 0px))">
-      <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-gray-400 hover:text-white">
-        <i class="fa-solid fa-bars text-lg"></i>
+      <button @click="sidebarOpen = !sidebarOpen"
+              class="lg:hidden -m-2 p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+              aria-label="Open menu">
+        <i class="fa-solid fa-bars text-xl"></i>
       </button>
       <!-- Back / Forward -->
       <button onclick="history.back()"
@@ -429,13 +436,13 @@
       { key: 'settings',  href: '{{ url_app_settings }}', icon: 'fa-gear',         label: 'Settings'  },
       { key: 'plex',      href: '{{ url_plex }}',      icon: 'fa-server',          label: 'Plex'      },
     ];
-    const DEFAULT_KEYS = ['home','shows','movies','queue','streaming'];
+    const DEFAULT_KEYS = ['home','shows','movies','queue'];
     const saved = localStorage.getItem('dd-mobile-nav');
     const keys  = saved ? JSON.parse(saved) : DEFAULT_KEYS;
     const items = keys.map(k => ALL_NAV.find(n => n.key === k)).filter(Boolean);
     const path  = window.location.pathname;
     const inner = document.getElementById('ddMobileNavInner');
-    inner.innerHTML = items.map(item => {
+    const navItems = items.map(item => {
       const active = path === item.href || (item.href !== '/' && path.startsWith(item.href));
       return `<a href="${item.href}"
                  class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
@@ -445,6 +452,12 @@
         <span class="text-[10px] font-medium">${item.label}</span>
       </a>`;
     }).join('');
+    const moreBtn = `<button onclick="window.dispatchEvent(new CustomEvent('open-sidebar'))"
+               class="flex-1 flex flex-col items-center justify-center gap-0.5 text-gray-500 hover:text-gray-300 transition-colors">
+      <i class="fa-solid fa-bars text-lg"></i>
+      <span class="text-[10px] font-medium">More</span>
+    </button>`;
+    inner.innerHTML = navItems + moreBtn;
   })();
   </script>
 
