@@ -493,17 +493,16 @@ function plexCleanup() {
   };
 }
 
-async function plexAddShow(btn) {
-  const tmdbId = btn.dataset.tmdbId;
-  const title  = btn.dataset.title;
+async function plexAddShow(el) {
+  const tmdbId = el.dataset.tmdbId;
+  const title  = el.dataset.title;
 
   if (!tmdbId) {
     window.location.href = `/shows/search/?q=${encodeURIComponent(title)}`;
     return;
   }
 
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px]"></i> Adding…';
+  el.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white text-2xl"></i><span class="text-white text-xs font-semibold">Adding…</span>';
   try {
     const resp = await fetch('/shows/add/', {
       method: 'POST',
@@ -512,16 +511,13 @@ async function plexAddShow(btn) {
     });
     const data = await resp.json();
     if (data.status === 'added' || data.status === 'exists') {
-      btn.innerHTML = '<i class="fa-solid fa-check text-[10px]"></i> Added';
-      btn.classList.replace('bg-brand-600', 'bg-green-600');
+      el.innerHTML = '<i class="fa-solid fa-check text-white text-2xl"></i><span class="text-white text-xs font-semibold">Added</span>';
       setTimeout(() => { window.location.href = `/shows/${data.pk}/`; }, 800);
     } else {
-      btn.innerHTML = 'Failed';
-      btn.classList.replace('bg-brand-600', 'bg-red-600');
+      el.innerHTML = '<i class="fa-solid fa-xmark text-white text-2xl"></i><span class="text-white text-xs font-semibold">Failed</span>';
     }
   } catch (e) {
-    btn.innerHTML = 'Error';
-    btn.classList.replace('bg-brand-600', 'bg-red-600');
+    el.innerHTML = '<i class="fa-solid fa-xmark text-white text-2xl"></i><span class="text-white text-xs font-semibold">Error</span>';
   }
 }
 </script>

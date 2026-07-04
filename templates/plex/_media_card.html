@@ -1,6 +1,6 @@
 {% if item.detail_url %}<a href="{{ item.detail_url }}">{% else %}<div>{% endif %}
 <div class="group relative flex flex-col rounded-xl overflow-hidden bg-surface-800 border border-surface-700/40
-            {% if item.detail_url %}hover:border-brand-600/40 cursor-pointer{% endif %} transition-all hover:shadow-lg hover:shadow-brand-900/20">
+            {% if item.detail_url %}hover:border-brand-600/40 cursor-pointer{% elif item.type == 'show' and not item.detail_url %}hover:border-brand-600/40 cursor-pointer{% endif %} transition-all hover:shadow-lg hover:shadow-brand-900/20">
 
   <!-- Poster -->
   <div class="relative aspect-[2/3] bg-surface-700 overflow-hidden">
@@ -38,10 +38,18 @@
     </div>
     {% endif %}
 
-    <!-- Link arrow overlay -->
+    <!-- Hover overlay -->
     {% if item.detail_url %}
     <div class="absolute inset-0 bg-brand-900/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
       <i class="fa-solid fa-arrow-right text-white text-lg"></i>
+    </div>
+    {% elif item.type == 'show' %}
+    <div class="absolute inset-0 bg-brand-900/70 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+         onclick="plexAddShow(this)"
+         data-tmdb-id="{{ item.tmdb_id }}"
+         data-title="{{ item.title }}">
+      <i class="fa-solid fa-plus text-white text-2xl"></i>
+      <span class="text-white text-xs font-semibold">Add to Daredevil</span>
     </div>
     {% endif %}
   </div>
@@ -60,15 +68,6 @@
     </p>
     {% elif item.type == 'movie' and item.viewed %}
     <p class="text-[10px] text-green-500 mt-0.5">Watched</p>
-    {% endif %}
-    {% if item.type == 'show' and not item.detail_url %}
-    <button type="button"
-            data-tmdb-id="{{ item.tmdb_id }}"
-            data-title="{{ item.title }}"
-            onclick="plexAddShow(this)"
-            class="mt-auto pt-1.5 w-full px-2 py-1 bg-brand-600 hover:bg-brand-500 text-white text-[10px] font-semibold rounded flex items-center justify-center gap-1 transition-colors">
-      <i class="fa-solid fa-plus"></i> Add to Daredevil
-    </button>
     {% endif %}
   </div>
 </div>
