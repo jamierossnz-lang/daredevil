@@ -1,7 +1,8 @@
 import logging
+import os
+import shutil
 from datetime import timedelta
 
-import requests as http_requests
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from django.shortcuts import render
@@ -253,11 +254,11 @@ def _build_candidates(items, now):
 @require_POST
 def plex_delete(request, rating_key):
     """
-    Delete an item from Plex (and files if Plex allows media deletion),
-    then remove the matching Movie or TVShow record from the Daredevil library.
+    Delete a Plex item by removing its files directly from the filesystem,
+    then trigger a Plex library scan to remove the entry from Plex.
+    Also removes the matching Movie/TVShow from the Daredevil library.
     """
-    import requests as http_requests
-    from .client import extract_tmdb_id, _plex_setting
+    from .client import extract_tmdb_id
     from apps.media_tracker.models import Movie, TVShow
 
     plex = get_plex()
@@ -269,32 +270,76 @@ def plex_delete(request, rating_key):
         item_title = getattr(item, 'title', '')
         tmdb_id    = extract_tmdb_id(item)
 
-        # Use direct HTTP DELETE — plexapi's item.delete() can return 400
-        # even with "Allow media deletion" enabled because it sends the token
-        # in the header only; Plex also requires it as a query param.
-        plex_url   = _plex_setting('PLEX_URL', 'PLEX_URL').rstrip('/')
-        plex_token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
-        resp = http_requests.delete(
-            f"{plex_url}/library/metadata/{rating_key}",
-            params={'X-Plex-Token': plex_token},
-            timeout=10,
-        )
-        if resp.status_code not in (200, 204):
-            raise Exception(f"Plex returned {resp.status_code}: {resp.text[:200]}")
-        log.info('plex_delete: deleted ratingKey=%s %r', rating_key, item_title)
+        # Plex reports paths as it sees them inside its container.
+        # Translate to paths the web container can access.
+        plex_movies_base = settings.PLEX_MOVIES_BASE.rstrip('/')
+        plex_tv_base     = settings.PLEX_TV_BASE.rstrip('/')
+        path_map = [
+            (plex_movies_base, '/media/movies'),
+            (plex_tv_base,     '/media/tv'),
+        ]
 
-        # Remove from Daredevil library if we can match by TMDB ID
+        def translate(plex_path):
+            for plex_prefix, local_prefix in path_map:
+                if plex_path.startswith(plex_prefix + '/') or plex_path == plex_prefix:
+                    return local_prefix + plex_path[len(plex_prefix):]
+            return plex_path  # already accessible (e.g. local dev)
+
+        locations = []
+        try:
+            locations = list(item.locations)
+        except Exception:
+            for media in getattr(item, 'media', []) or []:
+                for part in getattr(media, 'parts', []) or []:
+                    if getattr(part, 'file', None):
+                        locations.append(part.file)
+
+        deleted_paths, errors = [], []
+        for loc in locations:
+            local = translate(loc)
+            try:
+                if os.path.isdir(local):
+                    shutil.rmtree(local)
+                    deleted_paths.append(local)
+                elif os.path.isfile(local):
+                    os.remove(local)
+                    # Remove parent dir if now empty
+                    parent = os.path.dirname(local)
+                    if os.path.isdir(parent) and not os.listdir(parent):
+                        os.rmdir(parent)
+                    deleted_paths.append(local)
+                else:
+                    errors.append(f'Not found: {local} (Plex reported: {loc})')
+            except Exception as exc:
+                errors.append(f'{local}: {exc}')
+
+        log.info('plex_delete: ratingKey=%s %r deleted=%s errors=%s',
+                 rating_key, item_title, deleted_paths, errors)
+
+        # Tell Plex to scan the affected library section so the entry disappears
+        try:
+            for section in plex.library.sections():
+                if (item_type == 'movie' and section.type == 'movie') or \
+                   (item_type == 'show'  and section.type == 'show'):
+                    section.update()
+        except Exception as exc:
+            log.warning('plex_delete: library scan failed: %s', exc)
+
+        # Remove from Daredevil library
         if tmdb_id:
             if item_type == 'movie':
-                deleted, _ = Movie.objects.filter(tmdb_id=int(tmdb_id)).delete()
-                if deleted:
-                    log.info('plex_delete: removed Movie tmdb_id=%s from Daredevil', tmdb_id)
+                n, _ = Movie.objects.filter(tmdb_id=int(tmdb_id)).delete()
+                if n:
+                    log.info('plex_delete: removed Movie tmdb_id=%s', tmdb_id)
             elif item_type == 'show':
-                deleted, _ = TVShow.objects.filter(tmdb_id=int(tmdb_id)).delete()
-                if deleted:
-                    log.info('plex_delete: removed TVShow tmdb_id=%s from Daredevil', tmdb_id)
+                n, _ = TVShow.objects.filter(tmdb_id=int(tmdb_id)).delete()
+                if n:
+                    log.info('plex_delete: removed TVShow tmdb_id=%s', tmdb_id)
 
-        return JsonResponse({'ok': True})
+        if errors and not deleted_paths:
+            return JsonResponse({'error': '; '.join(errors)}, status=500)
+
+        return JsonResponse({'ok': True, 'deleted': deleted_paths, 'warnings': errors})
     except Exception as e:
         log.warning('plex_delete failed for ratingKey=%s: %s', rating_key, e)
         return JsonResponse({'error': str(e)}, status=500)
