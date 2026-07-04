@@ -256,7 +256,8 @@ def plex_delete(request, rating_key):
     Delete an item from Plex (and files if Plex allows media deletion),
     then remove the matching Movie or TVShow record from the Daredevil library.
     """
-    from .client import extract_tmdb_id
+    import requests as http_requests
+    from .client import extract_tmdb_id, _plex_setting
     from apps.media_tracker.models import Movie, TVShow
 
     plex = get_plex()
@@ -268,7 +269,18 @@ def plex_delete(request, rating_key):
         item_title = getattr(item, 'title', '')
         tmdb_id    = extract_tmdb_id(item)
 
-        item.delete()
+        # Use direct HTTP DELETE — plexapi's item.delete() can return 400
+        # even with "Allow media deletion" enabled because it sends the token
+        # in the header only; Plex also requires it as a query param.
+        plex_url   = _plex_setting('PLEX_URL', 'PLEX_URL').rstrip('/')
+        plex_token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
+        resp = http_requests.delete(
+            f"{plex_url}/library/metadata/{rating_key}",
+            params={'X-Plex-Token': plex_token},
+            timeout=10,
+        )
+        if resp.status_code not in (200, 204):
+            raise Exception(f"Plex returned {resp.status_code}: {resp.text[:200]}")
         log.info('plex_delete: deleted ratingKey=%s %r', rating_key, item_title)
 
         # Remove from Daredevil library if we can match by TMDB ID
