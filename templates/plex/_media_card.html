@@ -43,6 +43,16 @@
     <div class="absolute inset-0 bg-brand-900/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
       <i class="fa-solid fa-arrow-right text-white text-lg"></i>
     </div>
+    {% elif item.type == 'show' and item.tmdb_id %}
+    <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+      <button type="button"
+              data-tmdb-id="{{ item.tmdb_id }}"
+              data-title="{{ item.title }}"
+              onclick="plexAddShow(this)"
+              class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors">
+        <i class="fa-solid fa-plus text-[10px]"></i> Add to Daredevil
+      </button>
+    </div>
     {% endif %}
   </div>
 

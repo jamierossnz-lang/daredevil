@@ -492,5 +492,31 @@ function plexCleanup() {
     },
   };
 }
+
+async function plexAddShow(btn) {
+  const tmdbId = btn.dataset.tmdbId;
+  const title  = btn.dataset.title;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px]"></i> Adding…';
+  try {
+    const resp = await fetch('/shows/add/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '', 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `tmdb_id=${tmdbId}`,
+    });
+    const data = await resp.json();
+    if (data.status === 'added' || data.status === 'exists') {
+      btn.innerHTML = '<i class="fa-solid fa-check text-[10px]"></i> Added';
+      btn.classList.replace('bg-brand-600', 'bg-green-600');
+      setTimeout(() => { window.location.href = `/shows/${data.pk}/`; }, 800);
+    } else {
+      btn.innerHTML = 'Failed';
+      btn.classList.replace('bg-brand-600', 'bg-red-600');
+    }
+  } catch (e) {
+    btn.innerHTML = 'Error';
+    btn.classList.replace('bg-brand-600', 'bg-red-600');
+  }
+}
 </script>
 {% endblock %}
