@@ -496,6 +496,12 @@ function plexCleanup() {
 async function plexAddShow(btn) {
   const tmdbId = btn.dataset.tmdbId;
   const title  = btn.dataset.title;
+
+  if (!tmdbId) {
+    window.location.href = `/shows/search/?q=${encodeURIComponent(title)}`;
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px]"></i> Adding…';
   try {

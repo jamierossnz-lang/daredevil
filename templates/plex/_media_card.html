@@ -43,7 +43,7 @@
     <div class="absolute inset-0 bg-brand-900/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
       <i class="fa-solid fa-arrow-right text-white text-lg"></i>
     </div>
-    {% elif item.type == 'show' and item.tmdb_id %}
+    {% elif item.type == 'show' %}
     <div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
       <button type="button"
               data-tmdb-id="{{ item.tmdb_id }}"
