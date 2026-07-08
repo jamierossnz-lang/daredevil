@@ -107,6 +107,19 @@
               <span class="text-sm font-medium text-gray-100 truncate">{{ move.title }}</span>
             </div>
 
+            {% if move.status == 'moving' %}
+            <div class="mt-2">
+              <div class="w-full h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                <div id="move-bar-{{ move.pk }}" class="h-full bg-blue-500 transition-all duration-500"
+                     style="width: {{ move.progress_pct }}%"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1 text-xs text-gray-500">
+                <span id="move-size-{{ move.pk }}">{{ move.size_progress_formatted }}</span>
+                <span id="move-pct-{{ move.pk }}">{{ move.progress_pct }}%</span>
+              </div>
+            </div>
+            {% endif %}
+
             <!-- Paths -->
             <div class="space-y-1 mt-2">
               <div class="flex items-start gap-2 text-xs">
@@ -213,5 +226,31 @@ function movesApp() {
     },
   };
 }
+
+// Progress polling for in-flight moves — updates every second while this page is open.
+let knownMoving = new Set();
+async function pollMoveProgress() {
+  try {
+    const res = await fetch('/downloads/moves/status/');
+    const data = await res.json();
+    const stillMoving = new Set();
+
+    data.moves.forEach(m => {
+      if (m.status === 'moving') stillMoving.add(m.id);
+      const bar = document.getElementById(`move-bar-${m.id}`);
+      if (bar) bar.style.width = m.progress_pct + '%';
+      const pct = document.getElementById(`move-pct-${m.id}`);
+      if (pct) pct.textContent = m.progress_pct + '%';
+    });
+
+    // A move that was in-flight and is no longer reported means it finished
+    // (completed or failed) — reload to pick up the new status/badges/counts.
+    let finished = false;
+    knownMoving.forEach(id => { if (!stillMoving.has(id)) finished = true; });
+    knownMoving = stillMoving;
+    if (finished) setTimeout(() => location.reload(), 800);
+  } catch (e) {}
+}
+setInterval(pollMoveProgress, 1000);
 </script>
 {% endblock %}

@@ -1,4 +1,6 @@
 import logging
+import re
+import time
 import qbittorrentapi
 from django.conf import settings
 
@@ -62,6 +64,70 @@ def add_magnet(magnet_link, save_path=None, category=None):
             log.debug('add_magnet: torrent already in qBittorrent (duplicate) — carrying on')
             return
         raise
+
+
+def _hash_from_magnet(url: str) -> str:
+    """Extract the BitTorrent info-hash from a magnet URI (hex or base32)."""
+    m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[A-Z2-7]{32})', url or '', re.IGNORECASE)
+    return m.group(1).lower() if m else ''
+
+
+def add_torrent_and_resolve_hash(url, save_path=None, category=None):
+    """
+    Add a magnet/.torrent URL to qBittorrent and return its info-hash so the
+    caller can save it on the DownloadItem immediately — the record then knows
+    exactly which torrent it owns without ever needing to fall back to
+    matching on (unreliable, ambiguous) torrent names.
+
+    Search-plugin results aren't always true magnets — some are .torrent
+    download URLs with no urn:btih — so when the hash isn't in the URI itself,
+    this diffs qBT's torrent list before/after adding to find the new one.
+    """
+    c = get_client()
+    torrent_hash = _hash_from_magnet(url)
+
+    hashes_before = set()
+    if not torrent_hash:
+        try:
+            hashes_before = {t.hash.lower() for t in c.torrents_info()}
+        except Exception:
+            hashes_before = set()
+
+    kwargs = {'urls': url}
+    if save_path:
+        kwargs['save_path'] = save_path
+    if category:
+        kwargs['category'] = category
+    try:
+        c.torrents_add(**kwargs)
+    except Exception as e:
+        if isinstance(e, qbittorrentapi.Conflict409Error) or '409' in str(e) or 'conflict' in str(e).lower():
+            log.debug('add_torrent_and_resolve_hash: torrent already in qBittorrent (duplicate) — carrying on')
+            return torrent_hash
+        raise
+
+    if torrent_hash:
+        return torrent_hash
+
+    # Poll with backoff — qBT needs a moment to fetch/parse the .torrent file
+    # before the new hash shows up in torrents_info().
+    for delay in (1, 2, 3, 3):
+        time.sleep(delay)
+        try:
+            hashes_after = {t.hash.lower() for t in c.torrents_info()}
+        except Exception:
+            continue
+        new_hashes = hashes_after - hashes_before
+        if len(new_hashes) == 1:
+            resolved = new_hashes.pop()
+            log.info('add_torrent_and_resolve_hash: resolved hash via diff: %s', resolved)
+            return resolved
+        if len(new_hashes) > 1:
+            log.warning('add_torrent_and_resolve_hash: ambiguous diff (%d new torrents) — cannot resolve', len(new_hashes))
+            break
+
+    log.warning('add_torrent_and_resolve_hash: could not resolve hash for newly added torrent')
+    return ''
 
 
 def pause_torrent(torrent_hash):

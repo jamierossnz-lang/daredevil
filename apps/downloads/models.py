@@ -91,6 +91,15 @@ class DownloadItem(models.Model):
         return f'{speed:.1f} GB/s'
 
 
+def _format_bytes(n):
+    n = float(n or 0)
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if n < 1024:
+            return f'{n:.1f} {unit}'
+        n /= 1024
+    return f'{n:.1f} PB'
+
+
 class FileMove(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
@@ -108,6 +117,8 @@ class FileMove(models.Model):
     movie_pk = models.IntegerField(null=True, blank=True)
     episode_pk = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    bytes_total = models.BigIntegerField(default=0)
+    bytes_moved = models.BigIntegerField(default=0)
     error_message = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -117,3 +128,15 @@ class FileMove(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.get_status_display()})'
+
+    @property
+    def progress_pct(self):
+        if not self.bytes_total:
+            return 0
+        return min(100, round(self.bytes_moved * 100 / self.bytes_total, 1))
+
+    @property
+    def size_progress_formatted(self):
+        if not self.bytes_total:
+            return '—'
+        return f'{_format_bytes(self.bytes_moved)} / {_format_bytes(self.bytes_total)}'

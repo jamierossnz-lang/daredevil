@@ -11,6 +11,7 @@ urlpatterns = [
     path('<int:pk>/begin-download/', views.item_begin_download, name='item_begin_download'),
     path('<int:pk>/search-failed/', views.item_search_failed, name='item_search_failed'),
     path('moves/', views.moves_page, name='moves_page'),
+    path('moves/status/', views.moves_status_json, name='moves_status'),
     path('moves/<int:pk>/retry/', views.move_retry, name='move_retry'),
     path('moves/<int:pk>/delete/', views.move_delete, name='move_delete'),
 ]

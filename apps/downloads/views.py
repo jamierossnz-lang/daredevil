@@ -216,38 +216,16 @@ def item_begin_download(request, pk):
         return JsonResponse({'error': 'No magnet provided'}, status=400)
 
     try:
-        from apps.qbt.client import add_magnet
+        from apps.qbt.client import add_torrent_and_resolve_hash
         from apps.qbt.models import CategoryConfig, CategoryPath
         cfg = CategoryConfig.get()
         category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
         qbt_save_path = cat_path.qbt_save_path if cat_path else None
-        # Snapshot existing hashes so we can detect the newly added one
-        try:
-            hashes_before = {t.hash.lower() for t in get_torrents()}
-        except Exception:
-            hashes_before = set()
 
-        add_magnet(magnet, save_path=qbt_save_path or None, category=category or None)
-
-        # Prefer extracting hash from magnet URI (instant, no round-trip)
-        m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[A-Z2-7]{32})', magnet, re.IGNORECASE)
-        torrent_hash = m.group(1).lower() if m else ''
-
-        # Fallback: .torrent URL (no urn:btih) — diff qBT list to find the new hash
+        torrent_hash = add_torrent_and_resolve_hash(magnet, save_path=qbt_save_path or None, category=category or None)
         if not torrent_hash:
-            import time as _t
-            _t.sleep(3)
-            try:
-                hashes_after = {t.hash.lower() for t in get_torrents()}
-                new_hashes = hashes_after - hashes_before
-                torrent_hash = next(iter(new_hashes), '')
-                if torrent_hash:
-                    log.info('item_begin_download pk=%s: resolved hash via qBT diff: %s', pk, torrent_hash)
-                else:
-                    log.warning('item_begin_download pk=%s: could not resolve hash — will retry via poll name-match', pk)
-            except Exception as ex:
-                log.warning('item_begin_download pk=%s: hash diff failed — %s', pk, ex)
+            log.warning('item_begin_download pk=%s: could not resolve hash — will retry via poll name-match', pk)
 
         item.status = DownloadItem.Status.DOWNLOADING
         item.torrent_name = torrent_name
@@ -502,12 +480,121 @@ def _maybe_queue_file_move(item, torrent):
     log.info('_maybe_queue_file_move item=%d: FileMove id=%d  %r → %r', item.id, move.id, source, dest)
 
     import threading
-    threading.Thread(target=_run_file_move, args=(move.id,), daemon=True).start()
+    if _claim_move_slot(move.id):
+        threading.Thread(target=_run_file_move, args=(move.id,), daemon=True).start()
+    else:
+        log.info('_maybe_queue_file_move item=%d: another auto move is in progress — FileMove id=%d queued as pending', item.id, move.id)
+
+
+# Only one auto-triggered (queue-completion) move runs at a time so a batch of
+# downloads finishing together doesn't saturate disk I/O with parallel moves.
+# Manually clicking "Run" on the moves page bypasses this and force-starts
+# immediately (see move_retry) — that's the "unless manually forced" escape hatch.
+_STALE_MOVE_MINUTES = 30
+
+
+def _claim_move_slot(move_id):
+    """
+    Atomically flip this FileMove to MOVING only if no other auto-queued move is
+    currently MOVING. A single UPDATE is atomic even across the separate
+    threads/processes that can trigger a move, so no extra locking is needed.
+    """
+    from datetime import timedelta
+    from django.db import connection
+
+    # Recover from a server restart that killed a move mid-flight — otherwise a
+    # permanently-stuck MOVING row would block the queue forever.
+    cutoff = timezone.now() - timedelta(minutes=_STALE_MOVE_MINUTES)
+    FileMove.objects.filter(status=FileMove.Status.MOVING, created_at__lt=cutoff).update(
+        status=FileMove.Status.FAILED,
+        error_message='Move interrupted (app restarted) — click Run to retry',
+    )
+
+    table = FileMove._meta.db_table
+    with connection.cursor() as cur:
+        cur.execute(
+            f'UPDATE {table} SET status = %s '
+            f'WHERE id = %s AND NOT EXISTS (SELECT 1 FROM {table} WHERE status = %s)',
+            [FileMove.Status.MOVING, move_id, FileMove.Status.MOVING],
+        )
+        return cur.rowcount == 1
+
+
+def _advance_move_queue():
+    """After an auto-queued move finishes (or fails), start the oldest PENDING one."""
+    import threading
+    next_move = FileMove.objects.filter(status=FileMove.Status.PENDING).order_by('created_at').first()
+    if next_move and _claim_move_slot(next_move.id):
+        threading.Thread(target=_run_file_move, args=(next_move.id,), daemon=True).start()
+
+
+def _path_size(path):
+    import os
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for fname in files:
+            try:
+                total += os.path.getsize(os.path.join(root, fname))
+            except OSError:
+                pass
+    return total
+
+
+def _move_one_file(src_file, dest_file, move_id, moved_so_far):
+    """
+    Move a single file into dest_file, returning the new cumulative bytes-moved total.
+
+    Same-filesystem moves are an instant atomic rename — no bytes are actually
+    copied, so progress just jumps by the full file size. Cross-filesystem moves
+    let shutil do the copy (OS-accelerated — sendfile/fcopyfile — rather than a
+    manual Python read/write loop); progress is derived from the destination
+    file's actual on-disk size, polled once a second, so it reflects real bytes
+    written rather than our own bookkeeping.
+    """
+    import os, shutil, threading
+
+    same_fs = False
+    try:
+        same_fs = os.stat(src_file).st_dev == os.stat(os.path.dirname(dest_file)).st_dev
+    except OSError:
+        pass
+
+    file_size = os.path.getsize(src_file)
+
+    if same_fs:
+        shutil.move(src_file, dest_file)
+        moved_so_far += file_size
+        FileMove.objects.filter(pk=move_id).update(bytes_moved=moved_so_far)
+        return moved_so_far
+
+    stop_event = threading.Event()
+
+    def _poll_dest_size():
+        while not stop_event.wait(1):
+            try:
+                size_now = os.path.getsize(dest_file)
+            except OSError:
+                continue
+            FileMove.objects.filter(pk=move_id).update(bytes_moved=moved_so_far + min(size_now, file_size))
+
+    poller = threading.Thread(target=_poll_dest_size, daemon=True)
+    poller.start()
+    try:
+        shutil.move(src_file, dest_file)
+    finally:
+        stop_event.set()
+        poller.join()
+
+    moved_so_far += file_size
+    FileMove.objects.filter(pk=move_id).update(bytes_moved=moved_so_far)
+    return moved_so_far
 
 
 def _run_file_move(move_id):
     """Move everything at source_path into dest_path."""
-    import os, shutil
+    import os
     try:
         move = FileMove.objects.get(pk=move_id)
         move.status = FileMove.Status.MOVING
@@ -521,10 +608,14 @@ def _run_file_move(move_id):
 
         os.makedirs(dest_path, exist_ok=True)
 
+        total_bytes = _path_size(source_path)
+        FileMove.objects.filter(pk=move_id).update(bytes_total=total_bytes, bytes_moved=0)
+        moved = 0
+
         if os.path.isfile(source_path):
             # Single file — move it directly into dest_path
             dest_file = os.path.join(dest_path, os.path.basename(source_path))
-            shutil.move(source_path, dest_file)
+            moved = _move_one_file(source_path, dest_file, move_id, moved)
             log.info('_run_file_move id=%d: moved file → %r', move_id, dest_file)
         else:
             # Directory — move every file inside it into dest_path (flat)
@@ -532,7 +623,7 @@ def _run_file_move(move_id):
                 for fname in files:
                     src_file  = os.path.join(root, fname)
                     dest_file = os.path.join(dest_path, fname)
-                    shutil.move(src_file, dest_file)
+                    moved = _move_one_file(src_file, dest_file, move_id, moved)
                     log.info('_run_file_move id=%d: moved %r', move_id, fname)
 
         move.status        = FileMove.Status.COMPLETED
@@ -559,6 +650,8 @@ def _run_file_move(move_id):
         except Exception:
             pass
         log.error('_run_file_move id=%d: failed — %s', move_id, err)
+    finally:
+        _advance_move_queue()
 
 
 # ── File Move views ───────────────────────────────────────────────────────────
@@ -582,13 +675,28 @@ def moves_page(request):
     })
 
 
+def moves_status_json(request):
+    """Polling endpoint for the moves page — bytes-moved progress for active moves."""
+    active = FileMove.objects.filter(status__in=[FileMove.Status.MOVING, FileMove.Status.PENDING])
+    data = [{
+        'id': m.pk,
+        'status': m.status,
+        'bytes_moved': m.bytes_moved,
+        'bytes_total': m.bytes_total,
+        'progress_pct': m.progress_pct,
+    } for m in active]
+    return JsonResponse({'moves': data})
+
+
 @require_POST
 def move_retry(request, pk):
+    """Manually (re)run a move right now — bypasses the 1-at-a-time auto-move queue."""
     move = get_object_or_404(FileMove, pk=pk)
     move.status = FileMove.Status.PENDING
     move.error_message = ''
     move.completed_at = None
-    move.save(update_fields=['status', 'error_message', 'completed_at'])
+    move.bytes_moved = 0
+    move.save(update_fields=['status', 'error_message', 'completed_at', 'bytes_moved'])
     import threading
     threading.Thread(target=_run_file_move, args=(move.id,), daemon=True).start()
     return JsonResponse({'ok': True})

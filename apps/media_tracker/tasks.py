@@ -410,7 +410,7 @@ def search_and_download(download_item_id):
     so sync_download_progress can track it.
     """
     from apps.downloads.models import DownloadItem
-    from apps.qbt.client import search_torrents, add_magnet, is_connected
+    from apps.qbt.client import search_torrents, add_torrent_and_resolve_hash, is_connected
 
     try:
         item = DownloadItem.objects.get(pk=download_item_id)
@@ -487,12 +487,14 @@ def search_and_download(download_item_id):
         category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
         save_path = cat_path.qbt_save_path if cat_path else None
-        add_magnet(magnet, save_path=save_path or None, category=category or None)
+        torrent_hash = add_torrent_and_resolve_hash(magnet, save_path=save_path or None, category=category or None)
+        if not torrent_hash:
+            log.warning('search_and_download pk=%s: could not resolve torrent hash after adding — will rely on name-match recovery', download_item_id)
 
         item.status = DownloadItem.Status.DOWNLOADING
         item.torrent_name = best.get('fileName', '')
         item.magnet_link = magnet
-        item.torrent_hash = _hash_from_magnet(magnet)
+        item.torrent_hash = torrent_hash
         item.started_at = timezone.now()
         item.save(update_fields=['status', 'torrent_name', 'magnet_link', 'torrent_hash', 'started_at'])
     except Exception as e:
@@ -707,12 +709,6 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
     log.info('_pick_best: chose %r (%d seeds, %.2f GB) from %d candidates',
              (best.get('fileName') or '')[:60], best.get('nbSeeders', 0), sz_gb, len(candidates))
     return best
-
-
-def _hash_from_magnet(magnet: str) -> str:
-    """Extract the info-hash from a magnet URI (supports hex and base32)."""
-    m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[A-Z2-7]{32})', magnet, re.IGNORECASE)
-    return m.group(1).lower() if m else ''
 
 
 def _mark_downloaded(item):
