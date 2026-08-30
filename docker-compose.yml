@@ -71,6 +71,10 @@ services:
     volumes:
       - ${DATA_DIR:-./data}/jackett:/config
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
+      # Forces --ListenPublic — without it Jackett rejects any request whose
+      # Host header isn't localhost/127.0.0.1, so containers reaching it as
+      # "jackett:9117" over the compose network get a flat 400 Bad Request.
+      - ./jackett/jackett_launcher.sh:/app/Jackett/jackett_launcher.sh:ro
 
   # ── Plex Media Server ──────────────────────────────────────────────────────
   # Web UI: http://<host>:32400/web
