@@ -146,6 +146,7 @@ services:
       qbittorrent:
         condition: service_started
     volumes:
+      - ./.env:/app/.env
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
@@ -167,4 +168,5 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    volumes: []
+    volumes:
+      - ./.env:/app/.env
