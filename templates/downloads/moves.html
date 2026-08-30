@@ -227,30 +227,31 @@ function movesApp() {
   };
 }
 
-// Progress polling for in-flight moves — updates every second while this page is open.
+// Live progress for in-flight moves via SSE. Each connection is capped
+// server-side (~55s); EventSource reconnects transparently.
 let knownMoving = new Set();
-async function pollMoveProgress() {
-  try {
-    const res = await fetch('/downloads/moves/status/');
-    const data = await res.json();
-    const stillMoving = new Set();
+function handleMoveStatus(data) {
+  const stillMoving = new Set();
 
-    data.moves.forEach(m => {
-      if (m.status === 'moving') stillMoving.add(m.id);
-      const bar = document.getElementById(`move-bar-${m.id}`);
-      if (bar) bar.style.width = m.progress_pct + '%';
-      const pct = document.getElementById(`move-pct-${m.id}`);
-      if (pct) pct.textContent = m.progress_pct + '%';
-    });
+  data.moves.forEach(m => {
+    if (m.status === 'moving') stillMoving.add(m.id);
+    const bar = document.getElementById(`move-bar-${m.id}`);
+    if (bar) bar.style.width = m.progress_pct + '%';
+    const pct = document.getElementById(`move-pct-${m.id}`);
+    if (pct) pct.textContent = m.progress_pct + '%';
+  });
 
-    // A move that was in-flight and is no longer reported means it finished
-    // (completed or failed) — reload to pick up the new status/badges/counts.
-    let finished = false;
-    knownMoving.forEach(id => { if (!stillMoving.has(id)) finished = true; });
-    knownMoving = stillMoving;
-    if (finished) setTimeout(() => location.reload(), 800);
-  } catch (e) {}
+  // A move that was in-flight and is no longer reported means it finished
+  // (completed or failed) — reload to pick up the new status/badges/counts.
+  let finished = false;
+  knownMoving.forEach(id => { if (!stillMoving.has(id)) finished = true; });
+  knownMoving = stillMoving;
+  if (finished) setTimeout(() => location.reload(), 800);
 }
-setInterval(pollMoveProgress, 1000);
+
+const moveEvents = new EventSource('/downloads/moves/status/stream/');
+moveEvents.onmessage = (e) => {
+  try { handleMoveStatus(JSON.parse(e.data)); } catch (err) {}
+};
 </script>
 {% endblock %}

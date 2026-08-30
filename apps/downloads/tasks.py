@@ -1,17 +1,13 @@
 import os
-import re
 import shutil
 import logging
 from celery import shared_task
 from django.utils import timezone
 
+from apps.events.dispatch import emit
+from apps.events.models import EventType
+
 log = logging.getLogger('daredevil.downloads.tasks')
-
-
-_DONE_STATES = {
-    'uploading', 'stalledUP', 'forcedUP', 'queuedUP',
-    'checkingUP', 'pausedUP', 'moving',
-}
 
 
 @shared_task(name='poll_download_progress')
@@ -22,7 +18,8 @@ def poll_download_progress():
     triggers the completed → file-move pipeline without the user needing
     to have the queue page open.
     """
-    from .models import DownloadItem, FileMove
+    from .models import DownloadItem
+    from .sync import find_torrent_for_item, sync_item_progress
     from apps.qbt.client import get_torrents
 
     items = list(DownloadItem.objects.filter(status=DownloadItem.Status.DOWNLOADING))
@@ -36,59 +33,14 @@ def poll_download_progress():
         log.warning('poll_download_progress: could not reach qBT — %s', e)
         return f'qBT unreachable: {e}'
 
-    def _norm(s):
-        return re.sub(r'[._\-]+', ' ', (s or '').strip().lower())
-
     completed = 0
     for item in items:
-        torrent = torrent_map.get((item.torrent_hash or '').lower())
-
-        if torrent is None:
-            # Try to recover hash via name match
-            stored_norm = _norm(item.torrent_name)
-            title_norm  = _norm(item.title)
-            for t in torrent_map.values():
-                qbt_norm = _norm(t.name)
-                if stored_norm and qbt_norm == stored_norm:
-                    torrent = t
-                    break
-                if title_norm and len(title_norm) >= 8 and qbt_norm.startswith(title_norm):
-                    torrent = t
-                    break
-            if torrent:
-                item.torrent_hash = torrent.hash.lower()
-                item.save(update_fields=['torrent_hash'])
-
+        torrent = find_torrent_for_item(item, torrent_map)
         if torrent is None:
             continue
-
-        is_done = (torrent.progress or 0) >= 1.0 or (torrent.state or '') in _DONE_STATES
-        if not is_done:
-            # Update progress even if not done yet
-            item.progress = (torrent.progress or 0) * 100
-            item.download_speed = torrent.dlspeed or 0
-            item.eta_seconds = torrent.eta or 0
-            item.size_bytes = torrent.size or 0
-            item.save(update_fields=['progress', 'download_speed', 'eta_seconds', 'size_bytes'])
-            continue
-
-        if FileMove.objects.filter(download_item=item).exists():
-            continue
-
-        item.status = DownloadItem.Status.COMPLETED
-        item.progress = 100
-        item.completed_at = timezone.now()
-        item.save(update_fields=['status', 'progress', 'completed_at'])
-
-        from apps.downloads.views import _mark_media_downloaded, _maybe_queue_file_move
-        _mark_media_downloaded(item)
-        _maybe_queue_file_move(item, torrent)
-        completed += 1
-        log.info('poll_download_progress: completed item pk=%d %r', item.pk, item.title)
-
-        from apps.notifications.notify import send as ntfy
-        label = item.title + (f' — {item.subtitle}' if item.subtitle else '')
-        ntfy('Download Complete', label, tags=['white_check_mark'], category='download_complete')
+        sync_item_progress(item, torrent)
+        if item.status == DownloadItem.Status.COMPLETED:
+            completed += 1
 
     return f'checked {len(items)}, completed {completed}'
 
@@ -155,17 +107,25 @@ def execute_file_move(file_move_id, detected_type=None, completed_path=None):
         move.error_message = ''
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('execute_file_move id=%d: done', file_move_id)
-        _mark_moved_downloaded(move)
-        _remove_torrent_from_qbt(move)
-        from apps.notifications.notify import send as ntfy
-        ntfy('Ready to Watch', f'{move.title} moved to library', priority='low', tags=['tada'], category='file_moved')
+        emit(
+            EventType.FILE_MOVED,
+            log_payload={'move_id': move.pk, 'title': move.title},
+            move=move,
+            title='Ready to Watch', message=f'{move.title} moved to library',
+            priority='low', tags=['tada'],
+        )
     except Exception as e:
         move.status = FileMove.Status.FAILED
         move.error_message = str(e)
         move.save(update_fields=['status', 'error_message'])
         log.error('execute_file_move id=%d: failed — %s', file_move_id, e)
-        from apps.notifications.notify import send as ntfy
-        ntfy('File Move Failed', f'{move.title} — {e}', priority='high', tags=['x'], category='file_failed')
+        emit(
+            EventType.FILE_MOVE_FAILED,
+            log_payload={'move_id': move.pk, 'error': str(e)},
+            move=move, error=str(e),
+            title='File Move Failed', message=f'{move.title} — {e}',
+            priority='high', tags=['x'],
+        )
 
 
 def _remove_torrent_from_qbt(move):

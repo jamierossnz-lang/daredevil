@@ -16,18 +16,36 @@
 
 <!-- Search bar -->
 <form id="search-form" class="mb-6" onsubmit="startSearch(event)">
-  <div class="flex gap-3">
-    <div class="relative flex-1">
+  <div class="flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1 min-w-0">
       <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
       <input id="search-input" type="text" placeholder="Search for torrents… e.g. Breaking Bad S01 1080p"
              class="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-800 border border-white/10 text-gray-100 placeholder-gray-600
-                    focus:outline-none focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 text-sm transition-all">
+                    focus:outline-none focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 text-base sm:text-sm transition-all">
     </div>
-    <button type="submit" id="search-btn"
-            class="px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-      <i class="fa-solid fa-magnifying-glass"></i>
-      <span id="search-btn-text">Search</span>
-    </button>
+    <div class="flex gap-3">
+      <div class="relative flex-1 sm:flex-none">
+        <select id="search-category"
+                class="w-full appearance-none pl-3 pr-8 py-3 rounded-xl bg-surface-800 border border-white/10 text-gray-300 text-sm
+                       focus:outline-none focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 transition-all">
+          <option value="all">All categories</option>
+          <option value="movies">Movies</option>
+          <option value="tv">TV</option>
+          <option value="anime">Anime</option>
+          <option value="music">Music</option>
+          <option value="books">Books</option>
+          <option value="games">Games</option>
+          <option value="software">Software</option>
+          <option value="pictures">Pictures</option>
+        </select>
+        <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none"></i>
+      </div>
+      <button type="submit" id="search-btn"
+              class="flex-none px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span id="search-btn-text">Search</span>
+      </button>
+    </div>
   </div>
   <p class="text-xs text-gray-600 mt-2 pl-1">
     <i class="fa-solid fa-circle-info mr-1"></i>
@@ -43,7 +61,7 @@
 
 <!-- Results -->
 <div id="results-container" class="hidden">
-  <div class="flex items-center justify-between mb-3">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
     <p class="text-sm text-gray-400">
       Found <span id="result-count" class="text-brand-300 font-semibold">0</span> results
       <span id="result-query" class="text-gray-600"></span>
@@ -51,7 +69,7 @@
     <div class="flex gap-2">
       <input id="filter-input" type="text" placeholder="Filter results…"
              oninput="filterResults(this.value)"
-             class="px-3 py-1.5 rounded-lg bg-surface-800 border border-white/10 text-gray-300 placeholder-gray-600 text-xs focus:outline-none focus:border-brand-500/40">
+             class="w-full sm:w-auto px-3 py-2 sm:py-1.5 rounded-lg bg-surface-800 border border-white/10 text-gray-300 placeholder-gray-600 text-base sm:text-xs focus:outline-none focus:border-brand-500/40">
     </div>
   </div>
 
@@ -107,8 +125,16 @@
       </div>
       <div>
         <label class="text-xs text-gray-500 mb-1 block">Category (optional)</label>
-        <input id="modal-category" type="text" placeholder="tv, movies, etc."
-               class="w-full px-3 py-2 rounded-lg bg-surface-700 border border-white/10 text-gray-100 text-sm focus:outline-none focus:border-brand-500/40">
+        <div class="relative">
+          <select id="modal-category"
+                  class="w-full appearance-none px-3 py-2 pr-8 rounded-lg bg-surface-700 border border-white/10 text-gray-100 text-sm focus:outline-none focus:border-brand-500/40">
+            <option value="">No category</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none"></i>
+        </div>
       </div>
     </div>
     <div class="flex gap-3 mt-5">
@@ -135,6 +161,7 @@ let pendingMagnet = null;
 async function startSearch(e) {
   e.preventDefault();
   const query = document.getElementById('search-input').value.trim();
+  const category = document.getElementById('search-category').value;
   if (!query) return;
 
   setSearching(true);
@@ -146,6 +173,7 @@ async function startSearch(e) {
   try {
     const fd = new FormData();
     fd.append('q', query);
+    fd.append('category', category);
     // Single blocking request — server polls qBT internally, returns when done
     const res = await fetch('/qbt/search/run/', {
       method: 'POST',

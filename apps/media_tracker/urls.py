@@ -26,6 +26,7 @@ urlpatterns = [
     path('movies/<int:pk>/delete/', views.movie_delete, name='movie_delete'),
     path('movies/<int:pk>/reset/', views.movie_reset_download, name='movie_reset'),
     path('shows/<int:pk>/reset/', views.tv_show_reset_download, name='tv_show_reset'),
+    path('episodes/<int:pk>/reset/', views.episode_reset_download, name='episode_reset'),
 
     # App Settings
     path('settings/', views.app_settings_view, name='app_settings'),

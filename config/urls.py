@@ -10,6 +10,7 @@ urlpatterns = [
     path('qbt/', include('apps.qbt.urls')),
     path('plex/', include('apps.plex.urls')),
     path('notifications/', include('apps.notifications.urls')),
+    path('activity/', include('apps.events.urls')),
 ]
 
 if settings.DEBUG:

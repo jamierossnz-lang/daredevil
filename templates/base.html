@@ -139,6 +139,15 @@
     @media (min-width: 1024px) {
       aside { transform: translateX(0); }
     }
+    /* iOS Safari auto-zooms on focus into any text input under 16px, and with
+       user-scalable=no above it can't zoom back out cleanly. Force 16px on
+       mobile regardless of what text-size utility a template applied. */
+    @media (max-width: 640px) {
+      input[type="text"], input[type="search"], input[type="email"], input[type="url"],
+      input[type="number"], input[type="password"], input:not([type]), textarea {
+        font-size: 16px !important;
+      }
+    }
   </style>
   <script>
     /* Apply saved theme before first paint */
@@ -180,6 +189,7 @@
       {% url 'tasks_dashboard' as url_tasks %}
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
+      {% url 'activity_log' as url_activity %}
 
       {% with request.path as p %}
 
@@ -258,6 +268,11 @@
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_tasks in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gears w-4 text-center"></i> Background Tasks
+      </a>
+      <a href="{{ url_activity }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_activity in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i> Activity Log
       </a>
       <a href="{{ url_app_settings }}"
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
@@ -360,6 +375,7 @@
       {% url 'tasks_dashboard' as url_tasks %}
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
+      {% url 'activity_log' as url_activity %}
 
       <!-- Library -->
       <p class="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">Library</p>
@@ -457,6 +473,12 @@
           <i class="fa-solid fa-gears text-2xl"></i>
           <span class="text-xs font-semibold text-center leading-tight">Background Tasks</span>
         </a>
+        <a href="{{ url_activity }}" @click="sidebarOpen = false"
+           class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
+                  {% if url_activity in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
+          <i class="fa-solid fa-clock-rotate-left text-2xl"></i>
+          <span class="text-xs font-semibold text-center leading-tight">Activity Log</span>
+        </a>
         <a href="{{ url_app_settings }}" @click="sidebarOpen = false"
            class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
                   {% if p == url_app_settings %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
@@ -478,24 +500,26 @@
   <div class="lg:pl-64 min-h-full flex flex-col">
 
     <!-- Top Bar -->
-    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-3"
+    <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3"
             style="padding-top: calc(0.75rem + env(safe-area-inset-top, 0px))">
-      <button @click="sidebarOpen = !sidebarOpen"
-              class="lg:hidden -m-2 p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
-              aria-label="Open menu">
-        <i class="fa-solid fa-bars text-xl"></i>
-      </button>
-      <!-- Back / Forward -->
-      <button onclick="history.back()"
-              class="hidden sm:flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
-              title="Go back">
-        <i class="fa-solid fa-arrow-left text-sm"></i>
-      </button>
-      <button onclick="history.forward()"
-              class="hidden sm:flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
-              title="Go forward">
-        <i class="fa-solid fa-arrow-right text-sm"></i>
-      </button>
+      <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <button @click="sidebarOpen = !sidebarOpen"
+                class="lg:hidden -m-2 p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+                aria-label="Open menu">
+          <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+        <!-- Back / Forward -->
+        <button onclick="history.back()"
+                class="flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+                title="Go back">
+          <i class="fa-solid fa-arrow-left text-sm"></i>
+        </button>
+        <button onclick="history.forward()"
+                class="flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+                title="Go forward">
+          <i class="fa-solid fa-arrow-right text-sm"></i>
+        </button>
+      </div>
       <div class="flex-1 min-w-0">
         <h1 class="text-lg font-semibold text-gray-100 truncate">{% block page_title %}{% endblock %}</h1>
       </div>

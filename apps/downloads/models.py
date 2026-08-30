@@ -5,6 +5,7 @@ from django.utils import timezone
 class DownloadItem(models.Model):
     class MediaType(models.TextChoices):
         EPISODE = 'episode', 'TV Episode'
+        SEASON = 'season', 'TV Season'
         MOVIE = 'movie', 'Movie'
 
     class Status(models.TextChoices):
@@ -22,6 +23,7 @@ class DownloadItem(models.Model):
     # References (only one set at a time)
     episode_id = models.IntegerField(null=True, blank=True)
     movie_id = models.IntegerField(null=True, blank=True)
+    season_id = models.IntegerField(null=True, blank=True)
 
     # Display info (cached to avoid extra queries)
     title = models.CharField(max_length=500)

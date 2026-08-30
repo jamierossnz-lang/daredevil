@@ -118,7 +118,7 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
             <img src="{{ item.poster_url }}" alt="" class="w-10 h-14 sm:w-12 sm:h-16 rounded-lg object-cover flex-shrink-0">
             {% else %}
             <div class="w-10 h-14 sm:w-12 sm:h-16 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
-              <i class="fa-solid {% if item.media_type == 'episode' %}fa-tv{% else %}fa-film{% endif %} text-gray-600"></i>
+              <i class="fa-solid {% if item.media_type == 'episode' %}fa-tv{% elif item.media_type == 'season' %}fa-layer-group{% else %}fa-film{% endif %} text-gray-600"></i>
             </div>
             {% endif %}
 
@@ -210,7 +210,7 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
               {% endif %}
 
               <div class="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs text-gray-600">
-                <span><i class="fa-solid fa-{% if item.media_type == 'episode' %}tv{% else %}film{% endif %} mr-1"></i>{{ item.get_media_type_display }}</span>
+                <span><i class="fa-solid fa-{% if item.media_type == 'episode' %}tv{% elif item.media_type == 'season' %}layer-group{% else %}film{% endif %} mr-1"></i>{{ item.get_media_type_display }}</span>
                 {% if item.size_bytes > 0 %}<span>{{ item.size_formatted }}</span>{% endif %}
                 <span>{{ item.added_at|date:"M d H:i" }}</span>
               </div>
@@ -438,6 +438,10 @@ async function searchItem(pk, initialQuery) {
     if (epName) queries.push(`${base} ${epName} ${quality}`);
     queries.push(base);
     if (epName) queries.push(`${base} ${epName}`);
+  } else if (mediaType === 'season') {
+    // Single-tier: season-pack search only ("{Show} {Year} S0X"). No results
+    // here means seasonFallback() splits this into per-episode downloads.
+    queries = [initialQuery];
   } else {
     // Movie or unparseable: with quality then without
     queries = [initialQuery];
@@ -449,6 +453,13 @@ async function searchItem(pk, initialQuery) {
   const epCodeMatch = initialQuery.match(/S(\d{1,2})E(\d{1,2})/i);
   const epPat = epCodeMatch
     ? new RegExp(`S0*${parseInt(epCodeMatch[1],10)}E0*${parseInt(epCodeMatch[2],10)}(?!\\d)`, 'i')
+    : null;
+  const seasonCodeMatch = mediaType === 'season' ? initialQuery.match(/S(\d{1,2})\b/i) : null;
+  const seasonPat = seasonCodeMatch
+    ? new RegExp(`S0*${parseInt(seasonCodeMatch[1],10)}(?!\\d)`, 'i')
+    : null;
+  const singleEpPat = seasonCodeMatch
+    ? new RegExp(`S0*${parseInt(seasonCodeMatch[1],10)}E\\d+`, 'i')
     : null;
   const showNorm = normTitle(showName);
 
@@ -480,7 +491,7 @@ async function searchItem(pk, initialQuery) {
 
       // Filter 1: show name must be a prefix of the torrent name (TV only)
       let filtered = results;
-      if (showNorm && mediaType === 'episode') {
+      if (showNorm && (mediaType === 'episode' || mediaType === 'season')) {
         const nameFiltered = filtered.filter(r => normTitle(r.name || '').startsWith(showNorm));
         if (nameFiltered.length > 0) {
           filtered = nameFiltered;
@@ -501,17 +512,45 @@ async function searchItem(pk, initialQuery) {
         }
       }
 
+      // Filter 3: season pack — must contain the season code but NOT a single-episode code
+      if (seasonPat) {
+        const packFiltered = filtered.filter(r => seasonPat.test(r.name || '') && !singleEpPat.test(r.name || ''));
+        if (packFiltered.length > 0) {
+          filtered = packFiltered;
+        } else {
+          console.log(`[daredevil] "${query}": no season-pack results — will fall back to per-episode`);
+          continue;
+        }
+      }
+
       // Good results found — pick the best
       await addBest(pk, filtered, results.length, query);
       return;
     }
 
+    if (mediaType === 'season') {
+      await seasonFallback(pk);
+      return;
+    }
     await failItem(pk, `No results — tried: ${tried.map(q => `"${q}"`).join(', ')}`, 0);
   } catch(err) {
+    if (mediaType === 'season') {
+      await seasonFallback(pk);
+      return;
+    }
     await failItem(pk, `Error: ${err}`, 0);
   } finally {
     activeSearches.delete(pk);
   }
+}
+
+// ── Season pack not found — split into individual episode downloads ──────────
+async function seasonFallback(pk) {
+  setStage(pk, 'No season pack found — queuing individual episodes…', 'fa-circle-notch fa-spin');
+  try {
+    await fetch(`/downloads/${pk}/season-fallback/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  } catch(e) { console.warn(`[daredevil] seasonFallback pk=${pk}:`, e); }
+  setTimeout(() => location.reload(), 800);
 }
 
 async function addBest(pk, results, total, query) {
@@ -661,38 +700,39 @@ const qbtBanner = (() => {
   };
 })();
 
-// Progress polling for active downloads
+// Live progress updates for active downloads via SSE. Each connection is
+// capped server-side (~55s); EventSource reconnects transparently, so no
+// client-side retry logic is needed here.
 let reloadPending = false;
-async function pollProgress() {
-  try {
-    const res = await fetch('/downloads/status/');
-    const data = await res.json();
+function handleQueueStatus(data) {
+  if (!data.qbt_connected) {
+    qbtBanner.show();
+  } else {
+    qbtBanner.hide();
+  }
 
-    if (!data.qbt_connected) {
-      qbtBanner.show();
-    } else {
-      qbtBanner.hide();
+  data.items.forEach(item => {
+    const bar = document.getElementById(`bar-${item.id}`);
+    if (bar) bar.style.width = item.progress + '%';
+    const pct = document.getElementById(`pct-${item.id}`);
+    if (pct) pct.textContent = item.progress + '%';
+    const spd = document.getElementById(`spd-${item.id}`);
+    if (spd) {
+      let label = item.speed;
+      if (item.eta && item.eta !== '—') label += ` · ${item.eta}`;
+      if (item.qbt_state && item.qbt_state !== 'downloading') label += ` [${item.qbt_state}]`;
+      spd.textContent = label;
     }
-
-    data.items.forEach(item => {
-      const bar = document.getElementById(`bar-${item.id}`);
-      if (bar) bar.style.width = item.progress + '%';
-      const pct = document.getElementById(`pct-${item.id}`);
-      if (pct) pct.textContent = item.progress + '%';
-      const spd = document.getElementById(`spd-${item.id}`);
-      if (spd) {
-        let label = item.speed;
-        if (item.eta && item.eta !== '—') label += ` · ${item.eta}`;
-        if (item.qbt_state && item.qbt_state !== 'downloading') label += ` [${item.qbt_state}]`;
-        spd.textContent = label;
-      }
-      if ((item.status === 'completed' || item.status === 'failed') && !reloadPending) {
-        reloadPending = true;
-        setTimeout(() => location.reload(), 1500);
-      }
-    });
-  } catch(e) {}
+    if ((item.status === 'completed' || item.status === 'failed') && !reloadPending) {
+      reloadPending = true;
+      setTimeout(() => location.reload(), 1500);
+    }
+  });
 }
-setInterval(pollProgress, 3000);
+
+const queueEvents = new EventSource('/downloads/status/stream/');
+queueEvents.onmessage = (e) => {
+  try { handleQueueStatus(JSON.parse(e.data)); } catch(err) {}
+};
 </script>
 {% endblock %}

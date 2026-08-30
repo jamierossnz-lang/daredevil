@@ -336,18 +336,21 @@ def category_defaults_save(request):
 
 
 def search_page(request):
-    return render(request, 'qbt/search.html', {'connected': client.is_connected()})
+    connected = client.is_connected()
+    categories = sorted(client.get_categories().keys()) if connected else []
+    return render(request, 'qbt/search.html', {'connected': connected, 'categories': categories})
 
 
 @require_POST
 def search_run(request):
     """Single synchronous endpoint — blocks until qBT search completes (~5–30s)."""
     query = request.POST.get('q', '').strip()
+    category = request.POST.get('category', 'all').strip() or 'all'
     if not query:
         return JsonResponse({'error': 'No query provided'}, status=400)
-    log.info('search_run: query=%r', query)
+    log.info('search_run: query=%r category=%r', query, category)
     try:
-        raw = client.search_torrents(query)
+        raw = client.search_torrents(query, category=category)
     except Exception as e:
         log.error('search_run: search_torrents raised %s: %s', type(e).__name__, e)
         return JsonResponse({'error': str(e)}, status=503)

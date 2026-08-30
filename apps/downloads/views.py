@@ -6,7 +6,9 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 from .models import DownloadItem, FileMove
-from apps.qbt.client import get_torrents, pause_torrent, resume_torrent, delete_torrent
+from apps.qbt.client import pause_torrent, resume_torrent, delete_torrent
+from apps.events.dispatch import emit
+from apps.events.models import EventType
 
 log = logging.getLogger('daredevil.downloads')
 
@@ -39,109 +41,49 @@ def queue(request):
     return render(request, 'downloads/queue.html', context)
 
 
-# States that mean the download is finished (seeding or qBT is relocating files)
-_DONE_STATES = {
-    'uploading', 'stalledUP', 'forcedUP', 'queuedUP',
-    'checkingUP', 'pausedUP',
-    'moving',  # qBT is moving the completed files — still counts as done for us
-}
-
-
 def queue_status_json(request):
     """Polling endpoint — syncs progress from qBittorrent and returns current active items."""
-    items = list(DownloadItem.objects.filter(
-        status__in=[DownloadItem.Status.DOWNLOADING, DownloadItem.Status.SEARCHING]
-    ))
-
-    # Single bulk fetch from qBT — one login, one request, no per-torrent roundtrips.
-    # Fetch whenever any item needs syncing: either has a known hash OR is DOWNLOADING
-    # without a hash (needs name-match to recover the hash).
-    torrent_map = {}
-    qbt_connected = True  # assume OK; only mark False on an actual failed attempt
-    needs_qbt = any(
-        it.torrent_hash or it.status == DownloadItem.Status.DOWNLOADING
-        for it in items
-    )
-    if needs_qbt:
-        try:
-            all_torrents = get_torrents()
-            torrent_map = {t.hash.lower(): t for t in all_torrents}
-            log.debug('queue_status_json: %d torrents from qBT for %d items', len(torrent_map), len(items))
-        except Exception as e:
-            qbt_connected = False
-            log.warning('queue_status_json: could not fetch torrents from qBT — %s', e)
-
-    data = []
-    for item in items:
-        torrent = None
-        if item.torrent_hash:
-            torrent = torrent_map.get(item.torrent_hash.lower())
-
-        # Hash missing or stale — try to recover by matching against qBT torrent list
-        if torrent is None and item.status == DownloadItem.Status.DOWNLOADING:
-            def _norm(s):
-                return re.sub(r'[._\-]+', ' ', (s or '').strip().lower())
-
-            stored_norm = _norm(item.torrent_name)
-            title_norm  = _norm(item.title)
-
-            # For TV episodes extract the SxxExx code so we never match the wrong
-            # episode — item.title is just the show name which would match any episode.
-            ep_code = None
-            if item.media_type == DownloadItem.MediaType.EPISODE and item.subtitle:
-                m = re.search(r's\d+e\d+', item.subtitle, re.IGNORECASE)
-                if m:
-                    ep_code = m.group(0).lower()
-
-            for t in torrent_map.values():
-                qbt_norm = _norm(t.name)
-                # Strategy 1: normalised torrent filename exact match
-                if stored_norm and qbt_norm == stored_norm:
-                    torrent = t
-                    break
-                # Strategy 2: title match — episodes require SxxExx code in name
-                if item.media_type == DownloadItem.MediaType.EPISODE:
-                    if ep_code and ep_code in qbt_norm and title_norm and title_norm in qbt_norm:
-                        torrent = t
-                        break
-                else:
-                    if title_norm and len(title_norm) >= 8 and qbt_norm.startswith(title_norm):
-                        torrent = t
-                        break
-
-            if torrent:
-                item.torrent_hash = torrent.hash.lower()
-                item.save(update_fields=['torrent_hash'])
-                log.info('queue_status_json: re-linked item pk=%d to hash=%s via name match', item.pk, item.torrent_hash)
-
-        if torrent:
-            item.progress = (torrent.progress or 0) * 100
-            item.download_speed = torrent.dlspeed or 0
-            item.eta_seconds = torrent.eta or 0
-            item.size_bytes = torrent.size or 0
-            item.save(update_fields=['progress', 'download_speed', 'eta_seconds', 'size_bytes'])
-
-            is_done = (torrent.progress or 0) >= 1.0 or (torrent.state or '') in _DONE_STATES
-            if is_done:
-                item.status = DownloadItem.Status.COMPLETED
-                item.progress = 100
-                item.completed_at = timezone.now()
-                item.save(update_fields=['status', 'progress', 'completed_at'])
-                _mark_media_downloaded(item)
-                _maybe_queue_file_move(item, torrent)
-        else:
-            log.debug('queue_status_json: item pk=%d hash=%r not found in qBT (map has %d entries)', item.pk, item.torrent_hash, len(torrent_map))
-        data.append({
-            'id': item.pk,
-            'status': item.status,
-            'progress': round(item.progress, 1),
-            'speed': item.speed_formatted,
-            'eta': _format_eta(item.eta_seconds),
-            'qbt_state': getattr(torrent, 'state', None),
-            'search_query': item.search_query,
-            'result_count': item.result_count,
-        })
+    from .sync import build_queue_status
+    data, qbt_connected = build_queue_status()
     return JsonResponse({'items': data, 'qbt_connected': qbt_connected})
+
+
+def queue_status_stream(request):
+    """
+    SSE replacement for the 3s browser poll — pushes updates as they occur.
+    Each connection is capped at ~55s; EventSource reconnects transparently,
+    which doubles as a self-heal for a generator sitting on a stale DB connection.
+    """
+    import json
+    import time
+    from django.db import close_old_connections
+    from django.http import StreamingHttpResponse
+    from .sync import build_queue_status
+
+    def event_stream():
+        deadline = time.monotonic() + 55
+        last_payload = None
+        while time.monotonic() < deadline:
+            close_old_connections()
+            try:
+                data, qbt_connected = build_queue_status()
+                payload = json.dumps({'items': data, 'qbt_connected': qbt_connected})
+            except Exception as e:
+                log.error('queue_status_stream: tick failed — %s', e)
+                yield ': error\n\n'
+                time.sleep(2)
+                continue
+            if payload != last_payload:
+                yield f'data: {payload}\n\n'
+                last_payload = payload
+            else:
+                yield ': heartbeat\n\n'
+            time.sleep(2)
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
 
 
 @require_POST
@@ -219,7 +161,8 @@ def item_begin_download(request, pk):
         from apps.qbt.client import add_torrent_and_resolve_hash
         from apps.qbt.models import CategoryConfig, CategoryPath
         cfg = CategoryConfig.get()
-        category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
+        is_tv = item.media_type in (DownloadItem.MediaType.EPISODE, DownloadItem.MediaType.SEASON)
+        category = cfg.tv_category if is_tv else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
         qbt_save_path = cat_path.qbt_save_path if cat_path else None
 
@@ -244,6 +187,19 @@ def item_begin_download(request, pk):
         item.error_message = f'Failed to add to qBittorrent: {e}'
         item.save(update_fields=['status', 'error_message'])
         return JsonResponse({'error': str(e)}, status=400)
+
+
+@require_POST
+def item_season_fallback(request, pk):
+    """Called by the queue page when a season-pack search finds nothing — splits
+    the season item into individual per-episode downloads (the pre-pack method)."""
+    item = get_object_or_404(DownloadItem, pk=pk)
+    if item.media_type != DownloadItem.MediaType.SEASON:
+        return JsonResponse({'error': 'not a season item'}, status=400)
+    from apps.media_tracker.tasks import _fallback_season_to_episodes
+    created = _fallback_season_to_episodes(item)
+    log.info('item_season_fallback pk=%s: queued %d individual episode(s)', pk, created)
+    return JsonResponse({'ok': True, 'queued': created})
 
 
 @require_POST
@@ -281,6 +237,10 @@ def _reset_media_status(item):
         Episode.objects.filter(pk=item.episode_id).update(
             download_status=Episode.DownloadStatus.NONE
         )
+    elif item.media_type == DownloadItem.MediaType.SEASON and item.season_id:
+        Episode.objects.filter(season_id=item.season_id).update(
+            download_status=Episode.DownloadStatus.NONE
+        )
     elif item.media_type == DownloadItem.MediaType.MOVIE and item.movie_id:
         Movie.objects.filter(pk=item.movie_id).update(
             download_status=Movie.DownloadStatus.NONE
@@ -291,6 +251,10 @@ def _mark_media_downloading(item):
     from apps.media_tracker.models import Episode, Movie
     if item.media_type == DownloadItem.MediaType.EPISODE and item.episode_id:
         Episode.objects.filter(pk=item.episode_id).update(
+            download_status=Episode.DownloadStatus.DOWNLOADING
+        )
+    elif item.media_type == DownloadItem.MediaType.SEASON and item.season_id:
+        Episode.objects.filter(season_id=item.season_id).update(
             download_status=Episode.DownloadStatus.DOWNLOADING
         )
     elif item.media_type == DownloadItem.MediaType.MOVIE and item.movie_id:
@@ -305,20 +269,14 @@ def _mark_media_downloaded(item):
         Episode.objects.filter(pk=item.episode_id).update(
             download_status=Episode.DownloadStatus.DOWNLOADED
         )
+    elif item.media_type == DownloadItem.MediaType.SEASON and item.season_id:
+        Episode.objects.filter(season_id=item.season_id).update(
+            download_status=Episode.DownloadStatus.DOWNLOADED
+        )
     elif item.media_type == DownloadItem.MediaType.MOVIE and item.movie_id:
         Movie.objects.filter(pk=item.movie_id).update(
             download_status=Movie.DownloadStatus.DOWNLOADED
         )
-
-
-def _format_eta(seconds):
-    if not seconds or seconds < 0:
-        return '—'
-    if seconds >= 3600:
-        return f'{seconds // 3600}h {(seconds % 3600) // 60}m'
-    if seconds >= 60:
-        return f'{seconds // 60}m {seconds % 60}s'
-    return f'{seconds}s'
 
 
 # ── File-move helpers ─────────────────────────────────────────────────────────
@@ -374,7 +332,19 @@ def _compute_plex_dest(item, base_path):
     season_num = 1
     ep_num     = None
     ep_name    = None
-    if item.episode_id:
+    if item.season_id and not item.episode_id:
+        # Season pack — files inside are already named SxxExx, so they land flat in
+        # the season folder and Plex's own scanner resolves each episode from the name.
+        try:
+            from apps.media_tracker.models import Season
+            season     = Season.objects.select_related('show').get(pk=item.season_id)
+            season_num = season.season_number
+            show_year  = season.show.first_air_date.year if season.show.first_air_date else None
+            if show_year:
+                title_year = f'{clean_title} ({show_year})'
+        except Exception:
+            pass
+    elif item.episode_id:
         try:
             from apps.media_tracker.models import Episode
             ep         = Episode.objects.select_related('season__show').get(pk=item.episode_id)
@@ -405,7 +375,8 @@ def _maybe_queue_file_move(item, torrent):
     import os
 
     cfg      = CategoryConfig.get()
-    category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
+    is_tv    = item.media_type in (DownloadItem.MediaType.EPISODE, DownloadItem.MediaType.SEASON)
+    category = cfg.tv_category if is_tv else cfg.movie_category
     cat_path = CategoryPath.objects.filter(category_name=category).first()
     if not cat_path or not cat_path.completed_path:
         return
@@ -632,21 +603,31 @@ def _run_file_move(move_id):
         move.save(update_fields=['status', 'completed_at', 'error_message'])
         log.info('_run_file_move id=%d: completed → %r', move_id, dest_path)
 
-        # Remove from qBittorrent (keep files — already moved to Plex path)
-        torrent_hash = move.download_item.torrent_hash if move.download_item_id else None
-        if torrent_hash:
-            try:
-                delete_torrent(torrent_hash, delete_files=False)
-                log.info('_run_file_move id=%d: removed torrent %s from qBT', move_id, torrent_hash)
-            except Exception as e:
-                log.warning('_run_file_move id=%d: could not remove from qBT — %s', move_id, e)
+        # Torrent removal from qBittorrent happens via the FILE_MOVED signal
+        # (downloads.signals.remove_torrent_from_qbt) — same event, same
+        # receiver the manual move-from-file-browser path already uses.
+        emit(
+            EventType.FILE_MOVED,
+            log_payload={'move_id': move.pk, 'title': move.title},
+            move=move,
+            title='Ready to Watch', message=f'{move.title} moved to library',
+            priority='low', tags=['tada'],
+        )
     except Exception as e:
         err = f'{type(e).__name__}: {e}'
         try:
-            FileMove.objects.filter(pk=move_id).update(
-                status=FileMove.Status.FAILED,
-                error_message=err,
-            )
+            move_obj = FileMove.objects.filter(pk=move_id).first()
+            if move_obj:
+                move_obj.status = FileMove.Status.FAILED
+                move_obj.error_message = err
+                move_obj.save(update_fields=['status', 'error_message'])
+                emit(
+                    EventType.FILE_MOVE_FAILED,
+                    log_payload={'move_id': move_obj.pk, 'error': err},
+                    move=move_obj, error=err,
+                    title='File Move Failed', message=f'{move_obj.title} — {err}',
+                    priority='high', tags=['x'],
+                )
         except Exception:
             pass
         log.error('_run_file_move id=%d: failed — %s', move_id, err)
@@ -675,17 +656,55 @@ def moves_page(request):
     })
 
 
-def moves_status_json(request):
-    """Polling endpoint for the moves page — bytes-moved progress for active moves."""
-    active = FileMove.objects.filter(status__in=[FileMove.Status.MOVING, FileMove.Status.PENDING])
-    data = [{
+def _serialize_move(m):
+    return {
         'id': m.pk,
         'status': m.status,
         'bytes_moved': m.bytes_moved,
         'bytes_total': m.bytes_total,
         'progress_pct': m.progress_pct,
-    } for m in active]
-    return JsonResponse({'moves': data})
+    }
+
+
+def moves_status_json(request):
+    """Polling endpoint for the moves page — bytes-moved progress for active moves."""
+    active = FileMove.objects.filter(status__in=[FileMove.Status.MOVING, FileMove.Status.PENDING])
+    return JsonResponse({'moves': [_serialize_move(m) for m in active]})
+
+
+def moves_status_stream(request):
+    """SSE replacement for the 1s browser poll on the moves page. Move progress is
+    local DB state (bytes_moved/bytes_total updated by _run_file_move) — no external
+    API involved, so each tick is just a cheap local query."""
+    import json
+    import time
+    from django.db import close_old_connections
+    from django.http import StreamingHttpResponse
+
+    def event_stream():
+        deadline = time.monotonic() + 55
+        last_payload = None
+        while time.monotonic() < deadline:
+            close_old_connections()
+            try:
+                active = FileMove.objects.filter(status__in=[FileMove.Status.MOVING, FileMove.Status.PENDING])
+                payload = json.dumps({'moves': [_serialize_move(m) for m in active]})
+            except Exception as e:
+                log.error('moves_status_stream: tick failed — %s', e)
+                yield ': error\n\n'
+                time.sleep(1)
+                continue
+            if payload != last_payload:
+                yield f'data: {payload}\n\n'
+                last_payload = payload
+            else:
+                yield ': heartbeat\n\n'
+            time.sleep(1)
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
 
 
 @require_POST

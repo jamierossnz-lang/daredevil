@@ -458,10 +458,8 @@
   </div>
   {% endif %}
 
-</div>
-
-<!-- ── Delete Watched ── -->
-<div x-show="tab === 'delete'" x-cloak x-data="deleteWatched()">
+  <!-- ── Delete Watched ── -->
+  <div x-show="tab === 'delete'" x-cloak x-data="deleteWatched()">
 
   {% if not watched_items %}
   <div class="text-center py-16 text-gray-600">
@@ -528,6 +526,8 @@
   </div>
 
   {% endif %}
+  </div>
+
 </div>
 
 <!-- Episode picker modal -->

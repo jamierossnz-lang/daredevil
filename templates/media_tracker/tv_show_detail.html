@@ -207,7 +207,7 @@
         </div>
 
         <!-- Status / action -->
-        <div class="flex-shrink-0">
+        <div class="flex-shrink-0 flex items-center gap-1">
           {% if ep.download_status == 'downloaded' %}
           <span title="Downloaded">
             <i class="fa-solid fa-circle-check text-green-400 text-base w-8 text-center block"></i>
@@ -233,6 +233,14 @@
                   title="Download episode"
                   class="w-8 h-8 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-brand-600/40 flex items-center justify-center text-gray-500 hover:text-brand-400 transition-all">
             <i class="fa-solid fa-download text-xs"></i>
+          </button>
+          {% endif %}
+
+          {% if ep.download_status == 'downloaded' or ep.download_status == 'downloading' or ep.download_status == 'queued' or ep.download_status == 'waiting_for_download' or ep.download_status == 'missing' %}
+          <button onclick="resetEpisode({{ show.pk }}, {{ ep.pk }}, this)"
+                  title="Reset download status"
+                  class="w-7 h-7 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-900/40 flex items-center justify-center text-gray-600 hover:text-red-400 transition-all">
+            <i class="fa-solid fa-rotate-left text-xs"></i>
           </button>
           {% endif %}
         </div>
@@ -416,6 +424,24 @@ async function resetDownload(pk) {
   if (!confirm('Reset all episode download statuses? This removes all download records so you can re-queue episodes from scratch.')) return;
   await fetch(`/shows/${pk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
   location.reload();
+}
+
+async function resetEpisode(showPk, epPk, btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i>'; }
+  await fetch(`/episodes/${epPk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+  const row = document.getElementById(`ep-row-${epPk}`);
+  if (row) {
+    const actions = row.querySelector('.flex-shrink-0.flex.items-center.gap-1');
+    if (actions) {
+      actions.innerHTML = `
+        <button onclick="queueEpisode(${showPk}, ${epPk}, this)"
+                title="Download episode"
+                class="w-8 h-8 rounded-lg bg-surface-800 hover:bg-brand-600/40 flex items-center justify-center text-gray-500 hover:text-brand-400 transition-all">
+          <i class="fa-solid fa-download text-xs"></i>
+        </button>`;
+    }
+  }
+  toast('Episode reset');
 }
 
 // ── Quality picker ────────────────────────────────────────────────────────────

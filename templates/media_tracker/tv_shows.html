@@ -13,27 +13,28 @@
 {% block content %}
 <!-- Filters -->
 <div class="flex flex-wrap gap-3 mb-6" x-data>
-  <form method="get" class="flex gap-2 flex-1 min-w-0">
+  <form method="get" id="filterForm" class="flex flex-col sm:flex-row gap-2 flex-1 min-w-0">
     <div class="relative flex-1 min-w-0">
       <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
-      <input type="text" name="q" value="{{ q }}" placeholder="Search shows…"
-             class="w-full pl-9 pr-4 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-colors">
+      <input type="text" name="q" id="filterInput" value="{{ q }}" placeholder="Search shows…" autocomplete="off"
+             class="w-full pl-9 pr-4 py-2.5 sm:py-2 bg-surface-800 border border-surface-600 rounded-xl text-base sm:text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-colors">
     </div>
-    <select name="status" class="bg-surface-800 border border-surface-600 text-sm text-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500">
-      <option value="">All Status</option>
-      {% for val, label in status_choices %}
-      <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="px-4 py-2 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-xl text-sm transition-colors">Filter</button>
+    <div class="flex gap-2">
+      <select name="status" id="filterStatus" class="flex-1 sm:flex-none bg-surface-800 border border-surface-600 text-sm text-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500">
+        <option value="">All Status</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </form>
 </div>
 
 {% if shows %}
 <!-- Poster Grid -->
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+<div id="posterGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
   {% for show in shows %}
-  <div class="group relative card-hover" x-data="{ menuOpen: false }">
+  <div class="group relative card-hover" data-name="{{ show.name|lower }}" data-status="{{ show.status }}" x-data="{ menuOpen: false }">
     <a href="{% url 'tv_show_detail' show.pk %}">
       <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow aspect-[2/3]">
         {% if show.poster_url %}
@@ -112,6 +113,11 @@
   </div>
   {% endfor %}
 </div>
+<div id="noMatches" class="hidden text-center py-24">
+  <i class="fa-solid fa-magnifying-glass text-5xl text-gray-700 mb-4"></i>
+  <p class="text-lg font-semibold text-gray-400 mb-1">No shows match your filter</p>
+  <p class="text-gray-600 text-sm">Try a different search term or status.</p>
+</div>
 
 {% else %}
 <div class="flex flex-col items-center justify-center py-24 text-center">
@@ -143,6 +149,43 @@ const csrfToken = '{{ csrf_token }}';
   }
   input.addEventListener('input', sync);
   sync();
+})();
+
+// Instant client-side filtering — every show is already rendered in the DOM,
+// so there's no round-trip: typing (or picking a status) just shows/hides
+// cards immediately.
+(function() {
+  const form   = document.getElementById('filterForm');
+  const input  = document.getElementById('filterInput');
+  const status = document.getElementById('filterStatus');
+  const grid   = document.getElementById('posterGrid');
+  const noMatches = document.getElementById('noMatches');
+  if (!form || !input || !status || !grid) return;
+
+  form.addEventListener('submit', e => e.preventDefault());
+
+  function applyFilter() {
+    const q = input.value.trim().toLowerCase();
+    const s = status.value;
+    let visible = 0;
+    grid.querySelectorAll('[data-name]').forEach(card => {
+      const match = (!q || card.dataset.name.includes(q)) && (!s || card.dataset.status === s);
+      card.classList.toggle('hidden', !match);
+      if (match) visible++;
+    });
+    grid.classList.toggle('hidden', visible === 0);
+    if (noMatches) noMatches.classList.toggle('hidden', visible !== 0);
+
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (s) params.set('status', s);
+    const qs = params.toString();
+    history.replaceState({}, '', qs ? `?${qs}` : location.pathname);
+  }
+
+  input.addEventListener('input', applyFilter);
+  status.addEventListener('change', applyFilter);
+  applyFilter();
 })();
 
 async function toggleFav(pk, btn) {

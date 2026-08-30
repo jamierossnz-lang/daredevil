@@ -178,13 +178,12 @@ def dashboard_discover(request):
 # ── TV Shows ─────────────────────────────────────────────────────────────────
 
 def tv_shows(request):
+    # Filtering by q/status happens client-side (instant, no round-trip) — the
+    # full list is always rendered; q/status here only pre-fill the form from
+    # a deep link, e.g. /shows/?q=batman.
     qs = TVShow.objects.all()
     q = request.GET.get('q', '').strip()
-    if q:
-        qs = qs.filter(name__icontains=q)
     status_filter = request.GET.get('status', '')
-    if status_filter:
-        qs = qs.filter(status=status_filter)
     context = {
         'shows': qs,
         'q': q,
@@ -294,16 +293,49 @@ def tv_show_queue_download(request, pk):
             fields.append('monitor_from')
         show.save(update_fields=fields)
 
+    created = 0
+
+    if mode == 'seasons':
+        # Full-season downloads try a single season-pack search first (see
+        # search_and_download / MediaType.SEASON in tasks.py) and only fall back to
+        # per-episode queuing if that search finds nothing.
+        season_numbers = [int(s) for s in request.POST.getlist('seasons')]
+        for season in show.seasons.filter(season_number__in=season_numbers).prefetch_related('episodes'):
+            pending = [
+                ep for ep in season.episodes.all()
+                if ep.download_status not in (
+                    Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED,
+                )
+            ]
+            if not pending:
+                continue
+            ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
+            year = show.first_air_date.year if show.first_air_date else ''
+            sq = ' '.join(filter(None, [show.name, str(year) if year else '', f'S{season.season_number:02d}']))
+            item, is_new = DownloadItem.objects.get_or_create(
+                media_type=DownloadItem.MediaType.SEASON,
+                season_id=season.id,
+                defaults={
+                    'title': show.name,
+                    'subtitle': season.name or f'Season {season.season_number}',
+                    'poster_path': season.poster_path or show.poster_path,
+                    'status': DownloadItem.Status.SEARCHING,
+                    'quality': ep_quality,
+                    'search_query': sq,
+                },
+            )
+            if is_new:
+                for ep in pending:
+                    ep.download_status = Episode.DownloadStatus.QUEUED
+                    ep.save(update_fields=['download_status'])
+                created += len(pending)
+        return JsonResponse({'status': 'ok', 'queued': created})
+
     # Build (episode, season_number) pairs so we can pre-fill the search query
     ep_pairs = []  # list of (Episode, season_number)
 
     if mode == 'whole':
         for season in show.seasons.prefetch_related('episodes').all():
-            for ep in season.episodes.all():
-                ep_pairs.append((ep, season.season_number))
-    elif mode == 'seasons':
-        season_numbers = [int(s) for s in request.POST.getlist('seasons')]
-        for season in show.seasons.filter(season_number__in=season_numbers).prefetch_related('episodes'):
             for ep in season.episodes.all():
                 ep_pairs.append((ep, season.season_number))
     elif mode == 'episodes':
@@ -312,7 +344,6 @@ def tv_show_queue_download(request, pk):
         for ep in eps:
             ep_pairs.append((ep, ep.season.season_number))
 
-    created = 0
     for ep, season_num in ep_pairs:
         if ep.download_status not in (Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED):
             ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
@@ -344,13 +375,12 @@ def tv_show_queue_download(request, pk):
 # ── Movies ───────────────────────────────────────────────────────────────────
 
 def movies(request):
+    # Filtering by q/status happens client-side (instant, no round-trip) — the
+    # full list is always rendered; q/status here only pre-fill the form from
+    # a deep link, e.g. /movies/?q=batman.
     qs = Movie.objects.all()
     q = request.GET.get('q', '').strip()
-    if q:
-        qs = qs.filter(title__icontains=q)
     status_filter = request.GET.get('status', '')
-    if status_filter:
-        qs = qs.filter(download_status=status_filter)
     context = {
         'movies': qs,
         'q': q,
@@ -505,6 +535,19 @@ def tv_show_reset_download(request, pk):
     Episode.objects.filter(season__show=show).update(
         download_status=Episode.DownloadStatus.NONE
     )
+    return JsonResponse({'status': 'ok'})
+
+
+@require_POST
+def episode_reset_download(request, pk):
+    """Clear download state for a single episode so it can be re-queued."""
+    episode = get_object_or_404(Episode, pk=pk)
+    DownloadItem.objects.filter(
+        media_type=DownloadItem.MediaType.EPISODE,
+        episode_id=episode.id,
+    ).delete()
+    episode.download_status = Episode.DownloadStatus.NONE
+    episode.save(update_fields=['download_status'])
     return JsonResponse({'status': 'ok'})
 
 

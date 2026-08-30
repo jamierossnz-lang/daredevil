@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'django_htmx',
     'django_celery_beat',
     'django_celery_results',
+    'apps.events',
     'apps.media_tracker',
     'apps.downloads',
     'apps.qbt',

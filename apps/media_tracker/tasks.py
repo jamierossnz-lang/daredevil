@@ -5,6 +5,9 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.events.dispatch import emit
+from apps.events.models import EventType
+
 log = logging.getLogger('daredevil.tasks')
 
 _JUNK_EXTENSIONS = {
@@ -295,15 +298,22 @@ def queue_waiting_episodes():
             newly_queued.append((show.name, season_num, ep.episode_number))
 
     if newly_queued:
-        from apps.notifications.notify import send as ntfy
         from collections import Counter
         if len(newly_queued) == 1:
             show_name, sn, en = newly_queued[0]
-            ntfy('New Episode Queued', f'{show_name} S{sn:02d}E{en:02d}', tags=['tv', 'tada'], category='episodes_queued')
+            emit(
+                EventType.EPISODE_QUEUED,
+                log_payload={'count': 1, 'show': show_name, 'season': sn, 'episode': en},
+                title='New Episode Queued', message=f'{show_name} S{sn:02d}E{en:02d}', tags=['tv', 'tada'],
+            )
         else:
             by_show = Counter(name for name, _, _ in newly_queued)
             parts = ', '.join(f'{n} ({c})' for n, c in by_show.most_common(5))
-            ntfy('New Episodes Queued', f'{len(newly_queued)} episodes: {parts}', tags=['tv', 'tada'], category='episodes_queued')
+            emit(
+                EventType.EPISODE_QUEUED,
+                log_payload={'count': len(newly_queued)},
+                title='New Episodes Queued', message=f'{len(newly_queued)} episodes: {parts}', tags=['tv', 'tada'],
+            )
 
     return f'queued {queued} waiting episodes'
 
@@ -347,13 +357,13 @@ def check_movie_releases():
             movie.save(update_fields=['download_status'])
             search_and_download.delay(item.id)
             queued += 1
-            from apps.notifications.notify import send as ntfy
             year = movie.release_date.year if movie.release_date else ''
-            ntfy(
-                'Movie Now Available',
-                f'{movie.title} ({year}) is now streaming — downloading',
+            emit(
+                EventType.MOVIE_AVAILABLE,
+                log_payload={'movie_pk': movie.pk, 'title': movie.title, 'year': year},
+                title='Movie Now Available',
+                message=f'{movie.title} ({year}) is now streaming — downloading',
                 tags=['clapper', 'tada'],
-                category='movie_available',
             )
 
     return f'checked {len(waiting)} waiting, queued {queued}'
@@ -438,6 +448,18 @@ def search_and_download(download_item_id):
         if m:
             episode_code = m.group(0).upper()
 
+    season_code = None
+    episode_count = None
+    if item.media_type == DownloadItem.MediaType.SEASON:
+        m = re.search(r'S\d+', queries[0], re.IGNORECASE)
+        if m:
+            season_code = m.group(0).upper()
+        try:
+            from apps.media_tracker.models import Season
+            episode_count = Season.objects.get(pk=item.season_id).episodes.count()
+        except Exception:
+            pass
+
     best = None
     tried = []
     for query in queries:
@@ -452,11 +474,17 @@ def search_and_download(download_item_id):
             continue
         if not results:
             continue
-        best = _pick_best(results, quality, media_type=item.media_type, episode_code=episode_code, show_name=item.title)
+        best = _pick_best(results, quality, media_type=item.media_type, episode_code=episode_code,
+                           season_code=season_code, show_name=item.title, episode_count=episode_count)
         if best:
             item.result_count = len(results)
             item.save(update_fields=['result_count'])
             break
+
+    if not best and item.media_type == DownloadItem.MediaType.SEASON:
+        log.info('search_and_download pk=%s: no season pack found — falling back to per-episode downloads', download_item_id)
+        _fallback_season_to_episodes(item)
+        return
 
     if not best:
         log.warning('search_and_download pk=%s: no suitable torrent found after %d queries', download_item_id, len(tried))
@@ -475,16 +503,21 @@ def search_and_download(download_item_id):
         item.error_message = f'No results — tried: {", ".join(repr(q) for q in tried)}'
         item.result_count = 0
         item.save(update_fields=['status', 'error_message', 'result_count'])
-        from apps.notifications.notify import send as ntfy
         label = item.title + (f' — {item.subtitle}' if item.subtitle else '')
-        ntfy('Download Failed', f'{label} — no torrent found', priority='high', tags=['x'], category='download_failed')
+        emit(
+            EventType.SEARCH_FAILED,
+            log_payload={'item_pk': item.pk, 'title': item.title},
+            title='Download Failed', message=f'{label} — no torrent found',
+            priority='high', tags=['x'],
+        )
         return
 
     magnet = best.get('fileUrl', '')
     try:
         from apps.qbt.models import CategoryConfig, CategoryPath
         cfg = CategoryConfig.get()
-        category = cfg.tv_category if item.media_type == DownloadItem.MediaType.EPISODE else cfg.movie_category
+        is_tv = item.media_type in (DownloadItem.MediaType.EPISODE, DownloadItem.MediaType.SEASON)
+        category = cfg.tv_category if is_tv else cfg.movie_category
         cat_path = CategoryPath.objects.filter(category_name=category).first()
         save_path = cat_path.qbt_save_path if cat_path else None
         torrent_hash = add_torrent_and_resolve_hash(magnet, save_path=save_path or None, category=category or None)
@@ -561,7 +594,19 @@ def _build_queries(item):
     For movies: [{title} {year} {quality}, {title} {year}]
     """
     from apps.downloads.models import DownloadItem
-    from apps.media_tracker.models import Episode
+    from apps.media_tracker.models import Episode, Season
+
+    if item.media_type == DownloadItem.MediaType.SEASON:
+        # Single-tier: season-pack search only. If this comes back empty, the
+        # caller falls back to the per-episode strategy below instead of retrying.
+        try:
+            season = Season.objects.select_related('show').get(pk=item.season_id)
+            year = season.show.first_air_date.year if season.show.first_air_date else ''
+            base = ' '.join(filter(None, [item.title, str(year) if year else '', f'S{season.season_number:02d}']))
+        except Season.DoesNotExist:
+            base = item.search_query or item.title
+        quality = item.quality or '1080p'
+        return [base], quality
 
     if item.media_type == DownloadItem.MediaType.EPISODE:
         try:
@@ -617,7 +662,8 @@ def _norm_title(s):
     return re.sub(r'\s+', ' ', re.sub(r'[^a-z0-9 ]', ' ', (s or '').lower())).strip()
 
 
-def _pick_best(results, quality=None, media_type=None, episode_code=None, show_name=None):
+def _pick_best(results, quality=None, media_type=None, episode_code=None, season_code=None,
+                show_name=None, episode_count=None):
     """
     Pick the best torrent from search results.
 
@@ -625,6 +671,8 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
       1. The filename starts with the (normalised) show name
       2. The filename contains the expected SxxExx code
     Both are hard gates — returning the wrong show/episode is worse than failing.
+    For TV seasons: filter to results containing the season code (SXX) but NOT a
+    single-episode code (SXXEYY) — a season pack, not a lone episode.
     For movies: pick the best-seeded match regardless of size.
     """
     from apps.downloads.models import DownloadItem
@@ -633,7 +681,7 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
         return None
 
     # ── Show name prefix filter (TV only) ────────────────────────────────────
-    if show_name and media_type == DownloadItem.MediaType.EPISODE:
+    if show_name and media_type in (DownloadItem.MediaType.EPISODE, DownloadItem.MediaType.SEASON):
         show_norm = _norm_title(show_name)
         if show_norm:
             name_filtered = [
@@ -665,6 +713,26 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
             else:
                 log.warning('_pick_best: 0 results contain %r — refusing to pick wrong episode',
                             episode_code)
+                return None
+
+    # ── Season-pack filter (hard gate — a lone episode is not a season download) ──
+    if season_code:
+        m = re.match(r'S(\d+)', season_code, re.IGNORECASE)
+        if m:
+            season = int(m.group(1))
+            season_pat = re.compile(rf'S0*{season}(?!\d)', re.IGNORECASE)
+            single_ep_pat = re.compile(rf'S0*{season}E\d+', re.IGNORECASE)
+            pack_filtered = [
+                r for r in results
+                if season_pat.search(r.get('fileName') or '') and not single_ep_pat.search(r.get('fileName') or '')
+            ]
+            if pack_filtered:
+                log.info('_pick_best: season-pack filter %r → %d of %d results kept',
+                         season_code, len(pack_filtered), len(results))
+                results = pack_filtered
+            else:
+                log.warning('_pick_best: 0 season-pack results for %r — refusing (caller falls back to per-episode)',
+                            season_code)
                 return None
 
     # ── Quality filter ────────────────────────────────────────────────────────
@@ -701,6 +769,25 @@ def _pick_best(results, quality=None, media_type=None, episode_code=None, show_n
             pool = seeded if seeded else candidates
             best = max(pool, key=lambda r: r.get('nbSeeders', 0))
             log.info('_pick_best: bracket empty — fell back to most-seeded (%d candidates)', len(candidates))
+    elif media_type == DownloadItem.MediaType.SEASON:
+        def _size(r):
+            return r.get('fileSize') or 0
+
+        ep_min, ep_max = _size_brackets(quality or '1080p', 'tv')
+        n = episode_count or 1
+        # Wide slack — season packs compress better per-episode than standalone files,
+        # and episode_count may be off for in-progress seasons.
+        size_min, size_max = ep_min * n * 0.4, ep_max * n * 1.3
+        in_range = [r for r in candidates if size_min <= _size(r) <= size_max]
+        if in_range:
+            seeded_in_range = [r for r in in_range if (r.get('nbSeeders') or 0) >= _MIN_SEEDS]
+            best = max(seeded_in_range or in_range, key=lambda r: r.get('nbSeeders', 0))
+            log.info('_pick_best: %d season packs in bracket (%d seeded) — picked best-seeded in range',
+                     len(in_range), len(seeded_in_range))
+        else:
+            pool = seeded if seeded else candidates
+            best = max(pool, key=lambda r: r.get('nbSeeders', 0))
+            log.info('_pick_best: season bracket empty — fell back to most-seeded (%d candidates)', len(candidates))
     else:
         pool = seeded if seeded else candidates
         best = max(pool, key=lambda r: r.get('nbSeeders', 0))
@@ -719,10 +806,73 @@ def _mark_downloaded(item):
         Episode.objects.filter(pk=item.episode_id).update(
             download_status=Episode.DownloadStatus.DOWNLOADED
         )
+    elif item.media_type == DownloadItem.MediaType.SEASON and item.season_id:
+        Episode.objects.filter(season_id=item.season_id).update(
+            download_status=Episode.DownloadStatus.DOWNLOADED
+        )
     elif item.media_type == DownloadItem.MediaType.MOVIE and item.movie_id:
         Movie.objects.filter(pk=item.movie_id).update(
             download_status=Movie.DownloadStatus.DOWNLOADED
         )
+
+
+def queue_individual_episodes(show, season):
+    """
+    Create one per-episode DownloadItem for every not-yet-queued episode in `season`.
+    This is the original per-episode search strategy — used both as the normal path
+    for partial/episode-level queuing and as the fallback when a season-pack search
+    (see search_and_download / MediaType.SEASON) finds nothing.
+    """
+    from apps.downloads.models import DownloadItem
+    from apps.media_tracker.models import Episode
+
+    ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
+    created = 0
+    for ep in season.episodes.all():
+        if ep.download_status in (Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED):
+            continue
+        sq = f'{show.name} S{season.season_number:02d}E{ep.episode_number:02d} {ep_quality}'
+        item, is_new = DownloadItem.objects.get_or_create(
+            media_type=DownloadItem.MediaType.EPISODE,
+            episode_id=ep.id,
+            defaults={
+                'title': show.name,
+                'subtitle': str(ep),
+                'poster_path': show.poster_path,
+                'status': DownloadItem.Status.SEARCHING,
+                'release_date': ep.air_date,
+                'quality': ep_quality,
+                'search_query': sq,
+            },
+        )
+        if is_new:
+            ep.download_status = Episode.DownloadStatus.QUEUED
+            ep.save(update_fields=['download_status'])
+            created += 1
+    return created
+
+
+def _fallback_season_to_episodes(item):
+    """
+    Called when a season-pack search (MediaType.SEASON) finds nothing usable.
+    Replaces the season DownloadItem with individual per-episode ones — the
+    pre-season-pack behaviour — so the download still completes.
+    """
+    from apps.media_tracker.models import Season
+
+    try:
+        season = Season.objects.select_related('show').get(pk=item.season_id)
+    except Season.DoesNotExist:
+        item.status = item.Status.FAILED
+        item.error_message = 'Season no longer exists'
+        item.save(update_fields=['status', 'error_message'])
+        return 0
+
+    created = queue_individual_episodes(season.show, season)
+    item.delete()
+    log.info('_fallback_season_to_episodes: pk=%s → queued %d individual episode(s) for %s S%02d',
+             item.pk, created, season.show.name, season.season_number)
+    return created
 
 
 def _apply_episode_statuses(show):
@@ -772,7 +922,6 @@ def check_storage():
     """Alert via ntfy when any configured drive reaches 75 % (caution) or 90 % (critical)."""
     from django.core.cache import cache
     from apps.plex.utils import get_disk_usage
-    from apps.notifications.notify import send as ntfy
 
     drives = get_disk_usage()
     for drive in drives:
@@ -781,22 +930,24 @@ def check_storage():
 
         if drive['warning']:
             if not cache.get(cache_key):
-                ntfy(
-                    'Storage Critical',
-                    f'{label_str}: {drive["pct"]}% full — {drive["free_display"]} left of {drive["total_display"]}',
+                emit(
+                    EventType.STORAGE_WARNING,
+                    log_payload={'path': drive['path'], 'pct': drive['pct'], 'level': 'critical'},
+                    title='Storage Critical',
+                    message=f'{label_str}: {drive["pct"]}% full — {drive["free_display"]} left of {drive["total_display"]}',
                     priority='urgent',
                     tags=['rotating_light', 'cd'],
-                    category='storage_warning',
                 )
                 cache.set(cache_key, 'warning', 4 * 60 * 60)
         elif drive['caution']:
             if not cache.get(cache_key):
-                ntfy(
-                    'Storage Getting Full',
-                    f'{label_str}: {drive["pct"]}% used — {drive["free_display"]} remaining',
+                emit(
+                    EventType.STORAGE_WARNING,
+                    log_payload={'path': drive['path'], 'pct': drive['pct'], 'level': 'caution'},
+                    title='Storage Getting Full',
+                    message=f'{label_str}: {drive["pct"]}% used — {drive["free_display"]} remaining',
                     priority='high',
                     tags=['warning', 'cd'],
-                    category='storage_warning',
                 )
                 cache.set(cache_key, 'caution', 4 * 60 * 60)
         else:
