@@ -2,7 +2,16 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+# override=False (the default): real process environment variables — the ones
+# docker-compose injects via `environment:`, which are the correct
+# Docker-network-aware values (e.g. REDIS_URL=redis://redis:6379/0) — win over
+# whatever's in the .env file. .env only fills in what isn't already set,
+# which is what makes bare-metal setups (no compose environment injection)
+# work unchanged. Previously override=True let a bind-mounted .env silently
+# clobber correct container env vars with .env.example's bare-metal defaults
+# (e.g. REDIS_URL=redis://localhost:6379/0), breaking Celery's broker
+# connection for any service with .env mounted.
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
