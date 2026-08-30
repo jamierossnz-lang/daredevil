@@ -104,7 +104,7 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
       {% for item in active %}
       <div class="glass rounded-2xl p-3 sm:p-4 animate-slide-in overflow-hidden" id="dl-item-{{ item.pk }}"
            data-sel-pk="{{ item.pk }}"{% if item.torrent_hash %} data-sel-hash="{{ item.torrent_hash }}"{% endif %}
-           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% endif %}
+           {% if item.status == 'searching' %}data-item-pk="{{ item.pk }}" data-show-name="{{ item.title }}" data-subtitle="{{ item.subtitle }}" data-media-type="{{ item.media_type }}" data-quality="{{ item.quality|default:'1080p' }}"{% if item.search_query %} data-auto-search="{{ item.search_query }}"{% endif %}{% if item.size_min is not None %} data-size-min="{{ item.size_min }}" data-size-max="{{ item.size_max }}"{% endif %}{% endif %}
            :class="selected.has({{ item.pk }}) ? 'ring-1 ring-brand-500/50' : ''">
         <div class="flex items-start gap-2 min-w-0">
           <!-- Checkbox -->
@@ -554,12 +554,28 @@ async function seasonFallback(pk) {
 }
 
 async function addBest(pk, results, total, query) {
-  // results are already filtered by show name and episode code
-
-  // results already sorted by seeds descending
+  // results are already filtered by show name and episode code, and already
+  // sorted by seeds descending — so pool[0] / inRange[0] is always the
+  // highest-seeded candidate in whichever set we end up picking from.
   const seeded = results.filter(r => (r.seeds || 0) >= MIN_SEEDS);
   const pool = seeded.length > 0 ? seeded : results;
-  const best = pool[0];
+
+  // Mirror search_and_download's server-side _pick_best: prefer a result
+  // inside the configured Quality Profile size bracket over a higher-seeded
+  // one outside it. Without this the watched (client-side) path picked
+  // purely by seed count and silently ignored quality brackets, while the
+  // unwatched (Celery backstop) path already respected them — same search,
+  // two different outcomes depending on whether a tab happened to be open.
+  const el = document.getElementById(`dl-item-${pk}`);
+  const sizeMin = el && el.dataset.sizeMin ? parseInt(el.dataset.sizeMin, 10) : null;
+  const sizeMax = el && el.dataset.sizeMax ? parseInt(el.dataset.sizeMax, 10) : null;
+  let best;
+  if (sizeMin != null && sizeMax != null) {
+    const inRange = pool.filter(r => r.size_bytes >= sizeMin && r.size_bytes <= sizeMax);
+    best = inRange.length > 0 ? inRange[0] : pool[0];
+  } else {
+    best = pool[0];
+  }
 
   const seedWarning = best.seeds < MIN_SEEDS ? ` ⚠ only ${best.seeds} seed(s)` : '';
   setStage(pk, `Found ${total} results — adding best (${best.seeds} seeds${seedWarning})…`, 'fa-circle-notch fa-spin');

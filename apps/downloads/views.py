@@ -14,14 +14,28 @@ log = logging.getLogger('daredevil.downloads')
 
 
 def queue(request):
-    active = DownloadItem.objects.filter(
+    from apps.media_tracker.tasks import _size_brackets
+
+    active = list(DownloadItem.objects.filter(
         status__in=[
             DownloadItem.Status.PENDING,
             DownloadItem.Status.SEARCHING,
             DownloadItem.Status.FOUND,
             DownloadItem.Status.DOWNLOADING,
         ]
-    ).order_by('-added_at')
+    ).order_by('-added_at'))
+
+    # Attach the same quality-bracket bytes search_and_download's server-side
+    # _pick_best uses, so the client-side picker (active while this page is
+    # open) can prefer an in-bracket result too instead of blindly taking the
+    # top-seeded one regardless of size. Movies intentionally have no
+    # bracket, matching the server picker's own "regardless of size" design.
+    for item in active:
+        if item.media_type in (DownloadItem.MediaType.EPISODE, DownloadItem.MediaType.SEASON):
+            item.size_min, item.size_max = _size_brackets(item.quality or '1080p', 'tv')
+        else:
+            item.size_min = item.size_max = None
+
     waiting = DownloadItem.objects.filter(
         status=DownloadItem.Status.WAITING_RELEASE
     ).order_by('release_date')
@@ -33,7 +47,7 @@ def queue(request):
     ).order_by('-added_at')
 
     context = {
-        'active': list(active),
+        'active': active,
         'waiting': list(waiting),
         'completed': list(completed),
         'failed': list(failed),

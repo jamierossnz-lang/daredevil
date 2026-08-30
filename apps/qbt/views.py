@@ -370,6 +370,7 @@ def search_run(request):
                 'name':   name,
                 'url':    url,
                 'size':   _fmt_size(size) if size > 0 else '?',
+                'size_bytes': size,
                 'seeds':  seeds,
                 'peers':  peers,
                 'engine': engine,
