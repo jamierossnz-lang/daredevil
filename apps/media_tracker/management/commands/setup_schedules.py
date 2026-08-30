@@ -11,6 +11,8 @@ class Command(BaseCommand):
         daily,    _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
         every30m, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.MINUTES)
         every5m,  _ = IntervalSchedule.objects.get_or_create(every=5,  period=IntervalSchedule.MINUTES)
+        every30s, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.SECONDS)
+        every15s, _ = IntervalSchedule.objects.get_or_create(every=15, period=IntervalSchedule.SECONDS)
 
         tasks = [
             ('Sync all TV shows (TMDB + TVMaze)',       'sync_all_shows',              daily),
@@ -20,8 +22,14 @@ class Command(BaseCommand):
             ('Refresh movie digital release dates',     'refresh_movie_release_dates', daily),
             ('Clean up non-video files',                'cleanup_non_video_files',     daily),
             ('Remove empty folders',                    'remove_empty_folders',        daily),
-            ('Poll download progress',                  'poll_download_progress',      every5m),
-            ('Auto-search queue',                       'auto_search_queue',           every5m),
+            # These two are the "no browser tab open" backstops for live
+            # progress and stuck-item search — kept tight so background
+            # automation feels close to real-time. Safe at this frequency
+            # only because DownloadItems get search_started_at stamped at
+            # creation (see auto_search_queue's docstring) — that's what
+            # actually prevents racing a browser tab, not the interval here.
+            ('Poll download progress',                  'poll_download_progress',      every15s),
+            ('Auto-search queue',                       'auto_search_queue',           every30s),
             ('Check storage usage',                     'check_storage',               every6h),
         ]
 

@@ -91,13 +91,20 @@ def cleanup_non_video_files():
 def auto_search_queue():
     """
     Pick up any DownloadItems stuck in SEARCHING status that haven't had an active
-    search task running in the last 10 minutes, and fire search_and_download for each.
+    search task running in the last 3 minutes, and fire search_and_download for each.
     This means the search runs even when nobody has the queue page open.
+
+    3 minutes is a grace period, not a discovery delay — every item gets
+    search_started_at stamped at creation time (see tv_show_queue_download /
+    _queue_movie), so this only fires for items the browser hasn't finished
+    with yet. It's comfortably longer than the browser's own worst-case
+    multi-tier search (a handful of qBittorrent search-plugin queries,
+    typically well under a minute), so it won't race a tab that's open.
     """
     from datetime import timedelta
     from apps.downloads.models import DownloadItem
 
-    cutoff = timezone.now() - timedelta(minutes=10)
+    cutoff = timezone.now() - timedelta(minutes=3)
     from django.db.models import Q
     stuck = DownloadItem.objects.filter(
         status=DownloadItem.Status.SEARCHING,

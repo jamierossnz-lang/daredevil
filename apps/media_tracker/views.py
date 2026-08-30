@@ -322,6 +322,12 @@ def tv_show_queue_download(request, pk):
                     'status': DownloadItem.Status.SEARCHING,
                     'quality': ep_quality,
                     'search_query': sq,
+                    # Stamped now, not just when a search actually starts, so
+                    # auto_search_queue's short grace window is measured from
+                    # creation — otherwise a null timestamp makes it eligible
+                    # for immediate Celery pickup, racing the browser's own
+                    # client-side search.
+                    'search_started_at': timezone.now(),
                 },
             )
             if is_new:
@@ -359,6 +365,10 @@ def tv_show_queue_download(request, pk):
                     'release_date': ep.air_date,
                     'quality': ep_quality,
                     'search_query': sq,
+                    # See comment on the season branch above — stamped at
+                    # creation so the auto_search_queue backstop can run
+                    # frequently without racing the browser's own search.
+                    'search_started_at': timezone.now(),
                 },
             )
             if is_new:
@@ -366,8 +376,8 @@ def tv_show_queue_download(request, pk):
                 ep.save(update_fields=['download_status'])
                 created += 1
                 # Don't fire Celery here — browser handles the search when the
-                # user lands on the queue page.  Celery would race and mark FAILED
-                # before the browser even loads.
+                # user lands on the queue page. auto_search_queue is the backstop
+                # if no tab is open (see its short grace-period cutoff).
 
     return JsonResponse({'status': 'ok', 'queued': created})
 
@@ -776,6 +786,10 @@ def _queue_movie(movie, quality='1080p'):
             'release_date': movie.digital_release_date or movie.release_date,
             'quality': quality,
             'search_query': search_query,
+            # See comment in tv_show_queue_download — stamped at creation so
+            # auto_search_queue's backstop can run frequently without racing
+            # the browser's own client-side search.
+            'search_started_at': timezone.now(),
         },
     )
     if not created and item.status == DownloadItem.Status.FAILED:
@@ -784,7 +798,8 @@ def _queue_movie(movie, quality='1080p'):
         item.status = initial_status
         item.error_message = ''
         item.search_query = search_query
-        item.save(update_fields=['quality', 'status', 'error_message', 'search_query'])
+        item.search_started_at = timezone.now()
+        item.save(update_fields=['quality', 'status', 'error_message', 'search_query', 'search_started_at'])
 
     movie.download_status = dl_status
     movie.save(update_fields=['download_status'])
