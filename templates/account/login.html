@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load socialaccount %}<!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
@@ -92,6 +92,30 @@
           Sign In
         </button>
       </form>
+
+      {% if PASSKEY_LOGIN_ENABLED or GOOGLE_LOGIN_ENABLED %}
+      <div class="flex items-center gap-3 my-5">
+        <div class="flex-1 h-px bg-white/10"></div>
+        <span class="text-xs text-gray-600">or</span>
+        <div class="flex-1 h-px bg-white/10"></div>
+      </div>
+      <div class="space-y-2.5">
+        {% if PASSKEY_LOGIN_ENABLED %}
+        <button type="submit" form="mfa_login" id="passkey_login"
+                class="w-full py-3 border border-brand-500/40 hover:bg-brand-500/10 text-brand-300 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid fa-fingerprint"></i> Sign in with a passkey
+        </button>
+        {% include "mfa/webauthn/snippets/login_script.html" %}
+        {% endif %}
+
+        {% if GOOGLE_LOGIN_ENABLED %}
+        <a href="{% provider_login_url 'google' %}"
+           class="w-full py-3 border border-white/10 hover:bg-white/5 text-gray-200 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          <i class="fa-brands fa-google"></i> Sign in with Google
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
 
     <p class="text-center text-xs text-gray-600 mt-6">Daredevil — self-hosted media manager</p>

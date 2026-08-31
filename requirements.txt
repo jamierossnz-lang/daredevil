@@ -13,4 +13,4 @@ django-htmx>=1.17.0
 gunicorn>=21.2.0
 plexapi>=4.15.0
 psycopg2-binary>=2.9.9
-django-allauth>=65.0,<66.0
+django-allauth[mfa]>=65.0,<66.0

@@ -31,6 +31,9 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'allauth',
     'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'allauth.mfa',
     'rest_framework',
     'django_htmx',
     'django_celery_beat',
@@ -94,6 +97,28 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False') == 'True'
 CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False') == 'True'
 
+# Google sign-in — only actually offered once real credentials exist. Signup
+# via Google is blocked by the same adapter as regular signup (allauth's
+# social adapter delegates to it by default) — Google can only ever log in
+# as the existing superuser, never create a new account. To use it: sign in
+# normally once, then visit /accounts/3rdparty/ to connect your Google
+# account to this login.
+_google_client_id = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+_google_client_secret = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+SOCIALACCOUNT_PROVIDERS = {}
+if _google_client_id and _google_client_secret:
+    SOCIALACCOUNT_PROVIDERS['google'] = {
+        'APPS': [{'client_id': _google_client_id, 'secret': _google_client_secret, 'key': ''}],
+        'SCOPE': ['profile', 'email'],
+    }
+
+# Passkeys (WebAuthn / Face ID / Touch ID / Windows Hello) as an alternative
+# to password login, not a second factor on top of it. Needs HTTPS (or
+# localhost) — browsers refuse the WebAuthn API otherwise. Register one at
+# /accounts/2fa/webauthn/add/ while logged in with your password first.
+MFA_SUPPORTED_TYPES = ['webauthn']
+MFA_PASSKEY_LOGIN_ENABLED = True
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
@@ -109,6 +134,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.plex.context_processors.drive_usage',
                 'apps.notifications.context_processors.notification_count',
+                'apps.accounts.context_processors.google_login_enabled',
             ],
         },
     },
