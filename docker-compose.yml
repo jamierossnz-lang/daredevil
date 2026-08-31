@@ -95,6 +95,24 @@ services:
       - ${MOVIES_DIR:-./movies}:/data/movies
       - ${TV_DIR:-./tv}:/data/tv
 
+  # ── Cloudflare Tunnel ──────────────────────────────────────────────────────
+  # Exposes `web` publicly with zero inbound ports — cloudflared connects
+  # outbound to Cloudflare's edge only, doesn't affect any other service.
+  # Requires CLOUDFLARE_TUNNEL_TOKEN in .env (see README) — without it this
+  # container will crash-loop uselessly, so comment this block out entirely
+  # rather than leaving the token blank if you're not using the tunnel yet.
+  # Get the token from the Cloudflare Zero Trust dashboard: Networks ->
+  # Tunnels -> Create a tunnel -> Docker connector.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      web:
+        condition: service_started
+
   # ── Daredevil web server ───────────────────────────────────────────────────
   web:
     build: .
