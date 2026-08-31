@@ -28,10 +28,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
     'rest_framework',
     'django_htmx',
     'django_celery_beat',
     'django_celery_results',
+    'apps.accounts',
     'apps.events',
     'apps.media_tracker',
     'apps.downloads',
@@ -47,10 +51,48 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
+    'apps.accounts.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
 ]
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Single-user home server: log in with the superuser account (username +
+# password) created via `createsuperuser` — signup is hard-disabled in
+# apps/accounts/adapter.py regardless of these settings.
+ACCOUNT_ADAPTER = 'apps.accounts.adapter.NoSignupAccountAdapter'
+ACCOUNT_LOGIN_METHODS = {'username'}
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_LOGOUT_ON_GET = False  # logout requires POST (CSRF-safe)
+ACCOUNT_SESSION_REMEMBER = True  # always persist — see SESSION_COOKIE_AGE above
+
+LOGIN_URL = 'account_login'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Long-lived, sliding session — this is a personal always-trusted device, not
+# a shared/public terminal, so re-prompting for a password every couple of
+# weeks would just be friction. Extends on every request, so it only expires
+# after 90 days of no activity at all.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
+SESSION_SAVE_EVERY_REQUEST = True
+
+# Off by default so LAN-only HTTP access (e.g. http://192.168.1.x:8000) still
+# works out of the box. Flip both to true once HTTPS is actually terminated
+# in front of the app (reverse proxy / tunnel) — sending the session/CSRF
+# cookie over plain HTTP once it's exposed beyond the LAN defeats having a
+# login at all.
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False') == 'True'
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False') == 'True'
 
 ROOT_URLCONF = 'config.urls'
 

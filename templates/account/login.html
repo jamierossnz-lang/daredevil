@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07071a">
+  <title>Sign In — Daredevil</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              400: 'rgb(var(--b400) / <alpha-value>)',
+              500: 'rgb(var(--b500) / <alpha-value>)',
+              600: 'rgb(var(--b600) / <alpha-value>)',
+              700: 'rgb(var(--b700) / <alpha-value>)',
+            },
+            surface: {
+              700: '#181840', 800: '#0e0e2e', 900: '#07071a',
+            },
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root { --b400: 124 33 255; --b500: 102 0 255; --b600: 85 0 212; --b700: 68 0 170; }
+    body { background: radial-gradient(ellipse at top, #14103a 0%, #07071a 60%); }
+    .glass { background: rgba(14,14,46,0.75); backdrop-filter: blur(16px); border: 1px solid rgb(var(--b500) / 0.18); }
+    .text-gradient {
+      background: linear-gradient(135deg, rgb(var(--b400)), #00d4ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 12px rgb(var(--b500) / 0.45); }
+      50%      { box-shadow: 0 0 28px rgb(var(--b500) / 0.85); }
+    }
+    .animate-glow { animation: pulse-glow 2.4s infinite; }
+  </style>
+</head>
+<body class="h-full font-sans text-gray-100 flex items-center justify-center p-4"
+      style="padding-top: calc(1rem + env(safe-area-inset-top, 0px)); padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
+
+  <div class="w-full max-w-sm">
+    <div class="flex flex-col items-center mb-8">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-glow mb-4">
+        <i class="fa-solid fa-tornado text-white text-xl"></i>
+      </div>
+      <span class="text-3xl font-bold text-gradient">Daredevil</span>
+    </div>
+
+    <div class="glass rounded-2xl p-6 sm:p-7">
+      <h1 class="text-lg font-semibold text-gray-100 mb-1">Sign in</h1>
+      <p class="text-sm text-gray-500 mb-6">Enter your admin credentials to continue.</p>
+
+      {% if form.non_field_errors %}
+      <div class="mb-4 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-2">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 flex-shrink-0"></i>
+        <span>{{ form.non_field_errors.0 }}</span>
+      </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'account_login' %}" class="space-y-4">
+        {% csrf_token %}
+
+        <div>
+          <label for="id_login" class="block text-xs font-medium text-gray-400 mb-1.5">Username</label>
+          <div class="relative">
+            <i class="fa-solid fa-user absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+            {{ form.login }}
+          </div>
+        </div>
+
+        <div>
+          <label for="id_password" class="block text-xs font-medium text-gray-400 mb-1.5">Password</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+            {{ form.password }}
+          </div>
+        </div>
+
+        {{ redirect_field }}
+
+        <button type="submit"
+                class="w-full py-3 mt-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold transition-colors">
+          Sign In
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-xs text-gray-600 mt-6">Daredevil — self-hosted media manager</p>
+  </div>
+
+  <style>
+    #id_login, #id_password {
+      width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem;
+      background: #0e0e2e; border: 1px solid #25255a; border-radius: 0.75rem;
+      color: #f3f4f6; font-size: 16px; line-height: 1.5;
+    }
+    #id_login::placeholder, #id_password::placeholder { color: #6b7280; }
+    #id_login:focus, #id_password:focus {
+      outline: none; border-color: rgb(var(--b500) / 0.6);
+      box-shadow: 0 0 0 3px rgb(var(--b500) / 0.15);
+    }
+  </style>
+</body>
+</html>

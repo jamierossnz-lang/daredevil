@@ -64,9 +64,13 @@ docker compose up -d
 # 3. Get the qBittorrent temporary password (generated on first run)
 docker compose logs qbittorrent | grep "temporary password"
 
-# 4. Create a Daredevil admin user
+# 4. Create a Daredevil admin user — this is also your login for the app itself
 docker compose exec web python manage.py createsuperuser
 ```
+
+Daredevil requires signing in — there's no separate account system, the superuser
+you just created is the login for the whole app (not just `/admin/`). There's no
+signup page; it's a single-user home server.
 
 | Service | URL |
 |---------|-----|
@@ -90,7 +94,7 @@ After `docker compose up -d`, open Docker Desktop. The entire stack appears as a
 | Stop everything | Click **Stop** on the `daredevil` group row |
 | Browse volumes | **Volumes** tab in the left sidebar |
 
-> To create the admin user via the Docker Desktop GUI: open the `web` container → **Exec** tab → run `python manage.py createsuperuser` and follow the prompts. You can then log in at http://localhost:8000/admin.
+> To create the admin user via the Docker Desktop GUI: open the `web` container → **Exec** tab → run `python manage.py createsuperuser` and follow the prompts. You can then log in at http://localhost:8000 — the same account signs into the app itself and `/admin/`.
 
 ---
 

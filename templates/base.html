@@ -323,11 +323,18 @@
     {% endif %}
 
     <!-- Footer -->
-    <div class="px-4 py-3 {% if drives %}{% else %}border-t border-white/5{% endif %}">
+    <div class="px-4 py-3 {% if drives %}{% else %}border-t border-white/5{% endif %} flex items-center justify-between gap-2">
       <a href="/admin/" class="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition-colors">
         <i class="fa-solid fa-user-shield"></i>
         Django Admin
       </a>
+      <form method="post" action="{% url 'account_logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="flex items-center gap-2 text-xs text-gray-500 hover:text-red-400 transition-colors">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          Sign Out
+        </button>
+      </form>
     </div>
   </aside>
 
@@ -490,6 +497,14 @@
           <i class="fa-solid fa-user-shield text-2xl"></i>
           <span class="text-xs font-semibold text-center leading-tight">Django Admin</span>
         </a>
+        <form method="post" action="{% url 'account_logout' %}" class="contents">
+          {% csrf_token %}
+          <button type="submit"
+             class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border border-surface-700/50 bg-surface-800 text-gray-500 active:bg-surface-700 transition-all min-h-[86px] w-full">
+            <i class="fa-solid fa-right-from-bracket text-2xl"></i>
+            <span class="text-xs font-semibold text-center leading-tight">Sign Out</span>
+          </button>
+        </form>
       </div>
 
       {% endwith %}
