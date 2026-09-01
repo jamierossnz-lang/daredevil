@@ -373,6 +373,10 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
             {% endif %}
           </div>
           <div class="flex gap-2 flex-shrink-0">
+            <button onclick="openManualSearch({{ item.pk }}, '{{ item.title|escapejs }}', '{{ item.search_query|default:item.title|escapejs }}')"
+                    class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 rounded-lg text-xs font-medium transition-colors border border-cyan-600/30">
+              <i class="fa-solid fa-magnifying-glass mr-1"></i>Search
+            </button>
             <button onclick="retryItem({{ item.pk }})"
                     class="px-3 py-1.5 bg-brand-600/30 hover:bg-brand-600/60 text-brand-400 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
               <i class="fa-solid fa-rotate-right mr-1"></i>Retry
@@ -395,6 +399,35 @@ x-init="$watch('tab', v => { history.replaceState(null, '', '#' + v); this.selec
   </div>
 
 </div><!-- end single Alpine scope -->
+
+<!-- Manual Search Modal — shared across all failed items -->
+<div id="manualSearchModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeManualSearch()"></div>
+  <div class="relative glass rounded-2xl w-full max-w-lg p-6 animate-slide-in overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center gap-2 mb-4">
+      <div class="w-7 h-7 rounded-lg bg-cyan-600/20 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-magnifying-glass text-cyan-400 text-xs"></i>
+      </div>
+      <h3 class="text-sm font-bold text-white flex-1 truncate" id="msTitle">Search manually</h3>
+      <button onclick="closeManualSearch()"
+              class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors">
+        <i class="fa-solid fa-xmark text-xs"></i>
+      </button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <input type="text" id="msQuery" autocomplete="off"
+             class="flex-1 min-w-0 px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-base sm:text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors">
+      <button onclick="manualSearchRun()" id="msSearchBtn"
+              class="flex-none px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-sm font-medium transition-colors">
+        Search
+      </button>
+    </div>
+    <div id="msResults" class="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+      <p class="text-sm text-gray-500 text-center py-4">Edit the query if needed, then click Search</p>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -700,6 +733,127 @@ async function retryItem(pk) {
   console.log(`[daredevil] retryItem pk=${pk} search_query="${data.search_query || ''}"`);
   location.reload();
 }
+
+// ── Manual search (Failed tab) — same search-and-pick experience as the
+// "Add & Pick Torrent" flow, but for an item that's already queued: on
+// pick, it links straight into the normal begin-download endpoint, so the
+// rest of the pipeline (progress, completion, file move) is unchanged. ──
+let _msPk = null;
+
+function openManualSearch(pk, title, query) {
+  _msPk = pk;
+  document.getElementById('msTitle').textContent = title || 'Search manually';
+  document.getElementById('msQuery').value = query || title || '';
+  document.getElementById('msResults').innerHTML =
+    '<p class="text-sm text-gray-500 text-center py-4">Edit the query if needed, then click Search</p>';
+  const modal = document.getElementById('manualSearchModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.getElementById('msQuery').focus();
+}
+
+function closeManualSearch() {
+  const modal = document.getElementById('manualSearchModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  _msPk = null;
+}
+
+async function manualSearchRun() {
+  const query = document.getElementById('msQuery').value.trim();
+  if (!query || !_msPk) return;
+  const btn = document.getElementById('msSearchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  document.getElementById('msResults').innerHTML =
+    '<div class="py-8 text-center text-gray-500"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i><p class="text-sm">Searching…</p></div>';
+  try {
+    const fd = new FormData();
+    fd.append('q', query);
+    const res = await fetch('/qbt/search/run/', { method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken } });
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('msResults').innerHTML =
+        `<p class="text-sm text-red-400 text-center py-4"><i class="fa-solid fa-circle-exclamation mr-1"></i>${_msEsc(data.error)}</p>`;
+    } else {
+      _msRenderResults(data.results || []);
+    }
+  } catch (e) {
+    document.getElementById('msResults').innerHTML =
+      `<p class="text-sm text-red-400 text-center py-4"><i class="fa-solid fa-circle-exclamation mr-1"></i>${_msEsc(e.message)}</p>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = 'Search';
+}
+
+function _msRenderResults(results) {
+  const el = document.getElementById('msResults');
+  if (!results.length) {
+    el.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No results found</p>';
+    return;
+  }
+  el.innerHTML = results.slice(0, 40).map(r => {
+    const seeds = Number(r.seeds || r.seeders || r.nbSeeders) || 0;
+    const sz = r.size || '';
+    const name = _msEsc(r.name || r.fileName || '');
+    const trk = r.engine ? `· ${_msEsc(r.engine)}` : '';
+    const magnet = r.url || r.magnet || r.fileUrl || '';
+    const payload = JSON.stringify({ magnet, name: r.name || r.fileName || '', seeders: seeds });
+    return `
+    <button onclick='_msPick(${_msEsc(payload)})'
+            class="w-full text-left px-3 py-2.5 rounded-xl bg-surface-800 hover:bg-surface-700 border border-surface-600 hover:border-cyan-600/50 transition-colors group mb-1.5">
+      <div class="flex items-start justify-between gap-2">
+        <span class="text-xs text-gray-200 leading-snug group-hover:text-white">${name}</span>
+        <span class="flex-shrink-0 text-xs font-semibold ml-2 ${seeds > 0 ? 'text-green-400' : 'text-gray-600'}">${seeds}S</span>
+      </div>
+      <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-600">
+        ${sz ? `<span>${sz}</span>` : ''}${trk}
+      </div>
+    </button>`;
+  }).join('');
+}
+
+async function _msPick({ magnet, name, seeders }) {
+  if (!_msPk) return;
+  const pk = _msPk;
+  document.getElementById('msResults').innerHTML =
+    '<div class="py-6 text-center text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Starting download…</div>';
+  const fd = new FormData();
+  fd.append('magnet', magnet);
+  fd.append('name', name);
+  fd.append('result_count', seeders);
+  try {
+    const res = await fetch(`/downloads/${pk}/begin-download/`, {
+      method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('msResults').innerHTML =
+        '<div class="py-6 text-center text-green-400"><i class="fa-solid fa-circle-check mr-2"></i>Added — starting download…</div>';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      document.getElementById('msResults').innerHTML =
+        `<p class="text-sm text-red-400 text-center py-4"><i class="fa-solid fa-circle-exclamation mr-1"></i>${_msEsc(data.error || 'Failed to add torrent')}</p>`;
+    }
+  } catch (e) {
+    document.getElementById('msResults').innerHTML =
+      `<p class="text-sm text-red-400 text-center py-4"><i class="fa-solid fa-circle-exclamation mr-1"></i>${_msEsc(e.message)}</p>`;
+  }
+}
+
+function _msEsc(s) {
+  // Escapes ' too, not just " — this payload is embedded inside a
+  // single-quoted onclick="..." attribute, and result text (torrent names,
+  // or qBT/Jackett status messages) can and does contain apostrophes.
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+document.getElementById('msQuery')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); manualSearchRun(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _msPk) closeManualSearch();
+});
 
 const MIN_SEEDS = 3; // minimum seeds before we'll auto-download
 
