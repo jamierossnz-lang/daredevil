@@ -117,11 +117,29 @@
             </div>
           </div>
           <div class="flex flex-col gap-2">
-            <button @click="confirmChoice(true)"
-                    class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-              <i class="fa-solid" :class="choiceItem.is_released ? 'fa-download' : 'fa-clock'"></i>
-              <span x-text="choiceItem.is_released ? 'Add to Library + Download' : 'Add to Library + Wait for Release'"></span>
-            </button>
+            <!-- Movie: add-only vs add+download (or wait-for-release if unreleased) -->
+            <template x-if="choiceItem.media_type === 'movie'">
+              <button @click="confirmChoice(true)"
+                      class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <i class="fa-solid" :class="choiceItem.is_released ? 'fa-download' : 'fa-clock'"></i>
+                <span x-text="choiceItem.is_released ? 'Add to Library + Download' : 'Add to Library + Wait for Release'"></span>
+              </button>
+            </template>
+
+            <!-- TV: pick episodes on the show page, or just monitor for new ones -->
+            <template x-if="choiceItem.media_type === 'tv'">
+              <button @click="goToLibrary()"
+                      class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <i class="fa-solid fa-list-check"></i> Download Episodes…
+              </button>
+            </template>
+            <template x-if="choiceItem.media_type === 'tv'">
+              <button @click="confirmChoice(true)"
+                      class="w-full py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rss"></i> Add + Monitor New Episodes
+              </button>
+            </template>
+
             <button @click="confirmChoice(false)"
                     class="w-full py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
               <i class="fa-solid fa-bookmark"></i> Add to Library Only
@@ -268,7 +286,30 @@ function swipeDeck() {
       this.showChoice = false;
       try {
         await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
-        this.showToast(withDownload ? `${item.title} added — download started` : `${item.title} added to library`);
+        let msg;
+        if (!withDownload) msg = `${item.title} added to library`;
+        else if (item.media_type === 'movie') msg = `${item.title} added — download started`;
+        else msg = `${item.title} added — monitoring for new episodes`;
+        this.showToast(msg);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+
+    async goToLibrary() {
+      // TV only — sync the show (no download/monitor side effect) and hand
+      // off to its library page, where the existing whole-show/seasons/
+      // episodes picker already lives, instead of reimplementing it here.
+      if (!this.choiceItem) return;
+      const item = this.choiceItem;
+      this.choiceItem = null;
+      this.showChoice = false;
+      try {
+        const r = await fetch(`/foryou/${item.id}/add/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+        const d = await r.json();
+        if (d.pk) {
+          window.location.href = `/shows/${d.pk}/`;
+        }
       } catch (e) {
         console.error(e);
       }
