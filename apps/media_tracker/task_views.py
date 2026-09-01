@@ -72,6 +72,18 @@ TASK_REGISTRY = {
         'icon': 'fa-hard-drive',
         'color': 'yellow',
     },
+    'generate_recommendations': {
+        'label': 'For You: Recommendations',
+        'description': 'Pull TMDB recommendations + similar titles for everything in your library and add new ones to the For You swipe deck.',
+        'icon': 'fa-layer-group',
+        'color': 'cyan',
+    },
+    'generate_anticipated': {
+        'label': 'For You: New & Anticipated',
+        'description': "Pull Trakt's most-anticipated movies/shows (ranked by watchlist activity) and add new ones to the For You swipe deck. Skipped if TRAKT_CLIENT_ID isn't set.",
+        'icon': 'fa-fire',
+        'color': 'cyan',
+    },
 }
 
 PERIOD_CHOICES = [
@@ -182,6 +194,8 @@ def _annotate_recent(qs):
             'execute_file_move':           'Execute File Move',
             'auto_search_queue':           'Auto-Search Queue',
             'check_storage':               'Check Storage Usage',
+            'generate_recommendations':    'For You: Recommendations',
+            'generate_anticipated':        'For You: New & Anticipated',
         }.get(name, name or 'Unknown Task')
 
         r.label = label
@@ -238,6 +252,7 @@ def _dispatch(task_name):
         remove_empty_folders, auto_search_queue, check_storage,
     )
     from apps.downloads.tasks import poll_download_progress
+    from apps.discover.tasks import generate_recommendations, generate_anticipated
     mapping = {
         'sync_all_shows':              sync_all_shows,
         'update_episode_statuses':     update_episode_statuses,
@@ -250,6 +265,8 @@ def _dispatch(task_name):
         'auto_search_queue':           auto_search_queue,
         'poll_download_progress':      poll_download_progress,
         'check_storage':               check_storage,
+        'generate_recommendations':    generate_recommendations,
+        'generate_anticipated':        generate_anticipated,
     }
     return mapping[task_name].delay()
 
