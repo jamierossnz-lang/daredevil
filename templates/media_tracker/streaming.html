@@ -176,7 +176,16 @@ async function addShowFromStream(tmdbId, title, btn) {
 
 /* ── Card renderer (for infinite scroll) ── */
 function _esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Safe to drop straight into onclick="...(TITLE_ARG,...)": JSON.stringify
+// makes it a valid JS string literal (handles backslashes, control chars),
+// then _esc HTML-escapes the quote characters JSON.stringify itself leaves
+// raw — needed because the *browser* decodes HTML entities in the attribute
+// value before handing the result to the JS parser as the handler's source.
+function _jsAttr(s) {
+  return _esc(JSON.stringify(String(s)));
 }
 
 function buildStreamCard(item) {
@@ -196,9 +205,9 @@ function buildStreamCard(item) {
   if (item.already_added) {
     addBtn = `<span class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30"><i class="fa-solid fa-circle-check"></i> Added</span>`;
   } else if (item.media === 'movie') {
-    addBtn = `<button onclick="addMovieFromStream(${item.id},${JSON.stringify(item.title)},this)" class="w-full py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+    addBtn = `<button onclick="addMovieFromStream(${item.id},${_jsAttr(item.title)},this)" class="w-full py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
   } else {
-    addBtn = `<button onclick="addShowFromStream(${item.id},${JSON.stringify(item.title)},this)" class="w-full py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+    addBtn = `<button onclick="addShowFromStream(${item.id},${_jsAttr(item.title)},this)" class="w-full py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
   }
 
   const rating = item.vote_average > 0 ? ` · ★ ${item.vote_average.toFixed(1)}` : '';
