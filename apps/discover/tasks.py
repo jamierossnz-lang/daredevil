@@ -12,7 +12,19 @@ log = logging.getLogger('daredevil.discover.tasks')
 # and Trakt know about.
 RECS_PER_LIBRARY_ITEM = 6
 MAX_NEW_RECS_PER_RUN = 25
-MAX_NEW_ANTICIPATED_PER_RUN = 20
+MAX_PER_TRAKT_CATEGORY = 8  # ×4 categories ×2 media types ≈ same order of magnitude as before
+
+
+def _unwrap_trakt_entry(entry, key):
+    """
+    Trakt list entries are shaped differently per endpoint: trending/
+    anticipated/calendar wrap the movie/show object under a named key
+    (e.g. {'watchers': 12, 'movie': {...}}); popular returns the object
+    bare. Normalize to the object itself either way.
+    """
+    if isinstance(entry, dict) and isinstance(entry.get(key), dict):
+        return entry[key]
+    return entry if isinstance(entry, dict) else None
 
 
 def _existing_and_decided(media_type):
@@ -60,18 +72,20 @@ def generate_recommendations():
                 cand_id = r.get('id')
                 if not cand_id or cand_id in seen_movie_ids:
                     continue
-                DiscoverItem.objects.create(
+                DiscoverItem.objects.get_or_create(
                     tmdb_id=cand_id,
                     media_type=DiscoverItem.MediaType.MOVIE,
-                    title=r.get('title', ''),
-                    overview=r.get('overview', ''),
-                    poster_path=r.get('poster_path') or '',
-                    backdrop_path=r.get('backdrop_path') or '',
-                    release_date=_parse_date(r.get('release_date')),
-                    vote_average=r.get('vote_average', 0),
-                    genres=genre_names(r.get('genre_ids'), 'movie'),
-                    source=DiscoverItem.Source.RECOMMENDATION,
-                    source_title=movie.title,
+                    defaults=dict(
+                        title=r.get('title', ''),
+                        overview=r.get('overview', ''),
+                        poster_path=r.get('poster_path') or '',
+                        backdrop_path=r.get('backdrop_path') or '',
+                        release_date=_parse_date(r.get('release_date')),
+                        vote_average=r.get('vote_average', 0),
+                        genres=genre_names(r.get('genre_ids'), 'movie'),
+                        source=DiscoverItem.Source.RECOMMENDATION,
+                        source_title=movie.title,
+                    ),
                 )
                 seen_movie_ids.add(cand_id)
                 added_movies += 1
@@ -93,18 +107,20 @@ def generate_recommendations():
                 cand_id = r.get('id')
                 if not cand_id or cand_id in seen_show_ids:
                     continue
-                DiscoverItem.objects.create(
+                DiscoverItem.objects.get_or_create(
                     tmdb_id=cand_id,
                     media_type=DiscoverItem.MediaType.TV,
-                    title=r.get('name', ''),
-                    overview=r.get('overview', ''),
-                    poster_path=r.get('poster_path') or '',
-                    backdrop_path=r.get('backdrop_path') or '',
-                    release_date=_parse_date(r.get('first_air_date')),
-                    vote_average=r.get('vote_average', 0),
-                    genres=genre_names(r.get('genre_ids'), 'tv'),
-                    source=DiscoverItem.Source.RECOMMENDATION,
-                    source_title=show.name,
+                    defaults=dict(
+                        title=r.get('name', ''),
+                        overview=r.get('overview', ''),
+                        poster_path=r.get('poster_path') or '',
+                        backdrop_path=r.get('backdrop_path') or '',
+                        release_date=_parse_date(r.get('first_air_date')),
+                        vote_average=r.get('vote_average', 0),
+                        genres=genre_names(r.get('genre_ids'), 'tv'),
+                        source=DiscoverItem.Source.RECOMMENDATION,
+                        source_title=show.name,
+                    ),
                 )
                 seen_show_ids.add(cand_id)
                 added_shows += 1
@@ -117,11 +133,14 @@ def generate_recommendations():
 @shared_task(name='generate_anticipated')
 def generate_anticipated():
     """
-    Nightly: pull Trakt's most-anticipated movies/shows — ranked by real
-    watchlist-add activity, a far better 'newly announced and buzzing'
-    signal than TMDB exposes on its own — and add any not-yet-seen title
-    to the deck, enriched with full TMDB metadata for the card.
+    Nightly: pull four different Trakt discovery angles — Trending,
+    Releases (calendar), Anticipated (most watchlisted — a good 'newly
+    announced and buzzing' signal TMDB doesn't expose on its own), and
+    Popular — and add any not-yet-seen title to the deck, enriched with
+    full TMDB metadata. Each category gets its own small cap so no single
+    angle crowds out the others.
     """
+    from datetime import date
     from .models import DiscoverItem
     from .trakt import trakt
 
@@ -133,69 +152,95 @@ def generate_anticipated():
     seen_show_ids = _existing_and_decided('tv')
     added_movies = 0
     added_shows = 0
+    today = date.today().isoformat()
 
-    try:
-        anticipated_movies = trakt.anticipated_movies(limit=50)
-    except Exception as e:
-        log.warning('generate_anticipated: trakt movies fetch failed — %s', e)
-        anticipated_movies = []
+    movie_sources = [
+        ('Trending on Trakt', lambda: trakt.trending_movies(limit=50)),
+        ('New Release',       lambda: trakt.released_movies(today, 30)),
+        ('Most Anticipated',  lambda: trakt.anticipated_movies(limit=50)),
+        ('Popular on Trakt',  lambda: trakt.popular_movies(limit=50)),
+    ]
+    show_sources = [
+        ('Trending on Trakt', lambda: trakt.trending_shows(limit=50)),
+        ('New Release',       lambda: trakt.released_shows(today, 30)),
+        ('Most Anticipated',  lambda: trakt.anticipated_shows(limit=50)),
+        ('Popular on Trakt',  lambda: trakt.popular_shows(limit=50)),
+    ]
 
-    for entry in anticipated_movies:
-        if added_movies >= MAX_NEW_ANTICIPATED_PER_RUN:
-            break
-        cand_id = ((entry.get('movie') or {}).get('ids') or {}).get('tmdb')
-        if not cand_id or cand_id in seen_movie_ids:
-            continue
+    for label, fetch in movie_sources:
         try:
-            details = tmdb.get_movie(cand_id)
+            entries = fetch()
         except Exception as e:
-            log.warning('generate_anticipated: tmdb detail fetch failed for movie %s — %s', cand_id, e)
+            log.warning('generate_anticipated: trakt movies (%s) fetch failed — %s', label, e)
             continue
-        DiscoverItem.objects.create(
-            tmdb_id=cand_id,
-            media_type=DiscoverItem.MediaType.MOVIE,
-            title=details.get('title', ''),
-            overview=details.get('overview', ''),
-            poster_path=details.get('poster_path') or '',
-            backdrop_path=details.get('backdrop_path') or '',
-            release_date=_parse_date(details.get('release_date')),
-            vote_average=details.get('vote_average', 0),
-            genres=', '.join(g['name'] for g in details.get('genres', [])),
-            source=DiscoverItem.Source.ANTICIPATED,
-        )
-        seen_movie_ids.add(cand_id)
-        added_movies += 1
+        added_this_category = 0
+        for entry in entries:
+            if added_this_category >= MAX_PER_TRAKT_CATEGORY:
+                break
+            obj = _unwrap_trakt_entry(entry, 'movie')
+            cand_id = ((obj or {}).get('ids') or {}).get('tmdb')
+            if not cand_id or cand_id in seen_movie_ids:
+                continue
+            try:
+                details = tmdb.get_movie(cand_id)
+            except Exception as e:
+                log.warning('generate_anticipated: tmdb detail fetch failed for movie %s — %s', cand_id, e)
+                continue
+            DiscoverItem.objects.get_or_create(
+                tmdb_id=cand_id,
+                media_type=DiscoverItem.MediaType.MOVIE,
+                defaults=dict(
+                    title=details.get('title', ''),
+                    overview=details.get('overview', ''),
+                    poster_path=details.get('poster_path') or '',
+                    backdrop_path=details.get('backdrop_path') or '',
+                    release_date=_parse_date(details.get('release_date')),
+                    vote_average=details.get('vote_average', 0),
+                    genres=', '.join(g['name'] for g in details.get('genres', [])),
+                    source=DiscoverItem.Source.ANTICIPATED,
+                    source_title=label,
+                ),
+            )
+            seen_movie_ids.add(cand_id)
+            added_this_category += 1
+            added_movies += 1
 
-    try:
-        anticipated_shows = trakt.anticipated_shows(limit=50)
-    except Exception as e:
-        log.warning('generate_anticipated: trakt shows fetch failed — %s', e)
-        anticipated_shows = []
-
-    for entry in anticipated_shows:
-        if added_shows >= MAX_NEW_ANTICIPATED_PER_RUN:
-            break
-        cand_id = ((entry.get('show') or {}).get('ids') or {}).get('tmdb')
-        if not cand_id or cand_id in seen_show_ids:
-            continue
+    for label, fetch in show_sources:
         try:
-            details = tmdb.get_tv(cand_id)
+            entries = fetch()
         except Exception as e:
-            log.warning('generate_anticipated: tmdb detail fetch failed for show %s — %s', cand_id, e)
+            log.warning('generate_anticipated: trakt shows (%s) fetch failed — %s', label, e)
             continue
-        DiscoverItem.objects.create(
-            tmdb_id=cand_id,
-            media_type=DiscoverItem.MediaType.TV,
-            title=details.get('name', ''),
-            overview=details.get('overview', ''),
-            poster_path=details.get('poster_path') or '',
-            backdrop_path=details.get('backdrop_path') or '',
-            release_date=_parse_date(details.get('first_air_date')),
-            vote_average=details.get('vote_average', 0),
-            genres=', '.join(g['name'] for g in details.get('genres', [])),
-            source=DiscoverItem.Source.ANTICIPATED,
-        )
-        seen_show_ids.add(cand_id)
-        added_shows += 1
+        added_this_category = 0
+        for entry in entries:
+            if added_this_category >= MAX_PER_TRAKT_CATEGORY:
+                break
+            obj = _unwrap_trakt_entry(entry, 'show')
+            cand_id = ((obj or {}).get('ids') or {}).get('tmdb')
+            if not cand_id or cand_id in seen_show_ids:
+                continue
+            try:
+                details = tmdb.get_tv(cand_id)
+            except Exception as e:
+                log.warning('generate_anticipated: tmdb detail fetch failed for show %s — %s', cand_id, e)
+                continue
+            DiscoverItem.objects.get_or_create(
+                tmdb_id=cand_id,
+                media_type=DiscoverItem.MediaType.TV,
+                defaults=dict(
+                    title=details.get('name', ''),
+                    overview=details.get('overview', ''),
+                    poster_path=details.get('poster_path') or '',
+                    backdrop_path=details.get('backdrop_path') or '',
+                    release_date=_parse_date(details.get('first_air_date')),
+                    vote_average=details.get('vote_average', 0),
+                    genres=', '.join(g['name'] for g in details.get('genres', [])),
+                    source=DiscoverItem.Source.ANTICIPATED,
+                    source_title=label,
+                ),
+            )
+            seen_show_ids.add(cand_id)
+            added_this_category += 1
+            added_shows += 1
 
-    return f'added {added_movies} movies, {added_shows} shows (anticipated)'
+    return f'added {added_movies} movies, {added_shows} shows (trending/releases/anticipated/popular)'

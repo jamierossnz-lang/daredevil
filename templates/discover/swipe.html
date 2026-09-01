@@ -72,7 +72,7 @@
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-600/80 text-white"
                   x-text="current.media_type === 'movie' ? 'Movie' : 'TV Show'"></span>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/50 text-gray-200"
-                  x-text="current.source === 'anticipated' ? 'New &amp; Anticipated' : ('Because you like ' + current.source_title)"></span>
+                  x-text="current.source === 'anticipated' ? (current.source_title || 'New &amp; Anticipated') : ('Because you like ' + current.source_title)"></span>
             <span x-show="!current.is_released" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/80 text-black">
               Coming <span x-text="current.release_date ? current.release_date.slice(0,4) : 'soon'"></span>
             </span>

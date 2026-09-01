@@ -80,7 +80,7 @@ TASK_REGISTRY = {
     },
     'generate_anticipated': {
         'label': 'For You: New & Anticipated',
-        'description': "Pull Trakt's most-anticipated movies/shows (ranked by watchlist activity) and add new ones to the For You swipe deck. Skipped if TRAKT_CLIENT_ID isn't set.",
+        'description': "Pull Trakt's Trending, Releases, Anticipated, and Popular lists for movies/shows and add new ones to the For You swipe deck. Skipped if TRAKT_CLIENT_ID isn't set.",
         'icon': 'fa-fire',
         'color': 'cyan',
     },

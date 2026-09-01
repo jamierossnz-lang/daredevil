@@ -734,6 +734,22 @@ def ntfy_test(request):
 
 
 @require_POST
+def trakt_test(request):
+    """Verify a Trakt Client ID actually works, using the (possibly unsaved) value from the request body."""
+    data = json.loads(request.body)
+    client_id = (data.get('TRAKT_CLIENT_ID') or '').strip()
+    if not client_id:
+        return JsonResponse({'ok': False, 'error': 'TRAKT_CLIENT_ID is required'})
+
+    from apps.discover.trakt import trakt
+    try:
+        trakt.test_connection(client_id=client_id)
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+
+@require_POST
 def quality_profiles_save(request):
     """Save size brackets for all quality+media_type combos. Accepts JSON list."""
     from .models import QualityProfile

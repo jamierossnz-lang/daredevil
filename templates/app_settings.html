@@ -17,10 +17,33 @@
   <!-- Trakt -->
   <div class="glass rounded-2xl p-6">
     <h2 class="text-sm font-semibold text-gray-200 mb-1">Trakt</h2>
-    <p class="text-xs text-gray-500 mb-4">Client ID for the "New &amp; Anticipated" half of the For You swipe deck (ranked by real watchlist activity). Only the Client ID is needed — no OAuth. Get one at <a href="https://trakt.tv/oauth/applications" target="_blank" class="text-brand-400 hover:underline">trakt.tv/oauth/applications</a>. Leave blank to skip — recommendations based on your library still work without it.</p>
+    <p class="text-xs text-gray-500 mb-4">Client ID for the "New &amp; Anticipated" half of the For You swipe deck — pulls Trending, Releases, Anticipated, and Popular movies/shows. Only the Client ID is needed — no OAuth. Get one at <a href="https://trakt.tv/oauth/applications" target="_blank" class="text-brand-400 hover:underline">trakt.tv/oauth/applications</a>. Leave blank to skip — recommendations based on your library still work without it.</p>
     <label class="block text-xs text-gray-500 mb-1">Client ID</label>
     <input type="text" x-model="cfg.TRAKT_CLIENT_ID"
-           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors mb-4">
+
+    <div class="flex items-center gap-3">
+      <button @click="testTrakt()" :disabled="traktState !== 'idle'"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border"
+              :class="{
+                'bg-surface-700 border-surface-600 text-gray-300 hover:bg-surface-600': traktState === 'idle',
+                'bg-surface-700 border-surface-600 text-gray-500 cursor-not-allowed': traktState === 'sending',
+                'bg-green-500/15 border-green-500/30 text-green-400': traktState === 'ok',
+                'bg-red-500/15 border-red-500/30 text-red-400': traktState === 'error',
+              }">
+        <i class="fa-solid"
+           :class="{
+             'fa-plug': traktState === 'idle',
+             'fa-spinner fa-spin': traktState === 'sending',
+             'fa-circle-check': traktState === 'ok',
+             'fa-circle-exclamation': traktState === 'error',
+           }"></i>
+        <span x-text="{ idle:'Test Connection', sending:'Testing…', ok:'Connected!', error:'Failed' }[traktState]"></span>
+      </button>
+      <span x-show="traktMsg" x-text="traktMsg" x-cloak
+            :class="traktState === 'error' ? 'text-red-400' : 'text-gray-400'"
+            class="text-xs"></span>
+    </div>
   </div>
 
   <!-- Paths -->
@@ -447,6 +470,8 @@ function appSettings() {
     celeryState: 'idle',
     ntfyState: 'idle',
     ntfyMsg: '',
+    traktState: 'idle',
+    traktMsg: '',
     notifPrefs: {},
     notifMeta: [],
     prefsLoading: true,
@@ -549,6 +574,31 @@ function appSettings() {
         this.ntfyMsg = e.message;
       }
       setTimeout(() => { this.ntfyState = 'idle'; this.ntfyMsg = ''; }, 5000);
+    },
+
+    async testTrakt() {
+      this.traktState = 'sending';
+      this.traktMsg = '';
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+      try {
+        const r = await fetch('/settings/trakt-test/', {
+          method: 'POST',
+          body: JSON.stringify({ TRAKT_CLIENT_ID: this.cfg.TRAKT_CLIENT_ID }),
+          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+        });
+        const d = await r.json();
+        if (d.ok) {
+          this.traktState = 'ok';
+          this.traktMsg = 'Client ID is valid';
+        } else {
+          this.traktState = 'error';
+          this.traktMsg = d.error || 'Failed';
+        }
+      } catch(e) {
+        this.traktState = 'error';
+        this.traktMsg = e.message;
+      }
+      setTimeout(() => { this.traktState = 'idle'; this.traktMsg = ''; }, 5000);
     },
 
     async restartDjango() {

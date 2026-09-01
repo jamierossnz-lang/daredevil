@@ -36,6 +36,7 @@ urlpatterns = [
     path('settings/restart/', views.server_restart, name='server_restart'),
     path('settings/celery-restart/', views.celery_restart, name='celery_restart'),
     path('settings/ntfy-test/', views.ntfy_test, name='ntfy_test'),
+    path('settings/trakt-test/', views.trakt_test, name='trakt_test'),
 
     # Streaming browse
     path('streaming/', views.streaming_browse, name='streaming_browse'),
