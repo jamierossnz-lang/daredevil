@@ -34,6 +34,36 @@ def deck_data(request):
     return JsonResponse({'items': data})
 
 
+def trailer(request, pk):
+    """
+    Fetched on demand rather than cached on the DiscoverItem at pool-
+    generation time — an unreleased title may not have a trailer yet when
+    it's first added to the deck, but could by the time the user actually
+    looks at the card.
+    """
+    item = get_object_or_404(DiscoverItem, pk=pk)
+    from apps.media_tracker.tmdb import tmdb
+
+    try:
+        if item.media_type == DiscoverItem.MediaType.MOVIE:
+            data = tmdb.get_movie_videos(item.tmdb_id)
+        else:
+            data = tmdb.get_tv_videos(item.tmdb_id)
+    except Exception:
+        return JsonResponse({'key': None})
+
+    return JsonResponse({'key': _pick_trailer_key(data.get('results', []))})
+
+
+def _pick_trailer_key(results):
+    candidates = [v for v in results if v.get('site') == 'YouTube' and v.get('type') in ('Trailer', 'Teaser')]
+    if not candidates:
+        return None
+    # Prefer an official Trailer over a Teaser or fan-made upload.
+    candidates.sort(key=lambda v: (v.get('type') == 'Trailer', v.get('official', False)), reverse=True)
+    return candidates[0].get('key')
+
+
 def _record_decision(item, direction):
     DiscoverDecision.objects.update_or_create(
         tmdb_id=item.tmdb_id, media_type=item.media_type,

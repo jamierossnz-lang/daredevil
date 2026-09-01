@@ -76,6 +76,10 @@
             <span x-show="!current.is_released" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/80 text-black">
               Coming <span x-text="current.release_date ? current.release_date.slice(0,4) : 'soon'"></span>
             </span>
+            <button @pointerdown.stop @click.stop="openTrailer()"
+                    class="ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/15 hover:bg-white/25 text-white flex items-center gap-1.5 transition-colors">
+              <i class="fa-solid fa-play text-[8px]"></i> Trailer
+            </button>
           </div>
           <h2 class="text-2xl font-bold text-white leading-tight mb-1" x-text="current.title"></h2>
           <div class="flex items-center gap-3 text-xs text-gray-300 mb-2">
@@ -153,6 +157,39 @@
     </div>
   </div>
 
+  <!-- Trailer -->
+  <div x-show="showTrailer" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+    <div class="absolute inset-0" @click="closeTrailer()"></div>
+    <button @click="closeTrailer()"
+            class="absolute top-5 right-5 w-10 h-10 rounded-full bg-surface-800 border border-surface-600 text-gray-300 hover:text-white flex items-center justify-center transition-colors"
+            style="top: calc(1.25rem + env(safe-area-inset-top, 0px))">
+      <i class="fa-solid fa-xmark text-lg"></i>
+    </button>
+    <div class="relative w-full max-w-lg" @click.stop>
+      <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-900">
+        <template x-if="trailerLoading">
+          <div class="absolute inset-0 flex items-center justify-center">
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-brand-400"></i>
+          </div>
+        </template>
+        <template x-if="!trailerLoading && trailerKey">
+          <iframe class="w-full h-full" :src="`https://www.youtube.com/embed/${trailerKey}?autoplay=1`"
+                  frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        </template>
+        <template x-if="!trailerLoading && !trailerKey">
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <i class="fa-solid fa-video-slash text-3xl text-gray-500 mb-3"></i>
+            <p class="text-gray-400 text-sm">No trailer available yet</p>
+          </div>
+        </template>
+      </div>
+      <a x-show="!trailerLoading && trailerKey" :href="`https://www.youtube.com/watch?v=${trailerKey}`" target="_blank" rel="noopener"
+         class="mt-3 flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-gray-200 transition-colors">
+        <i class="fa-brands fa-youtube"></i> Having trouble? Watch on YouTube
+      </a>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div x-show="toast" x-cloak x-transition
        class="fixed bottom-24 lg:bottom-6 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
@@ -180,6 +217,9 @@ function swipeDeck() {
     busy: false,
     showChoice: false,
     choiceItem: null,
+    showTrailer: false,
+    trailerLoading: false,
+    trailerKey: null,
     toast: '',
     toastTimer: null,
 
@@ -313,6 +353,26 @@ function swipeDeck() {
       } catch (e) {
         console.error(e);
       }
+    },
+
+    async openTrailer() {
+      if (!this.current) return;
+      this.showTrailer = true;
+      this.trailerLoading = true;
+      this.trailerKey = null;
+      try {
+        const r = await fetch(`/foryou/${this.current.id}/trailer/`);
+        const d = await r.json();
+        this.trailerKey = d.key || null;
+      } catch (e) {
+        console.error(e);
+      }
+      this.trailerLoading = false;
+    },
+
+    closeTrailer() {
+      this.showTrailer = false;
+      this.trailerKey = null;
     },
   };
 }

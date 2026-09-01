@@ -35,6 +35,9 @@ class TMDBClient:
     def get_tv(self, tmdb_id):
         return self._get(f'/tv/{tmdb_id}')
 
+    def get_tv_videos(self, tmdb_id):
+        return self._get(f'/tv/{tmdb_id}/videos')
+
     def get_season(self, tmdb_id, season_number):
         return self._get(f'/tv/{tmdb_id}/season/{season_number}')
 
@@ -45,6 +48,9 @@ class TMDBClient:
 
     def get_movie(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}', append_to_response='release_dates')
+
+    def get_movie_videos(self, tmdb_id):
+        return self._get(f'/movie/{tmdb_id}/videos')
 
     def get_movie_release_dates(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/release_dates')
