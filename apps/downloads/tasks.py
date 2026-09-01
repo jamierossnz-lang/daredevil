@@ -101,7 +101,16 @@ def execute_file_move(file_move_id, detected_type=None, completed_path=None):
             except OSError:
                 pass  # not empty (e.g. non-video files remain) — leave it
         else:
-            shutil.move(src, move.dest_path)
+            # Build the full destination *file* path ourselves rather than
+            # passing move.dest_path (a directory) straight to shutil.move —
+            # when given a directory, shutil.move computes the real
+            # destination internally and *refuses* if a file already exists
+            # there ("Destination path '...' already exists"), instead of
+            # replacing it. An explicit file path makes it an os.rename-style
+            # atomic replace instead, matching how the automatic move engine
+            # (_move_one_file in views.py) already behaves.
+            dest_file = os.path.join(move.dest_path, os.path.basename(src))
+            shutil.move(src, dest_file)
         move.status = FileMove.Status.COMPLETED
         move.completed_at = timezone.now()
         move.error_message = ''
