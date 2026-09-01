@@ -14,6 +14,15 @@
            class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
   </div>
 
+  <!-- Trakt -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-1">Trakt</h2>
+    <p class="text-xs text-gray-500 mb-4">Client ID for the "New &amp; Anticipated" half of the For You swipe deck (ranked by real watchlist activity). Only the Client ID is needed — no OAuth. Get one at <a href="https://trakt.tv/oauth/applications" target="_blank" class="text-brand-400 hover:underline">trakt.tv/oauth/applications</a>. Leave blank to skip — recommendations based on your library still work without it.</p>
+    <label class="block text-xs text-gray-500 mb-1">Client ID</label>
+    <input type="text" x-model="cfg.TRAKT_CLIENT_ID"
+           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+  </div>
+
   <!-- Paths -->
   <div class="glass rounded-2xl p-6">
     <h2 class="text-sm font-semibold text-gray-200 mb-1">Paths</h2>
@@ -413,6 +422,7 @@ function appSettings() {
   return {
     cfg: {
       TMDB_API_KEY:       '{{ cfg.TMDB_API_KEY|escapejs }}',
+      TRAKT_CLIENT_ID:    '{{ cfg.TRAKT_CLIENT_ID|escapejs }}',
       DOWNLOAD_PATH:      '{{ cfg.DOWNLOAD_PATH|escapejs }}',
       REDIS_URL:          '{{ cfg.REDIS_URL|escapejs }}',
       TZ:                 '{{ cfg.TZ|escapejs }}',

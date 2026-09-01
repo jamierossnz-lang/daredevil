@@ -577,6 +577,7 @@ def app_settings_view(request):
     return render(request, 'app_settings.html', {
         'cfg': {
             'TMDB_API_KEY':        _get('TMDB_API_KEY'),
+            'TRAKT_CLIENT_ID':     _get('TRAKT_CLIENT_ID'),
             'DOWNLOAD_PATH':       _get('DOWNLOAD_PATH'),
             'REDIS_URL':           _get('REDIS_URL'),
             'TZ':                  _get('TZ', s.TIME_ZONE),
@@ -615,6 +616,8 @@ def app_settings_save(request):
 
     if 'TMDB_API_KEY' in data:
         _set('TMDB_API_KEY', data['TMDB_API_KEY'].strip(), attr='TMDB_API_KEY')
+    if 'TRAKT_CLIENT_ID' in data:
+        _set('TRAKT_CLIENT_ID', data['TRAKT_CLIENT_ID'].strip(), attr='TRAKT_CLIENT_ID')
     if 'DOWNLOAD_PATH' in data:
         _set('DOWNLOAD_PATH', data['DOWNLOAD_PATH'].strip(), attr='DOWNLOAD_PATH')
     if 'REDIS_URL' in data:
