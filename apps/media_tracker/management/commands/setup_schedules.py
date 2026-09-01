@@ -31,6 +31,10 @@ class Command(BaseCommand):
             ('Poll download progress',                  'poll_download_progress',      every15s),
             ('Auto-search queue',                       'auto_search_queue',           every30s),
             ('Check storage usage',                     'check_storage',               every6h),
+            # For You swipe deck — regenerated nightly (interval, matching
+            # the other 'daily' tasks above rather than a fixed clock time).
+            ('Generate recommendations (For You)',      'generate_recommendations',    daily),
+            ('Generate anticipated titles (For You)',   'generate_anticipated',        daily),
         ]
 
         for name, task_name, schedule in tasks:

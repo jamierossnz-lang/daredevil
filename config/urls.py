@@ -12,6 +12,7 @@ urlpatterns = [
     path('plex/', include('apps.plex.urls')),
     path('notifications/', include('apps.notifications.urls')),
     path('activity/', include('apps.events.urls')),
+    path('foryou/', include('apps.discover.urls')),
 ]
 
 if settings.DEBUG:

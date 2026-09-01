@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}For You{% endblock %}
+{% block page_title %}For You{% endblock %}
+
+{% block content %}
+<div x-data="swipeDeck()" class="max-w-md mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-4 px-1">
+    <p class="text-xs text-gray-500">
+      <span x-show="!loading" x-text="remaining"></span><span x-show="!loading"> left today</span>
+      <span x-show="loading">Loading picks…</span>
+    </p>
+    <p class="text-xs text-gray-600"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-brand-400"></i>Personalised nightly</p>
+  </div>
+
+  <!-- Card stack -->
+  <div class="relative w-full" style="height:min(64vh, 580px);">
+
+    <template x-if="loading">
+      <div class="absolute inset-0 rounded-3xl bg-surface-800 border border-surface-700/50 flex items-center justify-center">
+        <i class="fa-solid fa-circle-notch fa-spin text-3xl text-brand-400"></i>
+      </div>
+    </template>
+
+    <template x-if="!loading && !current">
+      <div class="absolute inset-0 rounded-3xl border-2 border-dashed border-surface-700 flex flex-col items-center justify-center text-center px-8">
+        <i class="fa-solid fa-champagne-glasses text-4xl text-brand-400 mb-3"></i>
+        <p class="text-white font-semibold mb-1">You're all caught up</p>
+        <p class="text-sm text-gray-500">New picks are generated overnight from your library and what's buzzing — check back tomorrow.</p>
+      </div>
+    </template>
+
+    <!-- peek: 2 back -->
+    <template x-if="next2">
+      <div class="absolute inset-0 rounded-3xl overflow-hidden shadow-xl bg-surface-800"
+           :style="`transform:scale(0.92) translateY(20px); opacity:0.5; background-image:url('${next2.backdrop_url || next2.poster_url || ''}'); background-size:cover; background-position:center;`">
+      </div>
+    </template>
+
+    <!-- peek: 1 back -->
+    <template x-if="next1">
+      <div class="absolute inset-0 rounded-3xl overflow-hidden shadow-xl bg-surface-800"
+           :style="`transform:scale(0.96) translateY(10px); opacity:0.8; background-image:url('${next1.backdrop_url || next1.poster_url || ''}'); background-size:cover; background-position:center;`">
+      </div>
+    </template>
+
+    <!-- top card, draggable -->
+    <template x-if="current">
+      <div class="absolute inset-0 rounded-3xl overflow-hidden shadow-2xl bg-surface-800 cursor-grab active:cursor-grabbing select-none touch-none"
+           :style="`${cardStyle()} background-image:url('${current.backdrop_url || current.poster_url || ''}'); background-size:cover; background-position:center;`"
+           @pointerdown="onPointerDown($event)"
+           @pointermove="onPointerMove($event)"
+           @pointerup="onPointerUp($event)"
+           @pointercancel="onPointerUp($event)">
+
+        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/10"></div>
+
+        <div class="absolute top-8 left-6 border-4 rounded-xl px-3 py-1 font-black text-xl tracking-widest uppercase"
+             style="border-color:#22c55e; color:#22c55e;"
+             :style="`opacity:${likeOpacity()}; transform: rotate(-16deg) scale(${0.85 + likeOpacity()*0.15});`">
+          Like
+        </div>
+        <div class="absolute top-8 right-6 border-4 rounded-xl px-3 py-1 font-black text-xl tracking-widest uppercase"
+             style="border-color:#f43f5e; color:#f43f5e;"
+             :style="`opacity:${nopeOpacity()}; transform: rotate(16deg) scale(${0.85 + nopeOpacity()*0.15});`">
+          Nope
+        </div>
+
+        <div class="absolute bottom-0 inset-x-0 p-5">
+          <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-600/80 text-white"
+                  x-text="current.media_type === 'movie' ? 'Movie' : 'TV Show'"></span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/50 text-gray-200"
+                  x-text="current.source === 'anticipated' ? 'New &amp; Anticipated' : ('Because you like ' + current.source_title)"></span>
+            <span x-show="!current.is_released" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/80 text-black">
+              Coming <span x-text="current.release_date ? current.release_date.slice(0,4) : 'soon'"></span>
+            </span>
+          </div>
+          <h2 class="text-2xl font-bold text-white leading-tight mb-1" x-text="current.title"></h2>
+          <div class="flex items-center gap-3 text-xs text-gray-300 mb-2">
+            <span x-show="current.release_date"><i class="fa-solid fa-calendar mr-1"></i><span x-text="(current.release_date || '').slice(0,4)"></span></span>
+            <span x-show="current.vote_average"><i class="fa-solid fa-star text-amber-400 mr-1"></i><span x-text="current.vote_average"></span></span>
+            <span x-show="current.genres && current.genres.length" class="truncate" x-text="(current.genres || []).join(' · ')"></span>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed line-clamp-3" x-text="current.overview"></p>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex items-center justify-center gap-8 mt-6">
+    <button @click="swipeLeft()" :disabled="busy || !current"
+            class="w-16 h-16 rounded-full bg-surface-800 border border-surface-600 text-rose-400 text-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-30">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <button @click="swipeRight()" :disabled="busy || !current"
+            class="w-16 h-16 rounded-full bg-surface-800 border border-surface-600 text-emerald-400 text-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-30">
+      <i class="fa-solid fa-heart"></i>
+    </button>
+  </div>
+
+  <!-- Right-swipe choice sheet -->
+  <div x-show="showChoice" x-cloak
+       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="cancelChoice()"></div>
+    <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-6 animate-slide-in"
+         style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))">
+      <template x-if="choiceItem">
+        <div>
+          <div class="flex items-center gap-3 mb-5">
+            <img :src="choiceItem.poster_url" x-show="choiceItem.poster_url" class="w-14 h-20 rounded-lg object-cover flex-shrink-0 bg-surface-700">
+            <div class="min-w-0">
+              <h3 class="text-base font-bold text-white truncate" x-text="choiceItem.title"></h3>
+              <p class="text-xs text-gray-500" x-text="choiceItem.media_type === 'movie' ? 'Movie' : 'TV Show'"></p>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2">
+            <button @click="confirmChoice(true)"
+                    class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+              <i class="fa-solid" :class="choiceItem.is_released ? 'fa-download' : 'fa-clock'"></i>
+              <span x-text="choiceItem.is_released ? 'Add to Library + Download' : 'Add to Library + Wait for Release'"></span>
+            </button>
+            <button @click="confirmChoice(false)"
+                    class="w-full py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+              <i class="fa-solid fa-bookmark"></i> Add to Library Only
+            </button>
+            <button @click="cancelChoice()" class="w-full py-2 text-gray-500 hover:text-gray-300 text-xs transition-colors">
+              Cancel — undo swipe
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="toast" x-cloak x-transition
+       class="fixed bottom-24 lg:bottom-6 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+    <div class="bg-surface-800 border border-surface-600 rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2 text-sm text-gray-100">
+      <i class="fa-solid fa-circle-check text-emerald-400"></i>
+      <span x-text="toast"></span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function swipeDeck() {
+  return {
+    items: [],
+    index: 0,
+    loading: true,
+    dragging: false,
+    startX: 0, startY: 0,
+    dragX: 0, dragY: 0,
+    busy: false,
+    showChoice: false,
+    choiceItem: null,
+    toast: '',
+    toastTimer: null,
+
+    async init() {
+      try {
+        const res = await fetch('{% url "swipe_deck_data" %}');
+        const data = await res.json();
+        this.items = data.items || [];
+      } catch (e) {
+        console.error('For You: failed to load deck', e);
+      }
+      this.loading = false;
+    },
+
+    get current() { return this.items[this.index] || null; },
+    get next1() { return this.items[this.index + 1] || null; },
+    get next2() { return this.items[this.index + 2] || null; },
+    get remaining() { return Math.max(this.items.length - this.index, 0); },
+
+    cardStyle() {
+      const rot = this.dragX / 14;
+      const transition = this.dragging ? '' : 'transition: transform 0.35s cubic-bezier(.2,.8,.2,1);';
+      return `transform: translate(${this.dragX}px, ${this.dragY}px) rotate(${rot}deg); ${transition}`;
+    },
+    likeOpacity() { return Math.min(Math.max(this.dragX / 100, 0), 1); },
+    nopeOpacity() { return Math.min(Math.max(-this.dragX / 100, 0), 1); },
+
+    onPointerDown(e) {
+      if (this.busy || !this.current) return;
+      this.dragging = true;
+      this.startX = e.clientX;
+      this.startY = e.clientY;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove(e) {
+      if (!this.dragging) return;
+      this.dragX = e.clientX - this.startX;
+      this.dragY = e.clientY - this.startY;
+    },
+    onPointerUp() {
+      if (!this.dragging) return;
+      this.dragging = false;
+      const threshold = 110;
+      if (this.dragX > threshold) this.swipeRight();
+      else if (this.dragX < -threshold) this.swipeLeft();
+      else { this.dragX = 0; this.dragY = 0; }
+    },
+
+    advance() {
+      this.index++;
+      this.dragX = 0;
+      this.dragY = 0;
+    },
+
+    showToast(msg) {
+      this.toast = msg;
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.toast = ''; }, 2200);
+    },
+
+    swipeLeft() {
+      if (this.busy || !this.current) return;
+      this.busy = true;
+      const item = this.current;
+      this.dragX = -700;
+      this.dragY -= 30;
+      setTimeout(async () => {
+        this.advance();
+        this.busy = false;
+        try {
+          await fetch(`/foryou/${item.id}/left/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+        } catch (e) { console.error(e); }
+      }, 280);
+    },
+
+    swipeRight() {
+      if (this.busy || !this.current) return;
+      this.busy = true;
+      const item = this.current;
+      this.dragX = 700;
+      this.dragY -= 30;
+      setTimeout(() => {
+        this.advance();
+        this.busy = false;
+        this.choiceItem = item;
+        this.showChoice = true;
+      }, 280);
+    },
+
+    cancelChoice() {
+      // No backend call was made yet — just put the card back on top of the stack.
+      if (this.choiceItem) {
+        this.items.splice(this.index, 0, this.choiceItem);
+      }
+      this.choiceItem = null;
+      this.showChoice = false;
+    },
+
+    async confirmChoice(withDownload) {
+      if (!this.choiceItem) return;
+      const item = this.choiceItem;
+      const url = withDownload ? `/foryou/${item.id}/add-download/` : `/foryou/${item.id}/add/`;
+      this.choiceItem = null;
+      this.showChoice = false;
+      try {
+        await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+        this.showToast(withDownload ? `${item.title} added — download started` : `${item.title} added to library`);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

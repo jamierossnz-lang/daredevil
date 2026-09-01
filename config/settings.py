@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.qbt',
     'apps.plex',
     'apps.notifications',
+    'apps.discover',
 ]
 
 MIDDLEWARE = [
@@ -188,6 +189,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p'
+
+# Trakt API — https://trakt.tv/oauth/applications (free "VIP" app, only the
+# Client ID is needed; used for the 'anticipated' lists in the For You feed).
+TRAKT_CLIENT_ID = os.environ.get('TRAKT_CLIENT_ID', '')
 
 # qBittorrent Web UI
 QBITTORRENT_HOST = os.environ.get('QBITTORRENT_HOST', 'localhost')

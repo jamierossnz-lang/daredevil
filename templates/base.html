@@ -190,6 +190,7 @@
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
       {% url 'activity_log' as url_activity %}
+      {% url 'swipe_deck' as url_foryou %}
 
       {% with request.path as p %}
 
@@ -199,6 +200,11 @@
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if p == url_dashboard %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gauge-high w-4 text-center"></i> Dashboard
+      </a>
+      <a href="{{ url_foryou }}"
+         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                {% if url_foryou in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
+        <i class="fa-solid fa-layer-group w-4 text-center"></i> For You
       </a>
       <a href="{{ url_shows }}"
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
@@ -383,6 +389,7 @@
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
       {% url 'activity_log' as url_activity %}
+      {% url 'swipe_deck' as url_foryou %}
 
       <!-- Library -->
       <p class="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">Library</p>
@@ -392,6 +399,12 @@
                   {% if p == url_dashboard %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
           <i class="fa-solid fa-gauge-high text-2xl"></i>
           <span class="text-xs font-semibold text-center leading-tight">Dashboard</span>
+        </a>
+        <a href="{{ url_foryou }}" @click="sidebarOpen = false"
+           class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
+                  {% if url_foryou in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
+          <i class="fa-solid fa-layer-group text-2xl"></i>
+          <span class="text-xs font-semibold text-center leading-tight">For You</span>
         </a>
         <a href="{{ url_shows }}" @click="sidebarOpen = false"
            class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
@@ -613,6 +626,7 @@
   (function() {
     const ALL_NAV = [
       { key: 'home',      href: '{{ url_dashboard }}', icon: 'fa-gauge-high',      label: 'Home'      },
+      { key: 'foryou',    href: '{{ url_foryou }}',    icon: 'fa-layer-group',     label: 'For You'   },
       { key: 'shows',     href: '{{ url_shows }}',     icon: 'fa-tv',              label: 'Shows'     },
       { key: 'movies',    href: '{{ url_movies }}',    icon: 'fa-film',            label: 'Movies'    },
       { key: 'queue',     href: '{{ url_queue }}',     icon: 'fa-download',        label: 'Queue'     },

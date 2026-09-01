@@ -58,6 +58,15 @@ class TMDBClient:
     def get_movie_recommendations(self, tmdb_id, page=1):
         return self._get(f'/movie/{tmdb_id}/recommendations', page=page)
 
+    def get_movie_similar(self, tmdb_id, page=1):
+        return self._get(f'/movie/{tmdb_id}/similar', page=page)
+
+    def get_tv_recommendations(self, tmdb_id, page=1):
+        return self._get(f'/tv/{tmdb_id}/recommendations', page=page)
+
+    def get_tv_similar(self, tmdb_id, page=1):
+        return self._get(f'/tv/{tmdb_id}/similar', page=page)
+
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     def sync_show_to_db(self, tmdb_id):
