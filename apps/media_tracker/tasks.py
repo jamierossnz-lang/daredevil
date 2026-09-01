@@ -850,6 +850,12 @@ def queue_individual_episodes(show, season):
                 'release_date': ep.air_date,
                 'quality': ep_quality,
                 'search_query': sq,
+                # Stamped at creation — see tv_show_queue_download for why:
+                # a null timestamp makes auto_search_queue's backstop treat
+                # this as immediately eligible, racing whichever path
+                # (client tab or this same server-side search) is about to
+                # search it anyway.
+                'search_started_at': timezone.now(),
             },
         )
         if is_new:
@@ -876,7 +882,21 @@ def _fallback_season_to_episodes(item):
         return 0
 
     created = queue_individual_episodes(season.show, season)
-    item.delete()
+    if created:
+        item.delete()
+    else:
+        # Nothing to fall back to. Either every episode in this season is
+        # already queued/downloading/downloaded (nothing left to do — fine),
+        # or the season has no episode data at all, e.g. sync never
+        # populated it (a real problem worth surfacing). Either way, keep a
+        # visible failure record instead of silently deleting the item with
+        # nothing to show for it.
+        if not season.episodes.exists():
+            item.error_message = 'No season pack found, and this season has no episode data to fall back to — try re-syncing the show'
+        else:
+            item.error_message = 'No season pack found — remaining episodes are already queued or downloaded'
+        item.status = item.Status.FAILED
+        item.save(update_fields=['status', 'error_message'])
     log.info('_fallback_season_to_episodes: pk=%s → queued %d individual episode(s) for %s S%02d',
              item.pk, created, season.show.name, season.season_number)
     return created
