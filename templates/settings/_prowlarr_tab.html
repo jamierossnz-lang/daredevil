@@ -43,10 +43,10 @@
       </label>
     </div>
     <div class="flex flex-wrap items-center gap-2 mt-4">
-      <button @click="test()" :disabled="busy.test" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+      <button @click="test()" :disabled="!!(busy.test)" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
         <i class="fa-solid mr-1.5" :class="busy.test ? 'fa-spinner fa-spin' : 'fa-plug'"></i>Test
       </button>
-      <button @click="saveConfig()" :disabled="busy.save" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+      <button @click="saveConfig()" :disabled="!!(busy.save)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
         <i class="fa-solid mr-1.5" :class="busy.save ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
       </button>
       <span class="text-xs" :class="msgOk ? 'text-green-400' : 'text-red-400'" x-text="msg"></span>
@@ -87,10 +87,10 @@
             </div>
           </template>
           <div class="flex flex-wrap gap-2">
-            <button @click="connectApps()" :disabled="busy.apps" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+            <button @click="connectApps()" :disabled="!!(busy.apps)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.apps ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect Sonarr &amp; Radarr
             </button>
-            <button @click="syncApps()" :disabled="busy.sync" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+            <button @click="syncApps()" :disabled="!!(busy.sync)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.sync ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'"></i>Sync indexers now
             </button>
           </div>
@@ -105,7 +105,7 @@
             <h2 class="text-sm font-semibold text-gray-200">Indexers <span class="text-gray-500 font-normal" x-text="`(${data.indexers?.length || 0})`"></span></h2>
             <p class="text-xs text-gray-500">Add, test, enable/disable and edit indexers. Changes sync to Sonarr and Radarr.</p>
           </div>
-          <button @click="testAll()" :disabled="busy.testAll" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+          <button @click="testAll()" :disabled="!!(busy.testAll)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
             <i class="fa-solid mr-1" :class="busy.testAll ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i>Test all
           </button>
           <button @click="openAdd()" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white">
@@ -271,14 +271,14 @@
           </div>
           <p class="text-xs mt-3" :class="defMsgOk ? 'text-green-400' : 'text-red-400'" x-text="defMsg"></p>
           <div class="flex flex-wrap gap-2 mt-3">
-            <button @click="testDefinition()" :disabled="busy.def" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+            <button @click="testDefinition()" :disabled="!!(busy.def)" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid fa-plug-circle-check mr-1.5"></i>Test
             </button>
-            <button x-show="canForce" @click="saveDefinition(true)" :disabled="busy.def" title="Prowlarr won't enable an indexer that fails its test — save it switched off and enable it once the site is reachable"
+            <button x-show="canForce" @click="saveDefinition(true)" :disabled="!!(busy.def)" title="Prowlarr won't enable an indexer that fails its test — save it switched off and enable it once the site is reachable"
                     class="px-4 py-2 rounded-xl text-sm font-medium bg-yellow-600/80 hover:bg-yellow-600 text-white disabled:opacity-50">
               Save disabled
             </button>
-            <button @click="saveDefinition(false)" :disabled="busy.def" class="ml-auto px-5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+            <button @click="saveDefinition(false)" :disabled="!!(busy.def)" class="ml-auto px-5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
               <i class="fa-solid mr-1.5" :class="busy.def ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
             </button>
           </div>

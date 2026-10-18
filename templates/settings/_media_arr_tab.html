@@ -54,10 +54,10 @@
       </label>
     </div>
     <div class="flex flex-wrap items-center gap-2 mt-4">
-      <button @click="test()" :disabled="busy.test" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+      <button @click="test()" :disabled="!!(busy.test)" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
         <i class="fa-solid mr-1.5" :class="busy.test ? 'fa-spinner fa-spin' : 'fa-plug'"></i>Test
       </button>
-      <button @click="saveConfig()" :disabled="busy.save" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+      <button @click="saveConfig()" :disabled="!!(busy.save)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
         <i class="fa-solid mr-1.5" :class="busy.save ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
       </button>
       <span class="text-xs" :class="msgOk ? 'text-green-400' : 'text-red-400'" x-text="msg"></span>
@@ -98,7 +98,7 @@
               </p>
               <p class="text-xs text-yellow-400/80" x-show="!qbt()">Not set up — {{ label }} has nowhere to send downloads. Connecting uses the login from the qBittorrent tab.</p>
             </div>
-            <button x-show="!qbt()" @click="connect('qbittorrent')" :disabled="busy.qbittorrent"
+            <button x-show="!qbt()" @click="connect('qbittorrent')" :disabled="!!(busy.qbittorrent)"
                     class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.qbittorrent ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect
             </button>
@@ -115,11 +115,11 @@
               </p>
               <p class="text-[11px] text-gray-600 font-mono truncate" x-text="data.webhook?.expected"></p>
             </div>
-            <button @click="connect('webhook')" :disabled="busy.webhook"
+            <button @click="connect('webhook')" :disabled="!!(busy.webhook)"
                     class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.webhook ? 'fa-spinner fa-spin' : 'fa-link'"></i><span x-text="data.webhook?.up_to_date ? 'Reconnect' : (data.webhook?.connected ? 'Repair' : 'Connect')"></span>
             </button>
-            <button x-show="data.webhook?.connected" @click="testWebhook()" :disabled="busy.webhookTest"
+            <button x-show="data.webhook?.connected" @click="testWebhook()" :disabled="!!(busy.webhookTest)"
                     class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.webhookTest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
             </button>
@@ -159,7 +159,7 @@
                 <p class="text-sm text-gray-200">Refresh Plex when files change</p>
                 <p class="text-xs text-gray-500">Plex scans the folder as soon as {{ label }} imports, upgrades, renames or deletes something — no waiting for its own scan.</p>
               </div>
-              <button type="button" @click="plexToggle('refresh')" :disabled="busy.plexrefresh" role="switch" :aria-checked="plex.refresh?.connected"
+              <button type="button" @click="plexToggle('refresh')" :disabled="!!(busy.plexrefresh)" role="switch" :aria-checked="plex.refresh?.connected"
                       class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.refresh?.connected ? 'bg-brand-600' : 'bg-surface-600'">
                 <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.refresh?.connected ? 'translate-x-5' : ''"></span>
               </button>
@@ -175,8 +175,8 @@
                 <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="plex.refresh.map_to" class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
             </div>
             <div class="flex flex-wrap gap-2 mt-3 pl-8" x-show="plex.refresh?.connected">
-              <button @click="plexSave('refresh')" :disabled="busy.plexrefresh" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save folders</button>
-              <button @click="plexTest()" :disabled="busy.plextest" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+              <button @click="plexSave('refresh')" :disabled="!!(busy.plexrefresh)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save folders</button>
+              <button @click="plexTest()" :disabled="!!(busy.plextest)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
                 <i class="fa-solid mr-1" :class="busy.plextest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
               </button>
             </div>
@@ -189,7 +189,7 @@
                 <p class="text-sm text-gray-200">Add from your Plex Watchlist</p>
                 <p class="text-xs text-gray-500">Anything you add to your Watchlist in any Plex app is added to {{ label }} — it checks every few hours.</p>
               </div>
-              <button type="button" @click="plexToggle('watchlist')" :disabled="busy.plexwatchlist" role="switch" :aria-checked="plex.watchlist?.connected"
+              <button type="button" @click="plexToggle('watchlist')" :disabled="!!(busy.plexwatchlist)" role="switch" :aria-checked="plex.watchlist?.connected"
                       class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.watchlist?.connected ? 'bg-brand-600' : 'bg-surface-600'">
                 <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.watchlist?.connected ? 'translate-x-5' : ''"></span>
               </button>
@@ -204,7 +204,7 @@
                   {% endif %}
                 </select></label>
               <label class="flex items-center gap-2 text-xs text-gray-300 pb-1.5"><input type="checkbox" x-model="plex.watchlist.search" class="accent-brand-500"> Search as soon as it's added</label>
-              <button x-show="plex.watchlist?.connected" @click="plexSave('watchlist')" :disabled="busy.plexwatchlist"
+              <button x-show="plex.watchlist?.connected" @click="plexSave('watchlist')" :disabled="!!(busy.plexwatchlist)"
                       class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
             </div>
           </div>
@@ -240,7 +240,7 @@
                 </div></label>
             </div>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
-              <button @click="saveDownloads()" :disabled="busy.downloads"
+              <button @click="saveDownloads()" :disabled="!!(busy.downloads)"
                       class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
                 <i class="fa-solid mr-1" :class="busy.downloads ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
               </button>
@@ -308,7 +308,7 @@
             </div>
             <div class="flex flex-wrap gap-2 mt-3">
               <button @click="mappingRows.push({ remote: '', local: '' })" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add pair</button>
-              <button @click="saveMappings()" :disabled="busy.save" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+              <button @click="saveMappings()" :disabled="!!(busy.save)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
             </div>
           </details>
         </div>
@@ -357,7 +357,7 @@
           {% endif %}
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="form.search_on_add" class="accent-brand-500"> Start searching as soon as it's added</label>
         </div>
-        <button @click="saveConfig()" :disabled="busy.save" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <button @click="saveConfig()" :disabled="!!(busy.save)" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
           <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save defaults
         </button>
       </div>
@@ -373,7 +373,7 @@
           A profile decides which qualities {{ label }} downloads and how far it upgrades. Sizes are MB per minute of runtime —
           they belong to the quality, so a change applies in every profile that allows it.
         </p>
-        <button x-show="!quality.loaded" @click="loadQuality()" :disabled="quality.loading"
+        <button x-show="!quality.loaded" @click="loadQuality()" :disabled="!!(quality.loading)"
                 class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
           <i class="fa-solid mr-1.5" :class="quality.loading ? 'fa-spinner fa-spin' : 'fa-sliders'"></i>Show quality profiles
         </button>
@@ -428,7 +428,7 @@
               </template>
             </div>
             <div class="flex flex-wrap items-center gap-2 mt-3">
-              <button @click="saveProfile()" :disabled="busy.quality" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+              <button @click="saveProfile()" :disabled="!!(busy.quality)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
                 <i class="fa-solid mr-1.5" :class="busy.quality ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save <span x-text="profile.name"></span>
               </button>
               <button @click="loadQuality()" class="px-3 py-2 rounded-xl text-xs text-gray-400 hover:text-gray-200">Discard changes</button>
@@ -479,7 +479,7 @@
             </select>
           </label>
         </div>
-        <button @click="saveNaming()" :disabled="busy.naming" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <button @click="saveNaming()" :disabled="!!(busy.naming)" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
           <i class="fa-solid mr-1.5" :class="busy.naming ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
         </button>
       </div>
@@ -493,7 +493,7 @@
             {% if kind == 'sonarr' %}show(s){% else %}movie(s){% endif %} Daredevil tracked before {{ label }} took over aren't in {{ label }} yet.
             Importing adds them without searching — files already on disk are picked up, and only what you were monitoring stays monitored.
           </p>
-          <button @click="importLegacy()" :disabled="busy.legacy" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+          <button @click="importLegacy()" :disabled="!!(busy.legacy)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
             <i class="fa-solid mr-1.5" :class="busy.legacy ? 'fa-spinner fa-spin' : 'fa-file-import'"></i><span x-text="busy.legacy ? 'Importing…' : 'Import now'"></span>
           </button>
           <p class="text-xs text-gray-400 mt-2" x-text="legacyMsg"></p>

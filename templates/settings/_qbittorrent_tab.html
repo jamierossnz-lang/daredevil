@@ -35,7 +35,7 @@
     </div>
     <p class="text-[11px] text-gray-600 mt-2">qBittorrent bans an address after 5 failed logins. If Sonarr/Radarr use qBittorrent too, change their password on their tabs' Connections at the same time.</p>
     <div class="flex items-center gap-2 mt-4">
-      <button @click="saveConnection()" :disabled="busy.conn" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+      <button @click="saveConnection()" :disabled="!!(busy.conn)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
         <i class="fa-solid mr-1.5" :class="busy.conn ? 'fa-spinner fa-spin' : 'fa-plug'"></i>Save &amp; test
       </button>
       <span class="text-xs" :class="msgOk ? 'text-green-400' : 'text-red-400'" x-text="msg"></span>
@@ -60,7 +60,7 @@
               <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="prefs.temp_path" class="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
               <button type="button" @click="pickInto('temp_path', 'Incomplete downloads folder')" class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open"></i></button>
             </div></label>
-          <button @click="savePrefs(['save_path', 'temp_path_enabled', 'temp_path'])" :disabled="busy.prefs" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+          <button @click="savePrefs(['save_path', 'temp_path_enabled', 'temp_path'])" :disabled="!!(busy.prefs)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
             <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save folders
           </button>
         </div>
@@ -189,7 +189,7 @@
           <label class="flex items-center gap-2 text-sm text-gray-300" x-show="prefs.queueing_enabled"><input type="checkbox" x-model="prefs.dont_count_slow_torrents" class="accent-brand-500"> Don't count slow torrents</label>
         </div>
 
-        <button @click="savePrefs()" :disabled="busy.prefs" class="mt-5 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <button @click="savePrefs()" :disabled="!!(busy.prefs)" class="mt-5 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
           <i class="fa-solid mr-1.5" :class="busy.prefs ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save preferences
         </button>
       </div>
