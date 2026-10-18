@@ -2,11 +2,25 @@ import logging
 import threading
 
 import qbittorrentapi
-from django.conf import settings
+
+from config import env_file
 
 log = logging.getLogger('daredevil.qbt')
 
 _local = threading.local()
+
+
+def connection():
+    """{host, port, username, password} — read from .env on use, so a change
+    on App Settings reaches every gunicorn worker and Celery at once. One
+    still on the old password would get Daredevil banned by qBittorrent."""
+    port = str(env_file.setting('QBITTORRENT_PORT') or '8080')
+    return {
+        'host': env_file.setting('QBITTORRENT_HOST') or 'localhost',
+        'port': int(port) if port.isdigit() else 8080,
+        'username': env_file.setting('QBITTORRENT_USERNAME'),
+        'password': env_file.setting('QBITTORRENT_PASSWORD'),
+    }
 
 
 def get_client():
@@ -16,16 +30,13 @@ def get_client():
     expires). Logging in on every call was slow, and with a wrong password
     it got Daredevil banned by qBittorrent.
     """
-    key = (settings.QBITTORRENT_HOST, str(settings.QBITTORRENT_PORT),
-           settings.QBITTORRENT_USERNAME, settings.QBITTORRENT_PASSWORD)
+    conn = connection()
+    key = tuple(conn.values())
     cached = getattr(_local, 'client', None)
     if cached and cached[0] == key:
         return cached[1]
     client = qbittorrentapi.Client(
-        host=settings.QBITTORRENT_HOST,
-        port=settings.QBITTORRENT_PORT,
-        username=settings.QBITTORRENT_USERNAME,
-        password=settings.QBITTORRENT_PASSWORD,
+        **conn,
         REQUESTS_ARGS={'timeout': (5, 30)},
         VERIFY_WEBUI_CERTIFICATE=False,
     )

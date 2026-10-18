@@ -1,6 +1,6 @@
 """
-The For You deck. Two nightly jobs fill it — both can also be run from
-App Settings → For You:
+The For You deck. Two jobs fill it, run one after the other each night by
+rebuild_for_you (and by Rebuild now on App Settings → For You):
 
 * generate_recommendations: TMDB's "recommendations" and "similar" lists for
   every show and movie in Sonarr/Radarr, scored by how many of *your* titles

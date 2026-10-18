@@ -133,7 +133,8 @@ function forYouSettings() {
       if (!d.ok) { this.busy = { ...this.busy, rebuild: false }; this.message = ''; return ddToast(d.error || 'Failed', 'error'); }
       for (let i = 0; i < 90; i++) {
         await new Promise(r => setTimeout(r, 2000));
-        const p = await (await fetch(`/tasks/poll/${d.task_id}/`)).json();
+        let p;
+        try { p = await (await fetch(`/tasks/poll/${d.task_id}/`)).json(); } catch (e) { continue; }
         if (p.status === 'SUCCESS' || p.status === 'FAILURE') {
           let result = p.result;
           try { result = JSON.parse(result); } catch (e) { /* plain string */ }
@@ -141,6 +142,7 @@ function forYouSettings() {
           break;
         }
       }
+      if (this.message === 'Rebuilding…') this.message = 'Still rebuilding — Background Tasks shows when it finishes.';
       this.busy = { ...this.busy, rebuild: false };
       await this.load();
     },

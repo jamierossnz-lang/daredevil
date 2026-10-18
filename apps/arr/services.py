@@ -640,12 +640,8 @@ def ensure_qbittorrent(kind, category=None):
     payload['enable'] = True
     values = {}
     if not existing:
-        values.update({
-            'host': settings.QBITTORRENT_HOST,
-            'port': int(settings.QBITTORRENT_PORT),
-            'username': settings.QBITTORRENT_USERNAME,
-            'password': settings.QBITTORRENT_PASSWORD,
-        })
+        from apps.qbt.client import connection
+        values.update(connection())
     cat_field = _QBT_CATEGORY_FIELD[kind]
     values[cat_field] = category or _field(payload, cat_field) or DEFAULT_QBT_CATEGORY[kind]
     _set_fields(payload, values)

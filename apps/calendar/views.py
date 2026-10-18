@@ -69,13 +69,19 @@ def feed(request, token):
     now = timezone.now()
     tv = request.GET.get('tv') != '0'
     movies = request.GET.get('movies') != '0'
-    events = []
-    if tv:
-        events += calendar_events(now - timedelta(days=FEED_PAST_DAYS), now + timedelta(days=FEED_TV_DAYS),
-                                  tv=True, movies=False)[0]
-    if movies:
-        events += calendar_events(now - timedelta(days=FEED_PAST_DAYS), now + timedelta(days=FEED_MOVIE_DAYS),
-                                  tv=False, movies=True)[0]
+    events, errors = [], []
+    for wanted, days, kinds in ((tv, FEED_TV_DAYS, {'tv': True, 'movies': False}),
+                                (movies, FEED_MOVIE_DAYS, {'tv': False, 'movies': True})):
+        if wanted:
+            found, failed = calendar_events(now - timedelta(days=FEED_PAST_DAYS), now + timedelta(days=days), **kinds)
+            events += found
+            errors += failed
+    if errors:
+        # A partial feed would wipe those events from every subscribed
+        # calendar — an error makes Google / Apple keep the copy they have.
+        resp = HttpResponse('; '.join(errors), status=503, content_type='text/plain; charset=utf-8')
+        resp['Retry-After'] = '900'
+        return resp
     body = ics.render(events, request.build_absolute_uri('/'))
     resp = HttpResponse(body, content_type='text/calendar; charset=utf-8')
     resp['Content-Disposition'] = 'inline; filename="daredevil.ics"'

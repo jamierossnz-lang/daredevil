@@ -5,10 +5,12 @@ from django.http import JsonResponse
 
 
 def json_body(request):
+    """The request's JSON object — {} for anything else (bad JSON, a list, …)."""
     try:
-        return json.loads(request.body or b'{}')
+        data = json.loads(request.body or b'{}')
     except ValueError:
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 def json_error(e, status=400, **extra):

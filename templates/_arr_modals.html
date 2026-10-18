@@ -258,12 +258,21 @@
 (function () {
   const CSRF = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 
+  // Always resolves to {ok, error?, …} — callers can rely on it to reset their spinners
   window.ddPost = async function (url, data) {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data || {}),
-    });
+    let r;
+    try {
+      r = await fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data || {}),
+      });
+    } catch (e) {
+      return { ok: false, error: "Couldn't reach Daredevil — check your connection" };
+    }
+    if (r.redirected && r.url.includes('/accounts/login')) {
+      return { ok: false, error: 'You were signed out — reload the page to sign in again' };
+    }
     let d = {};
     try { d = await r.json(); } catch (e) { d = { ok: false, error: `HTTP ${r.status}` }; }
     if (!r.ok && d.ok === undefined) d.ok = false;

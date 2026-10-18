@@ -130,9 +130,10 @@ def movie_detail(request, movie_id):
             f_profiles = pool.submit(c.quality_profiles)
             f_fav = pool.submit(favourite_tag_id, c)
             m = f_movie.result()
-            queue = _queue_by_movie([{**q, 'movieId': movie_id} for q in (f_queue.result() or [])])
-            profiles = f_profiles.result()
-            fav = f_fav.result()
+            # The rest is optional — the page still opens without it
+            queue = _queue_by_movie([{**q, 'movieId': movie_id} for q in (_optional(f_queue) or [])])
+            profiles = _optional(f_profiles) or []
+            fav = _optional(f_fav)
     except ArrError as e:
         if e.status == 404:
             raise Http404('Movie not found in Radarr')
@@ -193,6 +194,14 @@ def movie_detail(request, movie_id):
         'availability_choices': MIN_AVAILABILITY_CHOICES,
         'radarr_link': f'{public_url("radarr", request)}/movie/{m.get("titleSlug") or m.get("tmdbId") or movie_id}',
     })
+
+
+def _optional(future):
+    try:
+        return future.result()
+    except ArrError as e:
+        log.info('movie detail: optional call failed — %s', e)
+        return None
 
 
 def _tmdb_extras(tmdb_id):

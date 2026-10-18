@@ -35,7 +35,7 @@ TASK_REGISTRY = {
     },
     'rebuild_for_you': {
         'label': 'For You: Rebuild Deck',
-        'description': 'Both For You jobs in a row — fresh recommendations, then trending picks — within the deck size set on the For You tab.',
+        'description': 'The nightly For You job: fresh recommendations, then trending picks, within the deck size set on the For You tab.',
         'icon': 'fa-wand-magic-sparkles',
         'color': 'cyan',
     },

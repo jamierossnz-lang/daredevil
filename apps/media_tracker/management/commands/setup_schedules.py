@@ -9,6 +9,9 @@ RETIRED_TASKS = (
     'remove_empty_folders', 'poll_download_progress', 'auto_search_queue',
     'sync_download_progress', 'search_and_download', 'sync_tvmaze_show', 'execute_file_move',
 )
+# Still runnable by hand from Background Tasks, but no longer scheduled on
+# their own: run together they raced, so rebuild_for_you runs them in turn.
+UNSCHEDULED_TASKS = ('generate_recommendations', 'generate_anticipated')
 
 
 class Command(BaseCommand):
@@ -22,10 +25,8 @@ class Command(BaseCommand):
         tasks = [
             ('Keep pages fast',                         'warm_caches',                 every10m),
             ('Check storage usage',                     'check_storage',               every6h),
-            # For You swipe deck — regenerated nightly (interval rather than a
-            # fixed clock time).
-            ('Generate recommendations (For You)',      'generate_recommendations',    daily),
-            ('Generate anticipated titles (For You)',   'generate_anticipated',        daily),
+            # For You swipe deck — rebuilt daily (interval rather than a fixed clock time)
+            ('Rebuild For You deck',                    'rebuild_for_you',             daily),
         ]
 
         for name, task_name, schedule in tasks:
@@ -38,9 +39,9 @@ class Command(BaseCommand):
                 obj.save(update_fields=['interval'])
             self.stdout.write(f'  {"Created" if created else "Updated"}: {name}')
 
-        removed = PeriodicTask.objects.filter(task__in=RETIRED_TASKS)
+        removed = PeriodicTask.objects.filter(task__in=RETIRED_TASKS + UNSCHEDULED_TASKS)
         for obj in removed:
-            self.stdout.write(f'  Removed retired: {obj.name}')
+            self.stdout.write(f'  Removed: {obj.name}')
         removed.delete()
 
         self.stdout.write(self.style.SUCCESS('Schedules ready.'))

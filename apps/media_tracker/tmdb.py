@@ -7,6 +7,8 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 
+from config import env_file
+
 _local = threading.local()
 
 # Lists change slowly — browse pages and the dashboard reuse them for a while
@@ -36,7 +38,7 @@ class TMDBClient:
             hit = None if refresh else cache.get(key)
             if hit is not None:
                 return hit
-        resp = self._session().get(f'{self.BASE}{path}', params={**params, 'api_key': settings.TMDB_API_KEY}, timeout=10)
+        resp = self._session().get(f'{self.BASE}{path}', params={**params, 'api_key': env_file.setting('TMDB_API_KEY')}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         if key:

@@ -37,8 +37,8 @@ COPY --from=css /out/tailwind.css static/css/tailwind.css
 EXPOSE 8000
 
 ENTRYPOINT ["sh", "docker-entrypoint.sh"]
-# gthread (not sync) workers: queue.html/moves.html hold a long-lived SSE
-# connection each (~55s, self-renewing) — sync workers would pin a whole
+# gthread (not sync) workers: each open Queue page holds a long-lived SSE
+# connection (~55s, self-renewing) — sync workers would pin a whole
 # process per open tab and starve normal requests. Sized for a few
 # concurrent tabs with headroom left for actual page loads.
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--threads", "8", "--worker-class", "gthread", "--timeout", "120"]

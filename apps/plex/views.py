@@ -306,9 +306,11 @@ def _delete_via_arr(item, item_type, tmdb_id):
     with its files; an episode/season has its files deleted and is
     unmonitored. Returns a description of what was done, or None if the item
     isn't managed by Sonarr/Radarr (caller falls back to deleting files).
+    Raises ArrError if it is managed but Sonarr/Radarr couldn't be asked —
+    deleting its files behind their back would only get them downloaded again.
     """
-    from apps.arr.clients import ArrError
-    from apps.arr.services import invalidate_library, is_configured, library_index, radarr, sonarr
+    from apps.arr.clients import ArrNotConfigured
+    from apps.arr.services import invalidate_library, is_configured, radarr, sonarr
 
     try:
         if item_type == 'movie' and tmdb_id and is_configured('radarr'):
@@ -323,10 +325,14 @@ def _delete_via_arr(item, item_type, tmdb_id):
             return None
         show = item if item_type == 'show' else item.show()
         show_tmdb = tmdb_id if item_type == 'show' else extract_tmdb_id(show)
-        series_id = show_tmdb and library_index('sonarr').get(int(show_tmdb))
-        if not series_id:
+        if not show_tmdb:
             return None
         c = sonarr()
+        # Asked directly (not the cached library_index, which reads as empty
+        # when Sonarr is down) so an outage raises instead of looking unmanaged
+        series_id = next((s['id'] for s in c.series_list() if s.get('tmdbId') == int(show_tmdb)), None)
+        if not series_id:
+            return None
         if item_type == 'show':
             c.delete_series(series_id, delete_files=True)
             invalidate_library('sonarr')
@@ -348,8 +354,7 @@ def _delete_via_arr(item, item_type, tmdb_id):
                 c.delete_episode_file(e['episodeFileId'])
                 deleted += 1
         return f'deleted {deleted} episode file(s) via Sonarr and unmonitored them'
-    except ArrError as e:
-        log.warning('plex_delete: Sonarr/Radarr delete failed, falling back to filesystem — %s', e)
+    except ArrNotConfigured:
         return None
 
 
@@ -370,8 +375,14 @@ def plex_delete(request, rating_key):
         tmdb_id    = extract_tmdb_id(item)
 
         from django.core.cache import cache
+
+        from apps.arr.clients import ArrError
         cache.delete(SNAPSHOT_KEY)
-        via_arr = _delete_via_arr(item, item_type, tmdb_id)
+        try:
+            via_arr = _delete_via_arr(item, item_type, tmdb_id)
+        except ArrError as e:
+            log.warning('plex_delete: ratingKey=%s %r — Sonarr/Radarr failed: %s', rating_key, item_title, e)
+            return JsonResponse({'error': f'Nothing was deleted — {e}. Try again once it\'s reachable.'}, status=502)
         if via_arr:
             log.info('plex_delete: ratingKey=%s %r — %s', rating_key, item_title, via_arr)
             _rescan_plex(plex, item_type)

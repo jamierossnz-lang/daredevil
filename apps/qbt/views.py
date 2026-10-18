@@ -118,14 +118,8 @@ def _web_url(request):
 
 def settings_data(request):
     """Everything the App Settings → qBittorrent tab shows, in one call."""
-    from django.conf import settings as django_settings
     data = {
-        'conn': {
-            'host': django_settings.QBITTORRENT_HOST,
-            'port': django_settings.QBITTORRENT_PORT,
-            'username': django_settings.QBITTORRENT_USERNAME,
-            'password': django_settings.QBITTORRENT_PASSWORD,
-        },
+        'conn': client.connection(),
         'web_url': _web_url(request),
         'connected': False, 'version': None, 'prefs': {}, 'categories': [], 'error': None,
     }
@@ -161,9 +155,8 @@ def settings_save(request):
 
 @require_POST
 def connection_save(request):
-    """Update qBittorrent connection settings in-memory and persist to .env."""
-    from django.conf import settings as django_settings
-
+    """Save qBittorrent's connection details to .env — every process reads
+    them from there (apps.qbt.client.connection)."""
     try:
         data = json.loads(request.body)
     except Exception:
@@ -181,13 +174,6 @@ def connection_save(request):
     except (TypeError, ValueError):
         return JsonResponse({'error': 'Port must be a number'}, status=400)
 
-    # Apply to running process immediately — client reads settings on every call
-    django_settings.QBITTORRENT_HOST     = host
-    django_settings.QBITTORRENT_PORT     = port
-    django_settings.QBITTORRENT_USERNAME = username
-    django_settings.QBITTORRENT_PASSWORD = password
-
-    # Persist to .env so values survive a restart
     env_file.update({
         'QBITTORRENT_HOST':     host,
         'QBITTORRENT_PORT':     str(port),
@@ -509,6 +495,9 @@ def file_delete(request):
 
     if not _within(path, allowed):
         return JsonResponse({'error': 'Path not permitted'}, status=403)
+    # A tab's own folder (the whole library, all downloads) is never deleted
+    if path in allowed:
+        return JsonResponse({'error': "That's a top-level folder — delete what's inside it instead"}, status=403)
 
     if not os.path.exists(path):
         return JsonResponse({'error': 'Path not found'}, status=404)
