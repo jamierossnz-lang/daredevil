@@ -1,60 +1,23 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full overflow-x-hidden">
+{% load static %}<!DOCTYPE html>
+<html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07071a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Daredevil">
   <title>{% block title %}Daredevil{% endblock %} — Daredevil</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50:  'rgb(var(--b50)  / <alpha-value>)',
-              100: 'rgb(var(--b100) / <alpha-value>)',
-              200: 'rgb(var(--b200) / <alpha-value>)',
-              300: 'rgb(var(--b300) / <alpha-value>)',
-              400: 'rgb(var(--b400) / <alpha-value>)',
-              500: 'rgb(var(--b500) / <alpha-value>)',
-              600: 'rgb(var(--b600) / <alpha-value>)',
-              700: 'rgb(var(--b700) / <alpha-value>)',
-              800: 'rgb(var(--b800) / <alpha-value>)',
-              900: 'rgb(var(--b900) / <alpha-value>)',
-            },
-            surface: {
-              50:  '#e8e8f4',
-              100: '#c5c5e8',
-              200: '#9d9dcc',
-              300: '#7777b0',
-              400: '#55559a',
-              500: '#333370',
-              600: '#25255a',
-              700: '#181840',
-              800: '#0e0e2e',
-              900: '#07071a',
-              950: '#030310',
-            },
-          },
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-          },
-          backgroundImage: {
-            'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-          },
-        }
-      }
-    }
-  </script>
+  {% if not TAILWIND_CSS %}
+  <!-- No compiled stylesheet (bare-metal / bind-mounted dev): compile in the browser -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="{% static 'tailwind.config.js' %}"></script>
+  {% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/alpinejs@3.17.4/dist/cdn.min.js" defer></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <style>
     /* ── Theme palette (purple default) ──────────────────────────────────── */
@@ -89,13 +52,22 @@
       --b600:234 88 12; --b700:194 65 12; --b800:154 52 18; --b900:124 45 18;
     }
     /* ── Base styles ──────────────────────────────────────────────────────── */
-    body { background-color: #07071a; overflow-x: hidden; overscroll-behavior-x: none; max-width: 100vw; }
+    /* clip, not hidden: overflow-x:hidden on <html> and <body> together made
+       <body> the scroll container instead of the window — iOS then never
+       collapses Safari's toolbar, status-bar taps don't scroll to the top and
+       Back lands at the top of the previous page. */
+    body { background-color: #07071a; overflow-x: clip; overscroll-behavior-x: none; }
+    [x-cloak] { display: none !important; }
     .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: #0e0e2e; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(var(--b600)); border-radius: 2px; }
     .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgb(var(--b500) / 0.3); }
-    .poster-glow:hover { box-shadow: 0 0 30px rgb(var(--b500) / 0.5); }
+    /* Hover lifts only where there's a real hover — on touch screens they
+       stick after a tap */
+    @media (hover: hover) {
+      .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgb(var(--b500) / 0.3); }
+      .poster-glow:hover { box-shadow: 0 0 30px rgb(var(--b500) / 0.5); }
+    }
     .nav-glow { box-shadow: 0 0 60px rgb(var(--b500) / 0.1); }
     .progress-bar { background: linear-gradient(90deg, rgb(var(--b500)), #00d4ff); }
     .status-downloading { color: #00d4ff; }
@@ -139,26 +111,39 @@
     @media (min-width: 1024px) {
       aside { transform: translateX(0); }
     }
-    /* iOS Safari auto-zooms on focus into any text input under 16px, and with
-       user-scalable=no above it can't zoom back out cleanly. Force 16px on
-       mobile regardless of what text-size utility a template applied. */
+    /* iOS Safari zooms in on focus into any text field under 16px. Force 16px
+       on phones regardless of what text-size utility a template applied. */
     @media (max-width: 640px) {
       input[type="text"], input[type="search"], input[type="email"], input[type="url"],
-      input[type="number"], input[type="password"], input:not([type]), textarea {
+      input[type="number"], input[type="password"], input:not([type]), textarea, select {
         font-size: 16px !important;
+      }
+    }
+    /* Touch screens: no double-tap zoom delay (pinch zoom still works), and
+       checkboxes / radios big enough to hit with a thumb */
+    html { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    @media (pointer: coarse) {
+      input[type="checkbox"]:not(.sr-only):not(.hidden), input[type="radio"]:not(.sr-only):not(.hidden) {
+        width: 1.25rem; height: 1.25rem;
       }
     }
   </style>
   <script>
     /* Apply saved theme before first paint */
     (function() {
-      const t = localStorage.getItem('dd-theme');
+      let t = null;
+      try { t = localStorage.getItem('dd-theme'); } catch (e) {}
       if (t && t !== 'purple') document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
   {% block extra_head %}{% endblock %}
+  {% if TAILWIND_CSS %}
+  <!-- Last in <head>, where the Play CDN puts its generated styles too, so the
+       cascade (e.g. text-lg vs Font Awesome's line-height) comes out the same -->
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  {% endif %}
 </head>
-<body class="font-sans text-gray-100 h-full overflow-x-hidden" x-data="{ sidebarOpen: false }" @open-sidebar.window="sidebarOpen = true">
+<body class="font-sans text-gray-100 h-full" x-data="{ sidebarOpen: false }" @open-sidebar.window="sidebarOpen = true">
 
   <!-- Sidebar (desktop only) -->
   <aside class="fixed inset-y-0 left-0 z-50 w-64 glass-dark hidden lg:flex flex-col">
@@ -194,32 +179,32 @@
       <!-- Library -->
       <p class="nav-section">Library</p>
       <a href="{{ url_dashboard }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if p == url_dashboard %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gauge-high w-4 text-center"></i> Dashboard
       </a>
       <a href="{{ url_foryou }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_foryou in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-layer-group w-4 text-center"></i> For You
       </a>
       <a href="{{ url_shows }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_shows in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-tv w-4 text-center"></i> TV Shows
       </a>
       <a href="{{ url_movies }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_movies in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-film w-4 text-center"></i> Movies
       </a>
       <a href="{{ url_streaming }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_streaming in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-satellite-dish w-4 text-center"></i> Streaming
       </a>
       <a href="{{ url_plex }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_plex in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-server w-4 text-center"></i> Plex Library
       </a>
@@ -227,12 +212,12 @@
       <!-- Downloads -->
       <p class="nav-section mt-2">Downloads</p>
       <a href="{{ url_queue }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if p == url_queue %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-download w-4 text-center"></i> Queue
       </a>
       <a href="{{ url_moves }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_moves in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-file-import w-4 text-center"></i> Imports
       </a>
@@ -240,17 +225,17 @@
       <!-- Torrents -->
       <p class="nav-section mt-2">Torrents</p>
       <a href="{{ url_qbt }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if p == url_qbt %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-seedling w-4 text-center"></i> Manager
       </a>
       <a href="{{ url_qbt_search }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_search in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-magnifying-glass w-4 text-center"></i> Search
       </a>
       <a href="{{ url_qbt_files }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_qbt_files in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-folder-open w-4 text-center"></i> File Browser
       </a>
@@ -258,12 +243,12 @@
       <!-- System -->
       <p class="nav-section mt-2">System</p>
       <a href="{{ url_activity }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if url_activity in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i> Activity Log
       </a>
       <a href="{{ url_app_settings }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+         class="nav-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all
                 {% if p == url_app_settings %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-gear w-4 text-center"></i> App Settings
       </a>
@@ -491,21 +476,16 @@
     <!-- Top Bar -->
     <header class="sticky top-0 z-30 glass-dark px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3"
             style="padding-top: calc(0.75rem + env(safe-area-inset-top, 0px))">
-      <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-        <button @click="sidebarOpen = !sidebarOpen"
-                class="lg:hidden -m-2 p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
-                aria-label="Open menu">
-          <i class="fa-solid fa-bars text-xl"></i>
-        </button>
-        <!-- Back / Forward -->
+      <!-- Back / Forward (the menu lives in the bottom bar's "More" below lg) -->
+      <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0 -ml-2 sm:ml-0">
         <button onclick="history.back()"
-                class="flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
-                title="Go back">
-          <i class="fa-solid fa-arrow-left text-sm"></i>
+                class="flex w-10 h-10 sm:w-7 sm:h-7 rounded-lg items-center justify-center text-gray-400 sm:text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+                title="Go back" aria-label="Go back">
+          <i class="fa-solid fa-arrow-left text-base sm:text-sm"></i>
         </button>
         <button onclick="history.forward()"
-                class="flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
-                title="Go forward">
+                class="hidden sm:flex w-7 h-7 rounded-lg items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
+                title="Go forward" aria-label="Go forward">
           <i class="fa-solid fa-arrow-right text-sm"></i>
         </button>
       </div>
@@ -518,8 +498,8 @@
         <!-- Notification bell -->
         <div x-data="notifBell()" @click.outside="open = false" class="relative">
           <button @click="toggle()"
-                  class="relative w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
-                  title="Notifications">
+                  class="relative w-10 h-10 sm:w-8 sm:h-8 -mr-1.5 sm:mr-0 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
+                  title="Notifications" aria-label="Notifications">
             <i class="fa-solid fa-bell text-sm"></i>
             <span x-show="count > 0" x-cloak
                   x-text="count > 9 ? '9+' : count"
@@ -534,8 +514,8 @@
                x-transition:leave="transition ease-in duration-100"
                x-transition:leave-start="opacity-100 scale-100 translate-y-0"
                x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
-               class="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-1rem))] glass rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50 origin-top-right flex flex-col"
-               style="max-height: 480px">
+               class="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-[calc(4rem+env(safe-area-inset-top,0px))] sm:top-full mt-0 sm:mt-2 sm:w-80 glass !bg-surface-800/95 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50 origin-top-right flex flex-col"
+               style="max-height: min(480px, calc(100dvh - 10rem))">
 
             <!-- Header -->
             <div class="flex items-center justify-between px-4 py-3 border-b border-surface-700/50 flex-shrink-0">
@@ -600,27 +580,35 @@
       { key: 'plex',      href: '{{ url_plex }}',      icon: 'fa-server',          label: 'Plex'      },
     ];
     const DEFAULT_KEYS = ['home','shows','movies','queue'];
-    const saved = localStorage.getItem('dd-mobile-nav');
-    const keys  = saved ? JSON.parse(saved) : DEFAULT_KEYS;
-    const items = keys.map(k => ALL_NAV.find(n => n.key === k)).filter(Boolean);
-    const path  = window.location.pathname;
-    const inner = document.getElementById('ddMobileNavInner');
-    const navItems = items.map(item => {
-      const active = path === item.href || (item.href !== '/' && path.startsWith(item.href));
-      return `<a href="${item.href}"
-                 class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
-                        ${active ? 'text-brand-400' : 'text-gray-500 hover:text-gray-300'}">
-        ${active ? '<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>' : ''}
-        <i class="fa-solid ${item.icon} text-lg"></i>
-        <span class="text-[10px] font-medium">${item.label}</span>
-      </a>`;
-    }).join('');
-    const moreBtn = `<button onclick="window.dispatchEvent(new CustomEvent('open-sidebar'))"
-               class="flex-1 flex flex-col items-center justify-center gap-0.5 text-gray-500 hover:text-gray-300 transition-colors">
-      <i class="fa-solid fa-bars text-lg"></i>
-      <span class="text-[10px] font-medium">More</span>
-    </button>`;
-    inner.innerHTML = navItems + moreBtn;
+    // The App Settings → Appearance picker uses the same list and redraws the bar
+    window.ddMobileNav = { all: ALL_NAV, defaults: DEFAULT_KEYS, render };
+    render();
+
+    function render() {
+      let keys = DEFAULT_KEYS;
+      try { keys = JSON.parse(localStorage.getItem('dd-mobile-nav')) || DEFAULT_KEYS; } catch (e) {}
+      const items = keys.map(k => ALL_NAV.find(n => n.key === k)).filter(Boolean);
+      // Only the most specific match is active (Imports lives under /downloads/ too)
+      const path = window.location.pathname;
+      const matches = items.filter(i => path === i.href || (i.href !== '/' && path.startsWith(i.href)));
+      const current = matches.sort((a, b) => b.href.length - a.href.length)[0];
+      const navItems = items.map(item => {
+        const active = item === current;
+        return `<a href="${item.href}" ${active ? 'aria-current="page"' : ''}
+                   class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative
+                          ${active ? 'text-brand-400' : 'text-gray-500 hover:text-gray-300'}">
+          ${active ? '<div class="absolute top-0 w-8 h-0.5 rounded-full bg-brand-400"></div>' : ''}
+          <i class="fa-solid ${item.icon} text-lg"></i>
+          <span class="text-[10px] font-medium">${item.label}</span>
+        </a>`;
+      }).join('');
+      const moreBtn = `<button onclick="window.dispatchEvent(new CustomEvent('open-sidebar'))" aria-label="More pages"
+                 class="flex-1 flex flex-col items-center justify-center gap-0.5 text-gray-500 hover:text-gray-300 transition-colors">
+        <i class="fa-solid fa-bars text-lg"></i>
+        <span class="text-[10px] font-medium">More</span>
+      </button>`;
+      document.getElementById('ddMobileNavInner').innerHTML = navItems + moreBtn;
+    }
   })();
   </script>
 

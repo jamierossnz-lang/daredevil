@@ -9,7 +9,7 @@
         <p class="text-xs text-gray-500 mt-1">Manages your indexers in one place and pushes them to Sonarr and Radarr. Daredevil's Search page queries it directly.</p>
       </div>
       <a :href="data.open_url" target="_blank" rel="noreferrer" x-show="data.open_url"
-         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
+         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
         <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Prowlarr
       </a>
     </div>
@@ -25,20 +25,20 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <label class="block">
         <span class="text-xs text-gray-500">URL (as Daredevil reaches it)</span>
-        <input type="text" x-model="form.url" placeholder="http://prowlarr:9696"
+        <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.url" placeholder="http://prowlarr:9696"
                class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
       </label>
       <label class="block">
         <span class="text-xs text-gray-500">API key <span class="text-gray-600">(Prowlarr → Settings → General)</span></span>
         <div class="relative mt-1">
-          <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+          <input :type="showKey ? 'text' : 'password'" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.api_key"
                  class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 pr-9 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
-          <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"><i class="fa-solid" :class="showKey ? 'fa-eye-slash' : 'fa-eye'"></i></button>
+          <button type="button" @click="showKey = !showKey" class="absolute right-1 sm:right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-auto sm:h-auto flex items-center justify-center text-gray-500 hover:text-gray-300" aria-label="Show or hide"><i class="fa-solid" :class="showKey ? 'fa-eye-slash' : 'fa-eye'"></i></button>
         </div>
       </label>
       <label class="block sm:col-span-2">
         <span class="text-xs text-gray-500">Public URL for "Open Prowlarr" <span class="text-gray-600">(optional — defaults to this host on port 9696)</span></span>
-        <input type="text" x-model="form.public_url" placeholder="http://192.168.1.10:9696"
+        <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.public_url" placeholder="http://192.168.1.10:9696"
                class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
       </label>
     </div>
@@ -87,10 +87,10 @@
             </div>
           </template>
           <div class="flex flex-wrap gap-2">
-            <button @click="connectApps()" :disabled="busy.apps" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+            <button @click="connectApps()" :disabled="busy.apps" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.apps ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect Sonarr &amp; Radarr
             </button>
-            <button @click="syncApps()" :disabled="busy.sync" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+            <button @click="syncApps()" :disabled="busy.sync" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.sync ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'"></i>Sync indexers now
             </button>
           </div>
@@ -105,10 +105,10 @@
             <h2 class="text-sm font-semibold text-gray-200">Indexers <span class="text-gray-500 font-normal" x-text="`(${data.indexers?.length || 0})`"></span></h2>
             <p class="text-xs text-gray-500">Add, test, enable/disable and edit indexers. Changes sync to Sonarr and Radarr.</p>
           </div>
-          <button @click="testAll()" :disabled="busy.testAll" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+          <button @click="testAll()" :disabled="busy.testAll" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
             <i class="fa-solid mr-1" :class="busy.testAll ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i>Test all
           </button>
-          <button @click="openAdd()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white">
+          <button @click="openAdd()" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white">
             <i class="fa-solid fa-plus mr-1"></i>Add indexer
           </button>
         </div>
@@ -134,8 +134,9 @@
                 <tr class="hover:bg-surface-700/20">
                   <td class="px-2 py-2">
                     <button @click="toggle(ix)" :title="ix.enable ? 'Enabled — click to disable' : 'Disabled — click to enable'"
-                            class="w-9 h-5 rounded-full relative transition-colors" :class="ix.enable ? 'bg-brand-600' : 'bg-surface-600'">
-                      <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" :class="ix.enable ? 'left-4' : 'left-0.5'"></span>
+                            role="switch" :aria-checked="String(!!ix.enable)" :aria-label="ix.name"
+                            class="w-11 h-6 sm:w-9 sm:h-5 rounded-full relative transition-colors" :class="ix.enable ? 'bg-brand-600' : 'bg-surface-600'">
+                      <span class="absolute top-0.5 w-5 h-5 sm:w-4 sm:h-4 rounded-full bg-white transition-all" :class="ix.enable ? 'left-[1.375rem] sm:left-4' : 'left-0.5'"></span>
                     </button>
                   </td>
                   <td class="px-2 py-2">
@@ -176,7 +177,7 @@
             <button @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="flex flex-wrap gap-2 mb-3">
-            <input type="text" x-model="catalogueQuery" placeholder="Search 600+ indexers…" x-ref="catq"
+            <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="catalogueQuery" placeholder="Search 600+ indexers…" x-ref="catq"
                    class="flex-1 min-w-[10rem] px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-200 focus:outline-none focus:border-brand-500">
             <select x-model="catalogueProtocol" class="bg-surface-800 border border-surface-600 rounded-xl px-2 py-2 text-xs text-gray-300">
               <option value="">Any protocol</option><option value="torrent">Torrent</option><option value="usenet">Usenet</option>
@@ -229,7 +230,7 @@
           <div class="flex-1 overflow-y-auto scrollbar-thin space-y-3 pr-1">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label class="block sm:col-span-2"><span class="text-xs text-gray-500">Name</span>
-                <input type="text" x-model="defForm.name" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200"></label>
+                <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="defForm.name" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200"></label>
               <label class="block"><span class="text-xs text-gray-500">Priority (1 = highest)</span>
                 <input type="number" min="1" max="50" x-model="defForm.priority" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200"></label>
               <label class="block sm:col-span-2"><span class="text-xs text-gray-500">Sync profile</span>
@@ -258,7 +259,7 @@
                 </template>
                 <template x-if="!['info', 'checkbox', 'select'].includes(f.type)">
                   <label class="block"><span class="text-xs text-gray-500" x-text="f.label"></span>
-                    <input :type="f.type === 'number' ? 'number' : (f.secret || f.type === 'password' ? 'password' : 'text')" x-model="values[f.name]"
+                    <input :type="f.type === 'number' ? 'number' : (f.secret || f.type === 'password' ? 'password' : 'text')" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="values[f.name]"
                            class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
                     <span x-show="f.help" class="block text-[11px] text-gray-500 mt-0.5" x-text="f.help"></span></label>
                 </template>

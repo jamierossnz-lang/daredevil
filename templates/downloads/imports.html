@@ -25,13 +25,13 @@
 {% else %}
 <div class="flex flex-wrap gap-1.5 mb-4">
   {% with base=request.path %}
-  <a href="{{ base }}" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if not status_filter %}bg-brand-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">All</a>
-  <a href="{{ base }}?status=confirmed" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'confirmed' %}bg-green-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">
+  <a href="{{ base }}" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if not status_filter %}bg-brand-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">All</a>
+  <a href="{{ base }}?status=confirmed" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'confirmed' %}bg-green-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">
     <i class="fa-solid fa-circle-check mr-1"></i>Confirmed on disk ({{ counts.confirmed }})</a>
-  {% if counts.in_library %}<a href="{{ base }}?status=in_library" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'in_library' %}bg-green-700 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">In library ({{ counts.in_library }})</a>{% endif %}
-  <a href="{{ base }}?status=replaced" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'replaced' %}bg-blue-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Replaced ({{ counts.replaced }})</a>
-  <a href="{{ base }}?status=missing" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'missing' %}bg-red-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Missing ({{ counts.missing }})</a>
-  {% if counts.unknown %}<a href="{{ base }}?status=unknown" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'unknown' %}bg-surface-500 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Can't check ({{ counts.unknown }})</a>{% endif %}
+  {% if counts.in_library %}<a href="{{ base }}?status=in_library" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'in_library' %}bg-green-700 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">In library ({{ counts.in_library }})</a>{% endif %}
+  <a href="{{ base }}?status=replaced" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'replaced' %}bg-blue-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Replaced ({{ counts.replaced }})</a>
+  <a href="{{ base }}?status=missing" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'missing' %}bg-red-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Missing ({{ counts.missing }})</a>
+  {% if counts.unknown %}<a href="{{ base }}?status=unknown" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'unknown' %}bg-surface-500 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Can't check ({{ counts.unknown }})</a>{% endif %}
   {% endwith %}
 </div>
 

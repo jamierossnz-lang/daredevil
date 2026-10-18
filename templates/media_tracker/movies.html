@@ -87,12 +87,12 @@
     <p class="lib-note hidden text-[10px] text-brand-300/80 truncate"></p>
 
     <button @click.stop="menuOpen = !menuOpen"
-            class="absolute top-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition-opacity"
-            style="right: {% if movie.favourite %}2.25rem{% else %}0.5rem{% endif %}">
+            class="absolute top-1.5 sm:top-2 w-8 h-8 sm:w-6 sm:h-6 bg-black/70 rounded-full flex items-center justify-center [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            style="right: {% if movie.favourite %}2.25rem{% else %}0.375rem{% endif %}" aria-label="More actions">
       <i class="fa-solid fa-ellipsis text-white text-xs"></i>
     </button>
     <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
-         class="absolute top-9 right-0 z-20 w-48 glass rounded-xl shadow-2xl py-1 text-sm">
+         class="absolute top-10 sm:top-9 left-1 right-1 sm:left-auto sm:right-0 sm:w-48 z-20 glass !bg-surface-800/95 rounded-xl shadow-2xl py-1 text-sm">
       <button onclick="setMonitored({{ movie.id }}, {{ movie.monitored|yesno:'false,true' }})"
               class="w-full text-left px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
         <i class="fa-{% if movie.monitored %}regular{% else %}solid{% endif %} fa-bookmark text-cyan-400 w-4"></i>

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Plex Library{% endblock %}
+{% block page_title %}Plex Library{% endblock %}
 
 {% block header_actions %}
 {% if fetched_at %}
@@ -17,25 +18,20 @@
 {% block content %}
 <div class="space-y-6" x-data="{ tab: 'recent' }">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-100 flex items-center gap-3">
-        <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-          <i class="fa-solid fa-server text-orange-400 text-sm"></i>
-        </span>
-        Plex Library
-      </h1>
-      <p class="text-sm text-gray-500 mt-1">
-        {{ plex_movies|length }} movies · {{ plex_shows|length }} shows
-      </p>
-    </div>
+  <!-- Summary -->
+  <div class="flex items-center justify-between gap-3">
+    <p class="text-sm text-gray-400 flex items-center gap-2">
+      <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-server text-orange-400 text-sm"></i>
+      </span>
+      {{ plex_movies|length }} movies · {{ plex_shows|length }} shows
+    </p>
     {% if configured %}
-    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/20">
+    <span class="inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/20">
       <i class="fa-solid fa-circle text-[6px]"></i> Connected
     </span>
     {% else %}
-    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+    <span class="inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
       <i class="fa-solid fa-circle text-[6px]"></i> Not connected
     </span>
     {% endif %}
@@ -58,34 +54,35 @@
   {% endif %}
 
   {% if configured %}
-  <!-- Tabs -->
-  <div class="flex items-center gap-1 bg-surface-800/60 rounded-xl p-1 w-fit border border-surface-700/40 flex-wrap">
+  <!-- Tabs — one swipeable row on phones -->
+  <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+  <div class="flex items-center gap-1 bg-surface-800/60 rounded-xl p-1 w-max sm:w-fit sm:flex-wrap border border-surface-700/40">
     <button @click="tab = 'recent'"
             :class="tab === 'recent' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-clock-rotate-left mr-1.5 text-xs"></i>Recently Added
     </button>
     <button @click="tab = 'watched'"
             :class="tab === 'watched' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-eye mr-1.5 text-xs"></i>Watched
       {% if watched %}<span class="ml-1 text-xs text-gray-500">{{ watched|length }}</span>{% endif %}
     </button>
     <button @click="tab = 'movies'"
             :class="tab === 'movies' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-film mr-1.5 text-xs"></i>Movies
       <span class="ml-1 text-xs text-gray-500">{{ plex_movies|length }}</span>
     </button>
     <button @click="tab = 'shows'"
             :class="tab === 'shows' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-tv mr-1.5 text-xs"></i>TV Shows
       <span class="ml-1 text-xs text-gray-500">{{ plex_shows|length }}</span>
     </button>
     <button @click="tab = 'missing'"
             :class="tab === 'missing' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-circle-exclamation mr-1.5 text-xs"></i>Not in Plex
       {% if missing_movies or missing_shows %}
       <span class="ml-1 text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{{ missing_movies|length|add:missing_shows|length }}</span>
@@ -93,7 +90,7 @@
     </button>
     <button @click="tab = 'cleanup'"
             :class="tab === 'cleanup' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-trash-can mr-1.5 text-xs"></i>Clean Up
       {% if candidates %}
       <span class="ml-1 text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">
@@ -103,10 +100,11 @@
     </button>
     <button @click="tab = 'delete'"
             :class="tab === 'delete' ? 'bg-surface-700 text-gray-100 shadow' : 'text-gray-500 hover:text-gray-300'"
-            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+            class="px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all">
       <i class="fa-solid fa-fire mr-1.5 text-xs"></i>Delete Watched
       {% if watched_items %}<span class="ml-1 text-xs text-gray-500">{{ watched_items|length }}</span>{% endif %}
     </button>
+  </div>
   </div>
 
   <!-- ── Recently Added ── -->
@@ -422,17 +420,17 @@
                 <div class="flex items-center gap-2">
                   {% if item.type == 'show' %}
                   <button @click="$dispatch('open-episode-picker', {ratingKey: '{{ item.rating_key }}', title: '{{ item.title|escapejs }}'})"
-                          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
+                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
                     <i class="fa-solid fa-trash-can text-[10px]"></i> Delete Episodes
                   </button>
                   {% else %}
                   <button @click="doDelete('{{ item.rating_key }}', '{{ item.title|escapejs }}', '{{ item.type }}', '{{ item.size_display|escapejs }}')"
-                          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
+                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
                     <i class="fa-solid fa-trash-can text-[10px]"></i> Delete from Plex
                   </button>
                   {% endif %}
                   <button @click="doIgnore('{{ item.rating_key }}', '{{ item.title|escapejs }}')"
-                          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-400 hover:bg-surface-600 hover:text-gray-200 border border-surface-600 transition-colors">
+                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-400 hover:bg-surface-600 hover:text-gray-200 border border-surface-600 transition-colors">
                     <i class="fa-solid fa-eye-slash text-[10px]"></i> Dismiss
                   </button>
                 </div>

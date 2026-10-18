@@ -1,0 +1,4 @@
+/* Input for the Tailwind CLI — the Dockerfile compiles it to static/css/tailwind.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

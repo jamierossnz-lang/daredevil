@@ -16,6 +16,8 @@ env/
 db.sqlite3
 *.log
 staticfiles/
+# Built by the Dockerfile from static/css/tailwind.src.css
+static/css/tailwind.css
 
 # Celery (bare-metal start.sh)
 *.pid

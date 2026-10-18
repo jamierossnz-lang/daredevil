@@ -139,6 +139,7 @@ TEMPLATES = [
                 'apps.plex.context_processors.drive_usage',
                 'apps.notifications.context_processors.notification_count',
                 'apps.accounts.context_processors.google_login_enabled',
+                'config.context_processors.tailwind',
             ],
         },
     },
@@ -180,6 +181,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

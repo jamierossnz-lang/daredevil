@@ -15,6 +15,8 @@ _EVENT_META = {
     EventType.STORAGE_WARNING:    {'icon': 'fa-hard-drive',      'badge': 'bg-yellow-900/30 text-yellow-400'},
 }
 _DEFAULT_META = {'icon': 'fa-bell', 'badge': 'bg-gray-700/50 text-gray-400'}
+# No longer emitted — their filter chips only show while old rows remain
+_LEGACY = {EventType.DOWNLOAD_COMPLETED, EventType.SEARCH_FAILED}
 
 
 def _describe(event):
@@ -79,6 +81,7 @@ def activity_log(request):
             'label': label,
             'count': counts.get(value, 0),
             'icon': _EVENT_META.get(value, _DEFAULT_META)['icon'],
+            'legacy': value in _LEGACY,
         }
         for value, label in EventType.choices
     ]
@@ -87,5 +90,6 @@ def activity_log(request):
         'events': events,
         'type_chips': type_chips,
         'event_filter': event_filter,
+        'event_filter_label': dict(EventType.choices).get(event_filter, event_filter),
         'total_count': sum(counts.values()),
     })

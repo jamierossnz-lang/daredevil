@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
@@ -238,6 +239,8 @@ def app_settings_view(request):
         return env.get(key, str(getattr(s, key, default)))
 
     return render(request, 'app_settings.html', {
+        # DB_HOST is only set by docker-compose (same signal settings.py uses)
+        'in_docker': bool(os.environ.get('DB_HOST')),
         'settings_tabs': [
             ('general', 'General', 'fa-gear'),
             ('prowlarr', 'Prowlarr', 'fa-magnifying-glass'),
@@ -329,6 +332,9 @@ def server_ping(request):
 
 @require_POST
 def server_restart(request):
+    """Bare-metal dev server only: touching manage.py trips runserver's
+    auto-reloader. gunicorn (Docker) has no reloader — the Settings page
+    shows the redeploy command there instead."""
     import threading
     from django.conf import settings as s
 
@@ -340,16 +346,6 @@ def server_restart(request):
 
     threading.Thread(target=_touch_and_restart, daemon=True).start()
     return JsonResponse({'ok': True, 'msg': 'Django server restarting via auto-reloader…'})
-
-
-@require_POST
-def celery_restart(request):
-    try:
-        from config.celery import app as celery_app
-        celery_app.control.broadcast('pool_restart', arguments={'reload': True})
-        return JsonResponse({'ok': True, 'msg': 'Celery pool restart broadcast sent'})
-    except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 
 @require_POST

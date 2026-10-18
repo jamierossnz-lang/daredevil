@@ -22,7 +22,7 @@
     <form @submit.prevent="go(path)" class="flex gap-2 mb-3">
       <button type="button" @click="parent !== null && go(parent)" :disabled="parent === null" title="Up one folder"
               class="w-10 flex-shrink-0 rounded-xl bg-surface-700 hover:bg-surface-600 disabled:opacity-40 text-gray-300"><i class="fa-solid fa-arrow-up"></i></button>
-      <input type="text" x-model="path" spellcheck="false" placeholder="/path/to/folder"
+      <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="path" spellcheck="false" placeholder="/path/to/folder"
              class="flex-1 min-w-0 px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-100 font-mono focus:outline-none focus:border-brand-500">
       <button type="submit" class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm" title="Open this path"><i class="fa-solid fa-arrow-right"></i></button>
     </form>

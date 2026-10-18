@@ -14,7 +14,7 @@
         </p>
       </div>
       <a :href="data.open_url" target="_blank" rel="noreferrer" x-show="data.open_url"
-         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
+         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
         <i class="fa-solid fa-arrow-up-right-from-square"></i> Open {{ label }}
       </a>
     </div>
@@ -34,22 +34,22 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <label class="block">
         <span class="text-xs text-gray-500">URL (as Daredevil reaches it)</span>
-        <input type="text" x-model="form.url" placeholder="http://{{ kind }}:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
+        <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.url" placeholder="http://{{ kind }}:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
                class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
       </label>
       <label class="block">
         <span class="text-xs text-gray-500">API key <span class="text-gray-600">({{ label }} → Settings → General)</span></span>
         <div class="relative mt-1">
-          <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+          <input :type="showKey ? 'text' : 'password'" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.api_key"
                  class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 pr-9 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
-          <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+          <button type="button" @click="showKey = !showKey" class="absolute right-1 sm:right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-auto sm:h-auto flex items-center justify-center text-gray-500 hover:text-gray-300" aria-label="Show or hide">
             <i class="fa-solid" :class="showKey ? 'fa-eye-slash' : 'fa-eye'"></i>
           </button>
         </div>
       </label>
       <label class="block sm:col-span-2">
         <span class="text-xs text-gray-500">Public URL for "Open {{ label }}" links <span class="text-gray-600">(optional — defaults to this host on port {% if kind == 'sonarr' %}8989{% else %}7878{% endif %})</span></span>
-        <input type="text" x-model="form.public_url" placeholder="http://192.168.1.10:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
+        <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="form.public_url" placeholder="http://192.168.1.10:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
                class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
       </label>
     </div>
@@ -99,7 +99,7 @@
               <p class="text-xs text-yellow-400/80" x-show="!qbt()">Not set up — {{ label }} has nowhere to send downloads. Connecting uses the login from the qBittorrent tab.</p>
             </div>
             <button x-show="!qbt()" @click="connect('qbittorrent')" :disabled="busy.qbittorrent"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+                    class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.qbittorrent ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect
             </button>
           </div>
@@ -116,11 +116,11 @@
               <p class="text-[11px] text-gray-600 font-mono truncate" x-text="data.webhook?.expected"></p>
             </div>
             <button @click="connect('webhook')" :disabled="busy.webhook"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+                    class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.webhook ? 'fa-spinner fa-spin' : 'fa-link'"></i><span x-text="data.webhook?.up_to_date ? 'Reconnect' : (data.webhook?.connected ? 'Repair' : 'Connect')"></span>
             </button>
             <button x-show="data.webhook?.connected" @click="testWebhook()" :disabled="busy.webhookTest"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+                    class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid mr-1" :class="busy.webhookTest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
             </button>
           </div>
@@ -134,7 +134,7 @@
               </p>
               <p class="text-xs text-yellow-400/80" x-show="!data.indexers?.length">None yet — connect {{ label }} to Prowlarr in the Prowlarr tab.</p>
             </div>
-            <button @click="tab = 'prowlarr'" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+            <button @click="tab = 'prowlarr'" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
               Manage in Prowlarr <i class="fa-solid fa-arrow-right ml-1"></i>
             </button>
           </div>
@@ -167,16 +167,16 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pl-8">
               <label class="block"><span class="text-[11px] text-gray-500">Library folder, as {{ label }} sees it</span>
                 <div class="flex gap-1.5 mt-1">
-                  <input type="text" x-model="plex.refresh.map_from" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200">
+                  <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="plex.refresh.map_from" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200">
                   <button type="button" @click="openFolderPicker({ source: kind, path: plex.refresh.map_from || '/', title: `Library folder as ${kind === 'sonarr' ? 'Sonarr' : 'Radarr'} sees it`, onPick: p => plex.refresh.map_from = p })"
                           class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open text-xs"></i></button>
                 </div></label>
               <label class="block"><span class="text-[11px] text-gray-500">Same folder as Plex sees it</span>
-                <input type="text" x-model="plex.refresh.map_to" class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
+                <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="plex.refresh.map_to" class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
             </div>
             <div class="flex flex-wrap gap-2 mt-3 pl-8" x-show="plex.refresh?.connected">
-              <button @click="plexSave('refresh')" :disabled="busy.plexrefresh" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save folders</button>
-              <button @click="plexTest()" :disabled="busy.plextest" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+              <button @click="plexSave('refresh')" :disabled="busy.plexrefresh" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save folders</button>
+              <button @click="plexTest()" :disabled="busy.plextest" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
                 <i class="fa-solid mr-1" :class="busy.plextest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
               </button>
             </div>
@@ -205,7 +205,7 @@
                 </select></label>
               <label class="flex items-center gap-2 text-xs text-gray-300 pb-1.5"><input type="checkbox" x-model="plex.watchlist.search" class="accent-brand-500"> Search as soon as it's added</label>
               <button x-show="plex.watchlist?.connected" @click="plexSave('watchlist')" :disabled="busy.plexwatchlist"
-                      class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+                      class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
             </div>
           </div>
         </div>
@@ -229,11 +229,11 @@
             <p x-show="data.downloads?.error" class="text-xs text-yellow-400/80 mt-2" x-text="data.downloads?.error"></p>
             <div class="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-3 mt-3">
               <label class="block"><span class="text-[11px] text-gray-500">qBittorrent category</span>
-                <input type="text" x-model="dl.category" :placeholder="data.default_qbt_category"
+                <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="dl.category" :placeholder="data.default_qbt_category"
                        class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
               <label class="block"><span class="text-[11px] text-gray-500">Folder, as qBittorrent sees it</span>
                 <div class="flex gap-2 mt-1">
-                  <input type="text" x-model="dl.save_path" :placeholder="`Empty = qBittorrent's default (${data.downloads?.default || '/downloads'})`"
+                  <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="dl.save_path" :placeholder="`Empty = qBittorrent's default (${data.downloads?.default || '/downloads'})`"
                          class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
                   <button type="button" @click="pickDownloads()" title="Browse qBittorrent's folders"
                           class="px-2.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
@@ -241,7 +241,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
               <button @click="saveDownloads()" :disabled="busy.downloads"
-                      class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+                      class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
                 <i class="fa-solid mr-1" :class="busy.downloads ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
               </button>
               <p class="text-[11px] text-gray-500" x-show="data.downloads?.effective">
@@ -272,11 +272,11 @@
               <p x-show="!(data.root_folders || []).length" class="text-xs text-yellow-400/80">No root folder yet — {{ label }} can't add {% if kind == 'sonarr' %}shows{% else %}movies{% endif %} until it has one.</p>
             </div>
             <div class="flex gap-2">
-              <input type="text" x-model="newRoot" placeholder="{% if kind == 'sonarr' %}/tv{% else %}/movies{% endif %}" @keydown.enter="addRoot()"
+              <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="newRoot" placeholder="{% if kind == 'sonarr' %}/tv{% else %}/movies{% endif %}" @keydown.enter="addRoot()"
                      class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
               <button type="button" @click="pickRoot()" title="Browse {{ label }}'s folders"
                       class="px-2.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
-              <button @click="addRoot()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add</button>
+              <button @click="addRoot()" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add</button>
             </div>
           </div>
 
@@ -294,12 +294,12 @@
               <template x-for="(m, i) in mappingRows" :key="i">
                 <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
                   <div class="flex gap-1.5 flex-1 min-w-[10rem]">
-                    <input type="text" x-model="m.remote" placeholder="{{ label }} path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+                    <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="m.remote" placeholder="{{ label }} path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
                     <button type="button" @click="pickMapping(m, 'remote')" title="Browse {{ label }}'s folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
                   </div>
                   <i class="fa-solid fa-arrow-right text-gray-600 text-xs hidden sm:block"></i>
                   <div class="flex gap-1.5 flex-1 min-w-[10rem]">
-                    <input type="text" x-model="m.local" placeholder="Daredevil path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+                    <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="m.local" placeholder="Daredevil path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
                     <button type="button" @click="pickMapping(m, 'local')" title="Browse Daredevil's folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
                   </div>
                   <button @click="mappingRows.splice(i, 1)" class="px-2 text-gray-500 hover:text-red-400" title="Remove"><i class="fa-solid fa-xmark"></i></button>
@@ -307,8 +307,8 @@
               </template>
             </div>
             <div class="flex flex-wrap gap-2 mt-3">
-              <button @click="mappingRows.push({ remote: '', local: '' })" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add pair</button>
-              <button @click="saveMappings()" :disabled="busy.save" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+              <button @click="mappingRows.push({ remote: '', local: '' })" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add pair</button>
+              <button @click="saveMappings()" :disabled="busy.save" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
             </div>
           </details>
         </div>
@@ -382,7 +382,7 @@
             <div class="flex gap-1.5 overflow-x-auto scrollbar-thin pb-1 mb-4">
               <template x-for="p in quality.profiles" :key="p.id">
                 <button @click="selectProfile(p.id)" :class="profile.id === p.id ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
-                        class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium" x-text="p.name"></button>
+                        class="flex-shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium" x-text="p.name"></button>
               </template>
             </div>
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
@@ -446,21 +446,21 @@
           {% if kind == 'sonarr' %}
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="naming.renameEpisodes" class="accent-brand-500"> Rename episodes</label>
           <label class="block"><span class="text-xs text-gray-500">Episode format</span>
-            <input type="text" x-model="naming.standardEpisodeFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+            <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="naming.standardEpisodeFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block"><span class="text-xs text-gray-500">Series folder</span>
-              <input type="text" x-model="naming.seriesFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+              <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="naming.seriesFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
             <label class="block"><span class="text-xs text-gray-500">Season folder</span>
-              <input type="text" x-model="naming.seasonFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+              <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="naming.seasonFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
           </div>
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.autoUnmonitorPreviouslyDownloadedEpisodes" class="accent-brand-500"> Unmonitor episodes whose files are deleted</label>
           {% else %}
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="naming.renameMovies" class="accent-brand-500"> Rename movies</label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block"><span class="text-xs text-gray-500">Movie file format</span>
-              <input type="text" x-model="naming.standardMovieFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+              <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="naming.standardMovieFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
             <label class="block"><span class="text-xs text-gray-500">Movie folder</span>
-              <input type="text" x-model="naming.movieFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+              <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="naming.movieFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
           </div>
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.autoUnmonitorPreviouslyDownloadedMovies" class="accent-brand-500"> Unmonitor movies whose files are deleted</label>
           {% endif %}
@@ -468,7 +468,7 @@
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.deleteEmptyFolders" class="accent-brand-500"> Delete empty folders</label>
           <div class="flex flex-wrap items-center gap-2">
             <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.importExtraFiles" class="accent-brand-500"> Import extra files</label>
-            <input type="text" x-model="mm.extraFileExtensions" x-show="mm.importExtraFiles" placeholder="srt,nfo"
+            <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="mm.extraFileExtensions" x-show="mm.importExtraFiles" placeholder="srt,nfo"
                    class="w-40 bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-200 font-mono">
           </div>
           <label class="block"><span class="text-xs text-gray-500">Propers &amp; repacks</span>

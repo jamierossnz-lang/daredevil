@@ -30,7 +30,7 @@
     <template x-for="g in groups" :key="g.key">
       <button @click="group = g.key; selected = []"
               :class="group === g.key ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
-              class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors">
+              class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-xs font-medium transition-colors">
         <i class="fa-solid" :class="g.icon"></i><span x-text="g.label"></span>
         <span class="opacity-70" x-text="count(g.key)"></span>
       </button>
@@ -46,7 +46,7 @@
     </div>
     <select x-model="category" class="bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-300">
       <option value="">All categories</option>
-      <template x-for="c in categories()" :key="c"><option :value="c" x-text="c || '(none)'"></option></template>
+      <template x-for="c in categories()" :key="c"><option :value="c || NO_CATEGORY" x-text="c || '(no category)'"></option></template>
     </select>
     <select x-model="sort" class="bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-300">
       <option value="added">Newest first</option>
@@ -65,9 +65,9 @@
   <!-- Bulk actions -->
   <div x-show="selected.length" x-cloak class="flex flex-wrap items-center gap-2 mb-3 px-3 py-2 rounded-xl bg-brand-600/10 border border-brand-600/20">
     <span class="text-xs text-brand-200" x-text="`${selected.length} selected`"></span>
-    <button @click="act('start', selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-900/40 hover:bg-green-900/70 text-green-300"><i class="fa-solid fa-play mr-1"></i>Start</button>
-    <button @click="act('stop', selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-900/40 hover:bg-yellow-900/70 text-yellow-300"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
-    <button @click="askRemove(selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-900/40 hover:bg-red-900/70 text-red-300"><i class="fa-solid fa-trash mr-1"></i>Remove</button>
+    <button @click="act('start', selected)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-green-900/40 hover:bg-green-900/70 text-green-300"><i class="fa-solid fa-play mr-1"></i>Start</button>
+    <button @click="act('stop', selected)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-yellow-900/40 hover:bg-yellow-900/70 text-yellow-300"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
+    <button @click="askRemove(selected)" class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-red-900/40 hover:bg-red-900/70 text-red-300"><i class="fa-solid fa-trash mr-1"></i>Remove</button>
     <button @click="selected = []" class="ml-auto text-xs text-gray-400 hover:text-gray-200">Clear</button>
   </div>
 
@@ -89,7 +89,7 @@
           <div class="flex items-start gap-3 md:contents">
             <input type="checkbox" class="accent-brand-500 mt-1 md:mt-0" :value="t.hash" x-model="selected">
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-gray-200 truncate" :title="t.name" x-text="t.name"></p>
+              <p class="text-sm font-medium text-gray-200 line-clamp-2 md:line-clamp-1 [overflow-wrap:anywhere]" :title="t.name" x-text="t.name"></p>
               <p class="text-[11px] flex flex-wrap gap-x-2">
                 <span :class="stateClass(t)" x-text="stateLabel(t)"></span>
                 <span x-show="t.category" class="text-gray-500" x-text="t.category"></span>
@@ -134,7 +134,7 @@
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="removing = null"></div>
     <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-5" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
       <h3 class="text-base font-bold text-white mb-1" x-text="removing?.length === 1 ? 'Remove torrent?' : `Remove ${removing?.length} torrents?`"></h3>
-      <p class="text-xs text-gray-400 break-all mb-4" x-text="removing?.length === 1 ? (byHash(removing[0])?.name || '') : ''"></p>
+      <p class="text-xs text-gray-400 [overflow-wrap:anywhere] mb-4" x-text="removing?.length === 1 ? (byHash(removing[0])?.name || '') : ''"></p>
       <label class="flex items-start gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5 cursor-pointer">
         <input type="checkbox" x-model="deleteFiles" class="accent-red-500 mt-0.5">
         <span class="text-sm text-gray-300">Also delete the downloaded files
@@ -155,6 +155,9 @@
 {% block extra_js %}
 {% if connected %}
 <script>
+// "All categories" is the empty value, so uncategorised torrents need their own
+const NO_CATEGORY = '__none__';
+
 function torrentManager() {
   return {
     torrents: [], loaded: false, live: true, error: '', updated: '',
@@ -200,7 +203,7 @@ function torrentManager() {
       const q = this.q.trim().toLowerCase();
       const list = this.torrents.filter(t => this.inGroup(t, this.group)
         && (!q || t.name.toLowerCase().includes(q))
-        && (!this.category || t.category === this.category));
+        && (!this.category || t.category === (this.category === NO_CATEGORY ? '' : this.category)));
       const by = {
         added: (a, b) => b.added_on - a.added_on,
         name: (a, b) => a.name.localeCompare(b.name),

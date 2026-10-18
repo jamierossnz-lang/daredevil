@@ -1,16 +1,16 @@
 {# Library tabs for TV Shows / Movies — include with noun="shows"|"movies" and watching_url (TV only) #}
 <div id="libTabs" class="flex gap-1.5 mb-4 overflow-x-auto scrollbar-thin -mx-1 px-1 pb-1">
-  <button type="button" data-tab="all" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="all" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
     <i class="fa-solid fa-layer-group text-xs"></i>All
   </button>
-  <button type="button" data-tab="recent" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="recent" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
     <i class="fa-solid fa-clock text-xs"></i>Recently added
   </button>
-  <button type="button" data-tab="foryou" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="foryou" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
     <i class="fa-solid fa-heart text-xs"></i>From For You<span class="lib-count text-[11px] opacity-70"></span>
   </button>
   {% if watching_url %}
-  <button type="button" data-tab="watching" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="watching" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
     <i class="fa-solid fa-circle-play text-xs"></i>Watching<span class="lib-count text-[11px] opacity-70"></span>
   </button>
   {% endif %}

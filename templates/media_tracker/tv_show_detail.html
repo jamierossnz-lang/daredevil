@@ -2,6 +2,29 @@
 {% block title %}{{ show.title }}{% endblock %}
 {% block page_title %}{{ show.title }}{% endblock %}
 
+{% block extra_head %}
+<style>
+  /* Episode rows. Phones: a grid with the actions on their own line under
+     the title, so the title isn't squeezed to a few characters. sm+: one
+     flex row with the actions revealed on hover. */
+  .ep-row { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+            grid-template-areas: "sel mon num info status" ". . . acts acts";
+            column-gap: .5rem; row-gap: .5rem; align-items: start; }
+  .ep-act { display: inline-flex; align-items: center; gap: .375rem; height: 2.25rem; padding: 0 .75rem;
+            border-radius: .5rem; font-size: .75rem; font-weight: 500; background: #0e0e2e;
+            transition: all .15s; }
+  @media (min-width: 640px) {
+    .ep-row { display: flex; align-items: center; gap: .75rem; }
+    .ep-act { width: 1.75rem; height: 1.75rem; padding: 0; justify-content: center; }
+  }
+  /* Only hide them until hover where there is a hover (not on an iPad) */
+  @media (min-width: 640px) and (hover: hover) {
+    .ep-act { opacity: 0; }
+    .ep-row:hover .ep-act, .ep-act:focus-visible { opacity: 1; }
+  }
+</style>
+{% endblock %}
+
 {% block header_actions %}
 <button onclick="openDownloadModal()"
         class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
@@ -50,7 +73,7 @@
 
       <div class="flex flex-wrap items-center gap-2">
         <button onclick="setSeriesMonitored({{ show.monitored|yesno:'false,true' }})"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
                        {% if show.monitored %}bg-brand-500/20 text-brand-300 border border-brand-500/30{% else %}bg-surface-700 text-gray-400 hover:text-brand-300{% endif %}"
                 title="Master switch — Sonarr only downloads anything for a monitored series">
           <i class="fa-{% if show.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
@@ -59,7 +82,7 @@
 
         <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
           <i class="fa-solid fa-eye text-gray-500 text-xs"></i>
-          <select id="monitorPreset" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Which episodes Sonarr should monitor">
+          <select id="monitorPreset" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Which episodes Sonarr should monitor">
             <option value="">Monitor episodes…</option>
             {% for val, label in monitor_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
           </select>
@@ -67,7 +90,7 @@
 
         <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
           <i class="fa-solid fa-sliders text-gray-500 text-xs"></i>
-          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Quality profile">
+          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Quality profile">
             {% for p in quality_profiles %}
             <option value="{{ p.id }}" {% if p.id == show.quality_profile_id %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
@@ -75,26 +98,26 @@
         </div>
 
         <button onclick="toggleFav()" id="favBtn"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
                        {% if show.favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
           <i class="fa-{% if show.favourite %}solid{% else %}regular{% endif %} fa-star"></i>
           <span class="hidden sm:inline">{% if show.favourite %}Favourited{% else %}Favourite{% endif %}</span>
         </button>
 
         <button onclick="downloadScope('monitored')" title="Search for every monitored episode that's missing"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
           <i class="fa-solid fa-magnifying-glass"></i><span class="hidden sm:inline">Search missing</span>
         </button>
         <button onclick="refreshSeries()" title="Refresh metadata from TheTVDB and rescan files on disk"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
           <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">Refresh &amp; scan</span>
         </button>
         <a href="{{ sonarr_link }}" target="_blank" rel="noreferrer"
-           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+           class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
           <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="hidden sm:inline">Sonarr</span>
         </a>
         <button onclick="removeSeries()"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
           <i class="fa-solid fa-trash"></i><span class="hidden sm:inline">Remove</span>
         </button>
       </div>
@@ -141,13 +164,13 @@
       <div class="flex items-center gap-1.5 flex-shrink-0">
         {% if not season.complete %}
         <button onclick="downloadSeason({{ season.number }}, this)" title="Monitor this season and let Sonarr search for it (season pack first, then single episodes)"
-                class="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 rounded-lg text-xs font-medium transition-colors border border-brand-600/30">
           <i class="fa-solid fa-download"></i> Download season
         </button>
         {% endif %}
         <button onclick="openReleaseModal({kind:'sonarr', url:'/shows/{{ show.id }}/releases/?season={{ season.number }}', title:'{{ show.title|escapejs }} — {{ season.label|escapejs }}', onGrabbed: () => pollSoon()})"
                 title="Pick a release yourself (season packs)"
-                class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-xs font-medium transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-hand-pointer"></i><span class="hidden sm:inline">Pick release</span>
         </button>
       </div>
@@ -161,17 +184,17 @@
 
     <div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
       {% for ep in season.episodes %}
-      <div class="flex items-center gap-3 px-3 sm:px-4 py-3 hover:bg-surface-700/20 transition-colors group"
+      <div class="ep-row px-3 sm:px-4 py-3 hover:bg-surface-700/20 transition-colors group"
            id="ep-{{ ep.id }}" data-ep="{{ ep.id }}" data-has-file="{% if ep.has_file %}1{% endif %}" data-queued="{% if ep.queue %}1{% endif %}">
-        <input type="checkbox" class="ep-select accent-brand-500 flex-shrink-0" value="{{ ep.id }}" onchange="updateBulkBar()">
+        <input type="checkbox" class="ep-select accent-brand-500 flex-shrink-0 [grid-area:sel] mt-1.5 sm:mt-0" value="{{ ep.id }}" onchange="updateBulkBar()" aria-label="Select episode {{ ep.number }}">
 
         <button onclick="setEpisodeMonitored({{ ep.id }}, {{ ep.monitored|yesno:'false,true' }})"
                 title="{% if ep.monitored %}Monitored — click to stop{% else %}Not monitored — click to monitor{% endif %}"
-                class="flex-shrink-0 w-6 text-center {% if ep.monitored %}text-brand-400{% else %}text-gray-600 hover:text-brand-400{% endif %}">
+                class="[grid-area:mon] flex-shrink-0 w-8 h-8 sm:w-6 sm:h-6 -mt-0.5 sm:mt-0 flex items-center justify-center rounded-lg {% if ep.monitored %}text-brand-400{% else %}text-gray-600 hover:text-brand-400{% endif %}">
           <i class="fa-{% if ep.monitored %}solid{% else %}regular{% endif %} fa-bookmark text-xs"></i>
         </button>
 
-        <span class="text-xs font-mono font-bold w-7 text-right flex-shrink-0
+        <span class="[grid-area:num] text-xs font-mono font-bold w-6 sm:w-7 text-right flex-shrink-0 mt-1.5 sm:mt-0
                      {% if ep.state == 'downloaded' %}text-green-500{% elif ep.state == 'downloading' %}text-blue-400{% elif ep.state == 'missing' %}text-orange-400{% elif ep.state == 'unaired' %}text-purple-400{% else %}text-gray-600{% endif %}">
           {{ ep.number|stringformat:"02d" }}
         </span>
@@ -182,8 +205,8 @@
         <div class="w-16 h-10 rounded bg-surface-800 flex-shrink-0 hidden sm:block"></div>
         {% endif %}
 
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium leading-snug truncate {% if ep.state == 'downloaded' %}text-gray-400{% else %}text-gray-200{% endif %}" title="{{ ep.overview }}">{{ ep.title }}</p>
+        <div class="[grid-area:info] flex-1 min-w-0">
+          <p class="text-sm font-medium leading-snug line-clamp-2 sm:line-clamp-1 break-words {% if ep.state == 'downloaded' %}text-gray-400{% else %}text-gray-200{% endif %}" title="{{ ep.overview }}">{{ ep.title }}</p>
           <div class="flex flex-wrap items-center gap-x-2 gap-y-0 mt-0.5 text-xs text-gray-600">
             {% if ep.air %}<span>{{ ep.air|date:"M j, Y" }} <span class="text-gray-700">{{ ep.air|date:"g:i A" }}</span></span>{% else %}<span>TBA</span>{% endif %}
             {% if ep.runtime %}<span>· {{ ep.runtime }}m</span>{% endif %}
@@ -199,7 +222,7 @@
           {% endif %}
         </div>
 
-        <div class="flex-shrink-0 flex items-center gap-1">
+        <span class="[grid-area:status] flex-shrink-0 mt-0.5 sm:mt-0">
           {% if ep.state == 'downloaded' %}
           <span title="On disk"><i class="fa-solid fa-circle-check text-green-400 text-base w-7 text-center block"></i></span>
           {% elif ep.state == 'downloading' %}
@@ -209,26 +232,31 @@
           {% elif ep.state == 'missing' %}
           <span title="Aired, monitored, not downloaded yet"><i class="fa-solid fa-circle-exclamation text-orange-400 text-base w-7 text-center block"></i></span>
           {% endif %}
+        </span>
 
+        {# Phones: a row of labelled buttons under the title. sm+: icon buttons on hover. #}
+        {% if ep.state != 'downloading' and ep.state != 'tba' or ep.has_file and ep.file_id %}
+        <div class="[grid-area:acts] flex-shrink-0 flex items-center gap-1.5 sm:gap-1">
           {% if ep.state != 'downloading' and ep.state != 'tba' %}
           <button onclick="downloadEpisodes([{{ ep.id }}], this)"
                   title="{% if ep.has_file %}Search for an upgrade{% else %}Download — Sonarr searches automatically{% endif %}"
-                  class="w-7 h-7 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-brand-600/40 flex items-center justify-center text-gray-500 hover:text-brand-300 transition-all">
-            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                  class="ep-act hover:bg-brand-600/40 text-gray-400 sm:text-gray-500 hover:text-brand-300">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i><span class="sm:hidden">{% if ep.has_file %}Upgrade{% else %}Search{% endif %}</span>
           </button>
           <button onclick="openReleaseModal({kind:'sonarr', url:'/shows/{{ show.id }}/releases/?episode={{ ep.id }}', title:'{{ show.title|escapejs }} S{{ ep.season|stringformat:"02d" }}E{{ ep.number|stringformat:"02d" }}', onGrabbed: () => pollSoon()})"
                   title="Pick a release yourself"
-                  class="w-7 h-7 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-brand-600/40 flex items-center justify-center text-gray-500 hover:text-brand-300 transition-all">
-            <i class="fa-solid fa-hand-pointer text-xs"></i>
+                  class="ep-act hover:bg-brand-600/40 text-gray-400 sm:text-gray-500 hover:text-brand-300">
+            <i class="fa-solid fa-hand-pointer text-xs"></i><span class="sm:hidden">Pick</span>
           </button>
           {% endif %}
           {% if ep.has_file and ep.file_id %}
           <button onclick="resetEpisode({{ ep.id }}, {{ ep.file_id }})" title="Reset — delete this file and download it again"
-                  class="w-7 h-7 rounded-lg bg-surface-800 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-900/40 flex items-center justify-center text-gray-600 hover:text-red-400 transition-all">
-            <i class="fa-solid fa-rotate-left text-xs"></i>
+                  class="ep-act hover:bg-red-900/40 text-gray-500 sm:text-gray-600 hover:text-red-400">
+            <i class="fa-solid fa-rotate-left text-xs"></i><span class="sm:hidden">Reset</span>
           </button>
           {% endif %}
         </div>
+        {% endif %}
       </div>
       {% empty %}
       <div class="py-12 text-center text-gray-600">
@@ -248,12 +276,13 @@
 {% endif %}
 
 <!-- Bulk bar for selected episodes -->
-<div id="bulkBar" class="hidden fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-40 glass rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2">
-  <span class="text-sm text-gray-300 mr-2" id="bulkCount"></span>
-  <button onclick="bulk('download')" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium"><i class="fa-solid fa-download mr-1"></i>Download</button>
-  <button onclick="bulk('monitor')" class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium"><i class="fa-solid fa-bookmark mr-1"></i>Monitor</button>
-  <button onclick="bulk('unmonitor')" class="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium"><i class="fa-regular fa-bookmark mr-1"></i>Unmonitor</button>
-  <button onclick="clearSelection()" class="px-2 py-1.5 text-gray-500 hover:text-gray-300 text-xs">Clear</button>
+<div id="bulkBar" class="hidden fixed left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 lg:!bottom-6 z-40 glass !bg-surface-800/95 rounded-2xl shadow-2xl px-3 sm:px-4 py-3 flex flex-wrap items-center justify-center gap-2"
+     style="bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px))">
+  <span class="text-sm text-gray-300 mr-1 sm:mr-2 w-full text-center sm:w-auto" id="bulkCount"></span>
+  <button onclick="bulk('download')" class="px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium"><i class="fa-solid fa-download mr-1"></i>Download</button>
+  <button onclick="bulk('monitor')" class="px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium"><i class="fa-solid fa-bookmark mr-1"></i>Monitor</button>
+  <button onclick="bulk('unmonitor')" class="px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium"><i class="fa-regular fa-bookmark mr-1"></i>Unmonitor</button>
+  <button onclick="clearSelection()" class="px-2 py-2 sm:py-1.5 text-gray-500 hover:text-gray-300 text-xs">Clear</button>
 </div>
 
 <!-- Download Modal -->
@@ -295,7 +324,7 @@
         {% for season in seasons %}{% if season.number > 0 %}
         <label class="cursor-pointer">
           <input type="checkbox" name="season_num" value="{{ season.number }}" class="hidden peer">
-          <span class="block px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors border-surface-600 text-gray-400 peer-checked:bg-brand-600 peer-checked:border-brand-500 peer-checked:text-white">
+          <span class="block px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold border transition-colors border-surface-600 text-gray-400 peer-checked:bg-brand-600 peer-checked:border-brand-500 peer-checked:text-white">
             S{{ season.number }}
           </span>
         </label>

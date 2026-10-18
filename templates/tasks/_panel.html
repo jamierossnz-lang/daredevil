@@ -124,20 +124,21 @@
     {% if all_schedules %}
     <div class="space-y-3">
       {% for pt in all_schedules %}
-      <div class="glass rounded-2xl px-5 py-4 flex flex-wrap items-center gap-4 animate-slide-in"
+      <div class="glass rounded-2xl px-4 sm:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-3 animate-slide-in"
            x-data="scheduleRow({{ pt.pk }}, {{ pt.enabled|yesno:'true,false' }}, '{{ pt.interval.every|default:'' }}', '{{ pt.interval.period|default:'hours' }}')"
            id="schedule-{{ pt.pk }}">
 
         <!-- Enabled toggle -->
         <button @click="toggle()"
                 :class="enabled ? 'bg-brand-600' : 'bg-surface-600'"
-                class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none">
-          <span :class="enabled ? 'translate-x-4' : 'translate-x-0.5'"
-                class="inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200"></span>
+                role="switch" :aria-checked="String(enabled)" aria-label="{{ pt.name }}"
+                class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none">
+          <span :class="enabled ? 'translate-x-[1.375rem] sm:translate-x-4' : 'translate-x-0.5'"
+                class="inline-block h-5 w-5 sm:h-4 sm:w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200"></span>
         </button>
 
-        <!-- Name + task -->
-        <div class="flex-1 min-w-0">
+        <!-- Name + task (phones: the whole first line, the rest wraps below) -->
+        <div class="flex-1 min-w-0 basis-[calc(100%-4rem)] sm:basis-0">
           <p class="text-sm font-semibold text-gray-200 truncate">{{ pt.name }}</p>
           <p class="text-xs text-gray-500 truncate font-mono">{{ pt.task }}</p>
         </div>
@@ -156,8 +157,8 @@
         <!-- Edit interval inline -->
         <div class="flex items-center gap-2 flex-shrink-0" x-data="{ editing: false }">
           <div x-show="!editing" class="flex items-center gap-2">
-            <button @click="editing = true"
-                    class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-brand-400 transition-colors">
+            <button @click="editing = true" aria-label="Change interval"
+                    class="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-brand-400 transition-colors">
               <i class="fa-solid fa-pen text-xs"></i>
             </button>
           </div>
@@ -182,8 +183,8 @@
           </div>
 
           <!-- Delete -->
-          <button @click="del()"
-                  class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors ml-1">
+          <button @click="del()" aria-label="Delete schedule"
+                  class="w-9 h-9 sm:w-7 sm:h-7 rounded-lg bg-surface-700 hover:bg-red-900/40 flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors ml-1">
             <i class="fa-solid fa-trash text-xs"></i>
           </button>
         </div>

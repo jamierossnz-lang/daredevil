@@ -69,56 +69,56 @@
       <!-- Actions -->
       <div class="flex flex-wrap items-center gap-2">
         <button onclick="setMonitored({{ movie.monitored|yesno:'false,true' }})"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
                        {% if movie.monitored %}bg-cyan-500/20 text-cyan-300 border border-cyan-500/30{% else %}bg-surface-700 text-gray-400 hover:text-cyan-300{% endif %}">
           <i class="fa-{% if movie.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
           {% if movie.monitored %}Monitored{% else %}Not monitored{% endif %}
         </button>
         {% if not movie.has_file and movie.state != 'downloading' %}
         <button onclick="searchNow(this)"
-                class="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+                class="flex items-center gap-2 px-4 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-magnifying-glass"></i> Search now
         </button>
         {% endif %}
         <button onclick="openReleaseModal({kind:'radarr', url:'/movies/{{ movie.id }}/releases/', title:'{{ movie.title|escapejs }}{% if movie.year %} ({{ movie.year }}){% endif %}', onGrabbed: () => setTimeout(() => location.reload(), 1500)})"
-                class="flex items-center gap-2 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium transition-colors">
+                class="flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-hand-pointer"></i> Pick release
         </button>
         {% if movie.has_file and movie.file_id %}
         <button onclick="resetMovie()"
-                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
+                class="flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-rotate-left"></i> Reset &amp; redownload
         </button>
         {% endif %}
 
         <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
           <i class="fa-solid fa-sliders text-gray-500 text-xs"></i>
-          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Quality profile">
+          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Quality profile">
             {% for p in quality_profiles %}<option value="{{ p.id }}" {% if p.id == movie.quality_profile_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
           </select>
         </div>
         <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
           <i class="fa-solid fa-calendar-check text-gray-500 text-xs"></i>
-          <select id="availability" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Minimum availability — when Radarr starts looking">
+          <select id="availability" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Minimum availability — when Radarr starts looking">
             {% for val, label in availability_choices %}<option value="{{ val }}" {% if val == movie.availability %}selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
         </div>
 
         <button onclick="toggleFav()"
-                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                class="flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
                        {% if movie.favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
           <i class="fa-{% if movie.favourite %}solid{% else %}regular{% endif %} fa-star"></i> Favourite
         </button>
         <button onclick="refreshMovie()" title="Refresh metadata and rescan the folder"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
           <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">Refresh &amp; scan</span>
         </button>
         <a href="{{ radarr_link }}" target="_blank" rel="noreferrer"
-           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+           class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
           <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="hidden sm:inline">Radarr</span>
         </a>
         <button onclick="removeMovie()"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
+                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
           <i class="fa-solid fa-trash"></i><span class="hidden sm:inline">Remove</span>
         </button>
       </div>
@@ -164,13 +164,13 @@
         {% endif %}
         <div class="absolute inset-0 bg-surface-950/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
           {% if m.movie_id %}
-          <a href="{% url 'movie_detail' m.movie_id %}" class="px-2 py-1.5 bg-surface-700 text-gray-300 rounded-lg text-xs font-medium">
+          <a href="{% url 'movie_detail' m.movie_id %}" class="px-2 py-2 sm:py-1.5 bg-surface-700 text-gray-300 rounded-lg text-xs font-medium">
             <i class="fa-solid fa-circle-check text-green-400 mr-1"></i>In library
           </a>
           {% else %}
           <button onclick="addFromCard(this)" data-kind="radarr" data-tmdb-id="{{ m.tmdb_id }}" data-title="{{ m.title }}"
                   data-year="{{ m.year }}" data-poster="{{ m.poster|default:'' }}"
-                  class="px-2 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+                  class="px-2 py-2 sm:py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
             <i class="fa-solid fa-plus mr-1"></i>Add
           </button>
           {% endif %}

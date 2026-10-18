@@ -1,31 +1,15 @@
-{% load socialaccount %}<!DOCTYPE html>
+{% load socialaccount static %}<!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07071a">
   <title>Sign In — Daredevil</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              400: 'rgb(var(--b400) / <alpha-value>)',
-              500: 'rgb(var(--b500) / <alpha-value>)',
-              600: 'rgb(var(--b600) / <alpha-value>)',
-              700: 'rgb(var(--b700) / <alpha-value>)',
-            },
-            surface: {
-              700: '#181840', 800: '#0e0e2e', 900: '#07071a',
-            },
-          },
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-        }
-      }
-    }
-  </script>
+  {% if not TAILWIND_CSS %}
+  <!-- No compiled stylesheet (bare-metal / bind-mounted dev): compile in the browser -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="{% static 'tailwind.config.js' %}"></script>
+  {% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -43,6 +27,11 @@
     }
     .animate-glow { animation: pulse-glow 2.4s infinite; }
   </style>
+  {% if TAILWIND_CSS %}
+  <!-- Last in <head>, where the Play CDN puts its generated styles too, so the
+       cascade (e.g. text-lg vs Font Awesome's line-height) comes out the same -->
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  {% endif %}
 </head>
 <body class="h-full font-sans text-gray-100 flex items-center justify-center p-4"
       style="padding-top: calc(1rem + env(safe-area-inset-top, 0px)); padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
@@ -133,5 +122,11 @@
       box-shadow: 0 0 0 3px rgb(var(--b500) / 0.15);
     }
   </style>
+  <script>
+    // Phones capitalise and autocorrect the first word of a text field by
+    // default — and usernames are case-sensitive
+    const login = document.getElementById('id_login');
+    if (login) { login.setAttribute('autocapitalize', 'none'); login.setAttribute('autocorrect', 'off'); login.spellcheck = false; }
+  </script>
 </body>
 </html>

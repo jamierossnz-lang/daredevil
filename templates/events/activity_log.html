@@ -5,26 +5,26 @@
 {% block content %}
 <div class="space-y-6">
 
-  <!-- Filter chips -->
-  <div class="flex flex-wrap gap-2">
+  <!-- Filter chips — one swipeable row on phones -->
+  <div class="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap [scrollbar-width:none]">
     <a href="?"
-       class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium border transition-all
               {% if not event_filter %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid fa-list"></i> All
       <span class="px-1.5 py-0.5 rounded-full bg-black/20 text-[10px] tabular-nums">{{ total_count }}</span>
     </a>
-    {% for chip in type_chips %}
+    {% for chip in type_chips %}{% if chip.count or not chip.legacy or event_filter == chip.value %}
     <a href="?type={{ chip.value }}"
-       class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium border transition-all
               {% if event_filter == chip.value %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid {{ chip.icon }}"></i> {{ chip.label }}
       <span class="px-1.5 py-0.5 rounded-full bg-black/20 text-[10px] tabular-nums">{{ chip.count }}</span>
     </a>
-    {% endfor %}
+    {% endif %}{% endfor %}
   </div>
 
   <!-- Log -->
-  <div class="glass rounded-2xl p-6">
+  <div class="glass rounded-2xl p-4 sm:p-6">
     <div class="flex items-center gap-3 mb-5">
       <div class="w-9 h-9 rounded-xl bg-surface-700 flex items-center justify-center">
         <i class="fa-solid fa-clock-rotate-left text-brand-400"></i>
@@ -32,9 +32,9 @@
       <div class="flex-1 min-w-0">
         <h2 class="text-base font-semibold text-gray-100">
           Event History
-          {% if event_filter %}<span class="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-surface-700 text-gray-400">{{ event_filter }}</span>{% endif %}
+          {% if event_filter %}<span class="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-surface-700 text-gray-400">{{ event_filter_label }}</span>{% endif %}
         </h2>
-        <p class="text-xs text-gray-500">Every domain event Daredevil has emitted — downloads, moves, queued episodes, storage alerts. Rolling log, newest 500.</p>
+        <p class="text-xs text-gray-500">What Sonarr and Radarr reported — grabs, imports, import problems — plus storage alerts. Rolling log, newest 500.</p>
       </div>
       {% if event_filter %}
       <a href="?" class="flex-shrink-0 text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1">
@@ -46,15 +46,13 @@
     {% if events %}
     <div class="space-y-1.5">
       {% for e in events %}
-      <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-800/40 hover:bg-surface-800/70 transition-colors">
+      <div class="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-surface-800/40 hover:bg-surface-800/70 transition-colors">
         <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 {{ e.badge }}">
           <i class="fa-solid {{ e.icon }} text-sm"></i>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm text-gray-200 truncate">{{ e.summary }}</p>
-        </div>
-        <div class="flex-shrink-0 text-right">
-          <p class="text-xs text-gray-500" title="{{ e.obj.created_at }}">{{ e.obj.created_at|timesince }} ago</p>
+          <p class="text-sm text-gray-200 leading-snug line-clamp-2 break-words" title="{{ e.summary }}">{{ e.summary }}</p>
+          <p class="text-xs text-gray-500 mt-0.5" title="{{ e.obj.created_at|date:'D j M Y, g:i A' }}">{{ e.obj.created_at|timesince }} ago</p>
         </div>
       </div>
       {% endfor %}
@@ -66,7 +64,7 @@
         {% if event_filter %}No events of this type yet{% else %}Nothing has happened yet{% endif %}
       </p>
       <p class="text-gray-600 text-xs mt-1">
-        Events appear here as downloads complete, files move, episodes get queued, and so on.
+        Events appear here as Sonarr and Radarr grab and import things.
       </p>
     </div>
     {% endif %}

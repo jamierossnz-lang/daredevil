@@ -3,13 +3,13 @@
   <p class="text-xs text-gray-500 flex-1 min-w-[12rem]">Monitored, already out, not downloaded yet. Sonarr/Radarr keep checking RSS for these — search now to look through older releases too.</p>
   {% if sonarr_ready %}
   <button onclick="searchAgain({app: 'sonarr', all_missing: true}, this)"
-          class="px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium">
+          class="px-3 py-2 sm:py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium">
     <i class="fa-solid fa-magnifying-glass mr-1"></i>Search all missing episodes
   </button>
   {% endif %}
   {% if radarr_ready %}
   <button onclick="searchAgain({app: 'radarr', all_missing: true}, this)"
-          class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-600/30 rounded-lg text-xs font-medium">
+          class="px-3 py-2 sm:py-1.5 bg-cyan-600/20 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-600/30 rounded-lg text-xs font-medium">
     <i class="fa-solid fa-magnifying-glass mr-1"></i>Search all missing movies
   </button>
   {% endif %}

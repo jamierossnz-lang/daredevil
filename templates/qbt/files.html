@@ -129,17 +129,17 @@
 
     <!-- File listing -->
     <div x-show="!loading && entries.length > 0" class="flex-1 overflow-y-auto scrollbar-thin">
-      <table class="w-full text-sm">
+      <table class="w-full text-sm table-fixed">
         <thead class="sticky top-0 bg-surface-900/95 backdrop-blur-sm">
           <tr class="border-b border-white/5 text-left">
-            <th class="px-3 py-2 w-8">
-              <input type="checkbox" @change="toggleAll($event.target.checked)"
+            <th class="px-3 py-2 w-11">
+              <input type="checkbox" @change="toggleAll($event.target.checked)" aria-label="Select all"
                      class="w-3.5 h-3.5 rounded text-brand-500 cursor-pointer">
             </th>
             <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
             <th class="hidden sm:table-cell px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 text-right">Size</th>
             <th class="hidden sm:table-cell px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Type</th>
-            <th class="px-3 py-2 w-10"></th>
+            <th class="px-2 py-2 w-12"></th>
           </tr>
         </thead>
         <tbody>
@@ -169,7 +169,7 @@
                     </template>
                   </span>
                   <div class="min-w-0 flex-1">
-                    <span class="block truncate text-gray-200 group-hover:text-white text-sm" x-text="entry.name"></span>
+                    <span class="block text-gray-200 group-hover:text-white text-sm [overflow-wrap:anywhere] sm:truncate" :title="entry.name" x-text="entry.name"></span>
                     <!-- Size + ext visible on mobile only -->
                     <div class="flex items-center gap-2 sm:hidden">
                       <span class="text-xs text-gray-600 font-mono" x-show="entry.type === 'file' && entry.size > 0" x-text="fmtSize(entry.size)"></span>
@@ -198,8 +198,8 @@
 
               <!-- Delete -->
               <td class="px-2 py-2.5" @click.stop>
-                <button @click="deleteSingle(entry.path, entry.name)"
-                        class="w-6 h-6 rounded flex items-center justify-center text-gray-700 hover:text-red-400 hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100">
+                <button @click="deleteSingle(entry.path, entry.name)" :aria-label="`Delete ${entry.name}`"
+                        class="w-9 h-9 sm:w-6 sm:h-6 rounded flex items-center justify-center text-gray-500 sm:text-gray-700 hover:text-red-400 hover:bg-red-900/20 transition-colors [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100">
                   <i class="fa-solid fa-trash text-xs"></i>
                 </button>
               </td>
@@ -214,27 +214,27 @@
          class="flex items-center justify-between px-4 py-2.5 border-t border-white/5 flex-shrink-0">
       <button @click="goToPage(page - 1)" :disabled="page <= 1"
               :class="page <= 1 ? 'text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+              class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors">
         <i class="fa-solid fa-chevron-left text-xs"></i> Prev
       </button>
 
       <div class="flex items-center gap-1">
-        <template x-for="p in pageRange" :key="p">
-          <template x-if="p === '...'">
-            <span class="px-2 text-xs text-gray-600">…</span>
-          </template>
-          <template x-if="p !== '...'">
-            <button @click="goToPage(p)"
+        {# One root element per entry — Alpine's x-for renders only the first root,
+           which used to hide every page-number button. Keyed by index: "…" can repeat. #}
+        <template x-for="(p, i) in pageRange" :key="i">
+          <span class="flex">
+            <span x-show="p === '...'" class="px-2 text-xs text-gray-600 self-center">…</span>
+            <button x-show="p !== '...'" @click="goToPage(p)"
                     :class="p === page ? 'bg-brand-600 text-white' : 'text-gray-500 hover:bg-surface-700 hover:text-gray-300'"
-                    class="w-7 h-7 rounded-lg text-xs font-medium transition-colors"
+                    class="w-9 h-9 sm:w-7 sm:h-7 rounded-lg text-xs font-medium transition-colors"
                     x-text="p"></button>
-          </template>
+          </span>
         </template>
       </div>
 
       <button @click="goToPage(page + 1)" :disabled="page >= totalPages"
               :class="page >= totalPages ? 'text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+              class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors">
         Next <i class="fa-solid fa-chevron-right text-xs"></i>
       </button>
     </div>
@@ -251,14 +251,14 @@
       <div class="space-y-3 mb-5">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Label</label>
-          <input type="text" x-model="addTabLabel" placeholder="e.g. Media Drive"
+          <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="addTabLabel" placeholder="e.g. Media Drive"
                  @keydown.enter="addTab()"
                  class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">Path <span class="text-gray-600">(inside Daredevil's container, e.g. /media/…)</span></label>
           <div class="flex gap-2">
-            <input type="text" x-model="addTabPath" placeholder="/media/downloads"
+            <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="addTabPath" placeholder="/media/downloads"
                    @keydown.enter="addTab()"
                    class="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
             <button type="button" title="Browse"
@@ -299,7 +299,7 @@
           <template x-for="opt in [{v:'auto',l:'Auto-detect'},{v:'movie',l:'Radarr (movie)'},{v:'tv',l:'Sonarr (TV)'}]" :key="opt.v">
             <button @click="moveMediaType = opt.v"
                     :class="moveMediaType === opt.v ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:bg-surface-600'"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors"
                     x-text="opt.l"></button>
           </template>
         </div>
@@ -311,7 +311,7 @@
           <template x-for="opt in [{v:'Auto',l:'Auto'},{v:'Move',l:'Move'},{v:'Copy',l:'Copy / hardlink'}]" :key="opt.v">
             <button @click="importMode = opt.v"
                     :class="importMode === opt.v ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:bg-surface-600'"
-                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    class="px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-colors"
                     x-text="opt.l"></button>
           </template>
         </div>

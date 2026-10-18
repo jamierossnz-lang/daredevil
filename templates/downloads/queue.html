@@ -61,7 +61,7 @@
               <span class="text-xs text-gray-500" x-text="it.subtitle"></span>
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="phaseClass(it.phase)" x-text="it.phase_label"></span>
             </div>
-            <p class="text-[11px] text-gray-500 truncate mt-0.5" :title="it.release" x-text="it.release"></p>
+            <p class="text-[11px] text-gray-500 mt-0.5 line-clamp-2 sm:line-clamp-1 [overflow-wrap:anywhere]" :title="it.release" x-text="it.release"></p>
 
             <div class="mt-2 flex items-center gap-2">
               <div class="flex-1 h-1.5 bg-surface-700 rounded-full overflow-hidden">

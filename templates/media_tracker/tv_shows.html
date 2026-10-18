@@ -102,12 +102,12 @@
 
     <!-- Context menu -->
     <button @click.stop="menuOpen = !menuOpen"
-            class="absolute top-2 right-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition-opacity"
+            class="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-8 h-8 sm:w-6 sm:h-6 bg-black/70 rounded-full flex items-center justify-center [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity" aria-label="More actions"
             {% if show.favourite %}style="right: 2.25rem"{% endif %}>
       <i class="fa-solid fa-ellipsis text-white text-xs"></i>
     </button>
     <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
-         class="absolute top-9 right-2 z-20 w-48 glass rounded-xl shadow-2xl py-1 text-sm">
+         class="absolute top-10 sm:top-9 left-1 right-1 sm:left-auto sm:right-2 sm:w-48 z-20 glass !bg-surface-800/95 rounded-xl shadow-2xl py-1 text-sm">
       <button onclick="toggleMonitor({{ show.id }}, {{ show.monitored|yesno:'false,true' }})"
               class="w-full text-left px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
         <i class="fa-{% if show.monitored %}regular{% else %}solid{% endif %} fa-bookmark text-brand-400 w-4"></i>
