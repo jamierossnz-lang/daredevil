@@ -2,7 +2,9 @@ from django.db import models
 
 
 class CategoryConfig(models.Model):
-    """Singleton that stores which qBittorrent categories Daredevil uses for each media type."""
+    """LEGACY — which qBittorrent categories Daredevil used when it added
+    torrents itself. Sonarr/Radarr/Prowlarr now choose their own categories
+    (Settings → each app's tab); nothing reads this any more."""
     tv_category = models.CharField(max_length=200, default='tv-shows')
     movie_category = models.CharField(max_length=200, default='movies')
 

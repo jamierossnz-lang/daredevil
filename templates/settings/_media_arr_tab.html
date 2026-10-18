@@ -1,0 +1,504 @@
+{# Sonarr / Radarr settings tab — kind ("sonarr"|"radarr") and label are passed by the include #}
+<div class="max-w-3xl mx-auto space-y-6" x-data="mediaArrTab('{{ kind }}')" x-effect="tab === '{{ kind }}' && ensureLoaded()">
+
+  <!-- ── Connection ── -->
+  <div class="glass rounded-2xl p-6">
+    <div class="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-200 flex items-center gap-2">
+          <i class="fa-solid {% if kind == 'sonarr' %}fa-tv text-blue-400{% else %}fa-film text-purple-400{% endif %}"></i> {{ label }}
+        </h2>
+        <p class="text-xs text-gray-500 mt-1">
+          {% if kind == 'sonarr' %}Stores your TV library — monitors shows, searches indexers, sends grabs to qBittorrent and imports finished episodes.
+          {% else %}Stores your movie library — watches for releases, searches indexers, sends grabs to qBittorrent and imports finished movies.{% endif %}
+        </p>
+      </div>
+      <a :href="data.open_url" target="_blank" rel="noreferrer" x-show="data.open_url"
+         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open {{ label }}
+      </a>
+    </div>
+
+    <div class="flex items-center gap-2 mb-4 text-xs" x-show="loaded">
+      <template x-if="data.status">
+        <span class="px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400">
+          <i class="fa-solid fa-circle-check mr-1"></i>Connected · v<span x-text="data.status.version"></span>
+        </span>
+      </template>
+      <template x-if="!data.status && data.error">
+        <span class="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400" x-text="data.error"></span>
+      </template>
+    </div>
+    <div x-show="!loaded" class="text-xs text-gray-500 mb-4"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Checking connection…</div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs text-gray-500">URL (as Daredevil reaches it)</span>
+        <input type="text" x-model="form.url" placeholder="http://{{ kind }}:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
+               class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-500">API key <span class="text-gray-600">({{ label }} → Settings → General)</span></span>
+        <div class="relative mt-1">
+          <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+                 class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 pr-9 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+          <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+            <i class="fa-solid" :class="showKey ? 'fa-eye-slash' : 'fa-eye'"></i>
+          </button>
+        </div>
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="text-xs text-gray-500">Public URL for "Open {{ label }}" links <span class="text-gray-600">(optional — defaults to this host on port {% if kind == 'sonarr' %}8989{% else %}7878{% endif %})</span></span>
+        <input type="text" x-model="form.public_url" placeholder="http://192.168.1.10:{% if kind == 'sonarr' %}8989{% else %}7878{% endif %}"
+               class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+      </label>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-4">
+      <button @click="test()" :disabled="busy.test" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+        <i class="fa-solid mr-1.5" :class="busy.test ? 'fa-spinner fa-spin' : 'fa-plug'"></i>Test
+      </button>
+      <button @click="saveConfig()" :disabled="busy.save" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <i class="fa-solid mr-1.5" :class="busy.save ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+      </button>
+      <span class="text-xs" :class="msgOk ? 'text-green-400' : 'text-red-400'" x-text="msg"></span>
+    </div>
+  </div>
+
+  <template x-if="data.status">
+    <div class="space-y-6">
+
+      <!-- ── Health ── -->
+      <template x-if="data.health && data.health.length">
+        <div class="glass rounded-2xl p-5 border border-yellow-500/20">
+          <h2 class="text-sm font-semibold text-gray-200 mb-3"><i class="fa-solid fa-heart-pulse text-yellow-400 mr-2"></i>{{ label }} health</h2>
+          <ul class="space-y-1.5 text-xs">
+            <template x-for="h in data.health" :key="h.message">
+              <li class="flex items-start gap-2" :class="h.type === 'error' ? 'text-red-300' : 'text-yellow-300'">
+                <i class="fa-solid mt-0.5" :class="h.type === 'error' ? 'fa-circle-xmark' : 'fa-triangle-exclamation'"></i>
+                <span class="flex-1" x-text="h.message"></span>
+                <a x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+
+      <!-- ── Connections between the apps ── -->
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1">Connections</h2>
+        <p class="text-xs text-gray-500 mb-4">What {{ label }} needs to work end-to-end. Each button sets it up for you.</p>
+        <div class="space-y-3">
+          <!-- qBittorrent -->
+          <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5">
+            <i class="fa-solid fa-seedling text-green-400 w-5 text-center"></i>
+            <div class="flex-1 min-w-[12rem]">
+              <p class="text-sm text-gray-200">Download client — qBittorrent</p>
+              <p class="text-xs text-gray-500" x-show="qbt()">
+                <span x-text="qbt()?.enable ? 'Enabled' : 'Disabled'"></span> · <span class="font-mono" x-text="qbt()?.host"></span> · category <span class="font-mono text-brand-300" x-text="qbt()?.category"></span>
+              </p>
+              <p class="text-xs text-yellow-400/80" x-show="!qbt()">Not set up — {{ label }} has nowhere to send downloads. Connecting uses the login from the qBittorrent tab.</p>
+            </div>
+            <button x-show="!qbt()" @click="connect('qbittorrent')" :disabled="busy.qbittorrent"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+              <i class="fa-solid mr-1" :class="busy.qbittorrent ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect
+            </button>
+          </div>
+          <!-- Webhook -->
+          <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5">
+            <i class="fa-solid fa-bolt text-yellow-400 w-5 text-center"></i>
+            <div class="flex-1 min-w-[12rem]">
+              <p class="text-sm text-gray-200">Webhook to Daredevil</p>
+              <p class="text-xs" :class="data.webhook?.up_to_date ? 'text-gray-500' : 'text-yellow-400/80'">
+                <span x-show="data.webhook?.up_to_date">Connected — grabs and imports are reported instantly (notifications, import confirmation).</span>
+                <span x-show="data.webhook?.connected && !data.webhook?.up_to_date">Connected, but pointing at an old address — repair it.</span>
+                <span x-show="!data.webhook?.connected">Not connected — Daredevil won't hear about grabs or imports.</span>
+              </p>
+              <p class="text-[11px] text-gray-600 font-mono truncate" x-text="data.webhook?.expected"></p>
+            </div>
+            <button @click="connect('webhook')" :disabled="busy.webhook"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+              <i class="fa-solid mr-1" :class="busy.webhook ? 'fa-spinner fa-spin' : 'fa-link'"></i><span x-text="data.webhook?.up_to_date ? 'Reconnect' : (data.webhook?.connected ? 'Repair' : 'Connect')"></span>
+            </button>
+            <button x-show="data.webhook?.connected" @click="testWebhook()" :disabled="busy.webhookTest"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+              <i class="fa-solid mr-1" :class="busy.webhookTest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
+            </button>
+          </div>
+          <!-- Indexers -->
+          <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5">
+            <i class="fa-solid fa-magnifying-glass text-orange-400 w-5 text-center"></i>
+            <div class="flex-1 min-w-[12rem]">
+              <p class="text-sm text-gray-200">Indexers — from Prowlarr</p>
+              <p class="text-xs text-gray-500" x-show="data.indexers?.length">
+                <span x-text="data.indexers.length"></span> synced: <span x-text="data.indexers.map(i => i.name.replace(' (Prowlarr)', '')).join(', ')"></span>
+              </p>
+              <p class="text-xs text-yellow-400/80" x-show="!data.indexers?.length">None yet — connect {{ label }} to Prowlarr in the Prowlarr tab.</p>
+            </div>
+            <button @click="tab = 'prowlarr'" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+              Manage in Prowlarr <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Plex ── -->
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1 flex items-center gap-2"><i class="fa-solid fa-circle-play text-yellow-400"></i>Plex</h2>
+        <p class="text-xs text-gray-500 mb-4">Keeps Plex in step with {{ label }}, using the Plex address and token from the General tab.</p>
+        <div x-show="!plex.loaded" class="text-xs text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Checking…</div>
+        <p x-show="plex.error" class="text-xs text-red-300 mb-3" x-text="plex.error"></p>
+        <p x-show="plex.loaded && !plex.plex_configured" class="text-xs text-yellow-400/80 mb-3">
+          Add your Plex URL and token on the <button type="button" @click="tab = 'general'" class="underline">General</button> tab first.
+        </p>
+        <div x-show="plex.loaded && plex.plex_configured" class="space-y-3">
+          <!-- Refresh on import -->
+          <div class="p-4 rounded-xl bg-surface-800/60 border border-white/5">
+            <div class="flex items-start gap-3">
+              <i class="fa-solid fa-arrows-rotate text-brand-300 w-5 text-center mt-0.5"></i>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-200">Refresh Plex when files change</p>
+                <p class="text-xs text-gray-500">Plex scans the folder as soon as {{ label }} imports, upgrades, renames or deletes something — no waiting for its own scan.</p>
+              </div>
+              <button type="button" @click="plexToggle('refresh')" :disabled="busy.plexrefresh" role="switch" :aria-checked="plex.refresh?.connected"
+                      class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.refresh?.connected ? 'bg-brand-600' : 'bg-surface-600'">
+                <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.refresh?.connected ? 'translate-x-5' : ''"></span>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pl-8">
+              <label class="block"><span class="text-[11px] text-gray-500">Library folder, as {{ label }} sees it</span>
+                <div class="flex gap-1.5 mt-1">
+                  <input type="text" x-model="plex.refresh.map_from" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200">
+                  <button type="button" @click="openFolderPicker({ source: kind, path: plex.refresh.map_from || '/', title: `Library folder as ${kind === 'sonarr' ? 'Sonarr' : 'Radarr'} sees it`, onPick: p => plex.refresh.map_from = p })"
+                          class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                </div></label>
+              <label class="block"><span class="text-[11px] text-gray-500">Same folder as Plex sees it</span>
+                <input type="text" x-model="plex.refresh.map_to" class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3 pl-8" x-show="plex.refresh?.connected">
+              <button @click="plexSave('refresh')" :disabled="busy.plexrefresh" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save folders</button>
+              <button @click="plexTest()" :disabled="busy.plextest" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+                <i class="fa-solid mr-1" :class="busy.plextest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>Test
+              </button>
+            </div>
+          </div>
+          <!-- Watchlist -->
+          <div class="p-4 rounded-xl bg-surface-800/60 border border-white/5">
+            <div class="flex items-start gap-3">
+              <i class="fa-solid fa-bookmark text-yellow-400 w-5 text-center mt-0.5"></i>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-200">Add from your Plex Watchlist</p>
+                <p class="text-xs text-gray-500">Anything you add to your Watchlist in any Plex app is added to {{ label }} — it checks every few hours.</p>
+              </div>
+              <button type="button" @click="plexToggle('watchlist')" :disabled="busy.plexwatchlist" role="switch" :aria-checked="plex.watchlist?.connected"
+                      class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.watchlist?.connected ? 'bg-brand-600' : 'bg-surface-600'">
+                <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.watchlist?.connected ? 'translate-x-5' : ''"></span>
+              </button>
+            </div>
+            <div class="flex flex-wrap items-end gap-3 mt-3 pl-8">
+              <label class="block"><span class="text-[11px] text-gray-500">Monitor</span>
+                <select x-model="plex.watchlist.monitor" class="mt-1 block bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-gray-200">
+                  {% if kind == 'sonarr' %}
+                  <template x-for="c in (data.choices?.monitor || []).filter(c => c[0] !== 'auto')" :key="c[0]"><option :value="c[0]" x-text="c[1]" :selected="c[0] === plex.watchlist.monitor"></option></template>
+                  {% else %}
+                  <option value="movieOnly">Movie Only</option><option value="movieAndCollection">Movie and Collection</option>
+                  {% endif %}
+                </select></label>
+              <label class="flex items-center gap-2 text-xs text-gray-300 pb-1.5"><input type="checkbox" x-model="plex.watchlist.search" class="accent-brand-500"> Search as soon as it's added</label>
+              <button x-show="plex.watchlist?.connected" @click="plexSave('watchlist')" :disabled="busy.plexwatchlist"
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Folders ── -->
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1">Folders</h2>
+        <p class="text-xs text-gray-500 mb-4">
+          qBittorrent downloads into the first folder, then {{ label }} moves finished files into the library.
+          <i class="fa-solid fa-folder-open mx-0.5"></i> browses each folder the way that app sees it — or just type the path.
+        </p>
+
+        <div class="space-y-4">
+          <!-- 1. Downloads -->
+          <div class="rounded-xl bg-surface-800/60 border border-white/5 p-4">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-green-500/15 text-green-400 text-[11px] font-semibold flex items-center justify-center">1</span>
+              <p class="text-sm text-gray-200">Downloads <span class="text-xs text-gray-500">— where qBittorrent saves {{ label }}'s downloads</span></p>
+            </div>
+            <p x-show="data.downloads?.error" class="text-xs text-yellow-400/80 mt-2" x-text="data.downloads?.error"></p>
+            <div class="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-3 mt-3">
+              <label class="block"><span class="text-[11px] text-gray-500">qBittorrent category</span>
+                <input type="text" x-model="dl.category" :placeholder="data.default_qbt_category"
+                       class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
+              <label class="block"><span class="text-[11px] text-gray-500">Folder, as qBittorrent sees it</span>
+                <div class="flex gap-2 mt-1">
+                  <input type="text" x-model="dl.save_path" :placeholder="`Empty = qBittorrent's default (${data.downloads?.default || '/downloads'})`"
+                         class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+                  <button type="button" @click="pickDownloads()" title="Browse qBittorrent's folders"
+                          class="px-2.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                </div></label>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3">
+              <button @click="saveDownloads()" :disabled="busy.downloads"
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+                <i class="fa-solid mr-1" :class="busy.downloads ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+              </button>
+              <p class="text-[11px] text-gray-500" x-show="data.downloads?.effective">
+                New downloads land in <span class="font-mono text-gray-300" x-text="data.downloads?.effective"></span>
+                <span x-show="data.downloads?.local_ok" class="text-green-400/80 ml-1" :title="`Daredevil sees it as ${data.downloads?.local}`"><i class="fa-solid fa-check"></i></span>
+              </p>
+            </div>
+            <p x-show="dlWarning" class="text-[11px] text-yellow-400/90 mt-2" x-text="dlWarning"></p>
+          </div>
+
+          <!-- 2. Library -->
+          <div class="rounded-xl bg-surface-800/60 border border-white/5 p-4">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-5 h-5 rounded-full bg-brand-500/15 text-brand-300 text-[11px] font-semibold flex items-center justify-center">2</span>
+              <p class="text-sm text-gray-200">Library <span class="text-xs text-gray-500">— root folders {{ label }} moves finished {% if kind == 'sonarr' %}episodes{% else %}movies{% endif %} into</span></p>
+            </div>
+            <div class="space-y-2 mb-3">
+              <template x-for="f in data.root_folders || []" :key="f.id">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-lg bg-surface-700/50">
+                  <i class="fa-solid fa-folder text-yellow-500/70"></i>
+                  <span class="font-mono text-sm text-gray-200 flex-1 min-w-0 truncate" x-text="f.path"></span>
+                  <span class="text-xs text-gray-500" x-text="`${f.free} free`"></span>
+                  <span x-show="f.unmapped" class="text-[11px] text-yellow-400/80" x-text="`${f.unmapped} unmatched folder${f.unmapped === 1 ? '' : 's'}`" title="Folders here that aren't linked to anything in {{ label }}"></span>
+                  <span x-show="!f.local_ok" class="text-[11px] text-yellow-400/80" title="Add a mapping under 'How Daredevil sees these folders'"><i class="fa-solid fa-eye-slash mr-1"></i>Daredevil can't see it</span>
+                  <button @click="deleteRoot(f)" class="text-gray-500 hover:text-red-400" title="Remove from {{ label }} (nothing is deleted)"><i class="fa-solid fa-trash text-xs"></i></button>
+                </div>
+              </template>
+              <p x-show="!(data.root_folders || []).length" class="text-xs text-yellow-400/80">No root folder yet — {{ label }} can't add {% if kind == 'sonarr' %}shows{% else %}movies{% endif %} until it has one.</p>
+            </div>
+            <div class="flex gap-2">
+              <input type="text" x-model="newRoot" placeholder="{% if kind == 'sonarr' %}/tv{% else %}/movies{% endif %}" @keydown.enter="addRoot()"
+                     class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+              <button type="button" @click="pickRoot()" title="Browse {{ label }}'s folders"
+                      class="px-2.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+              <button @click="addRoot()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add</button>
+            </div>
+          </div>
+
+          <!-- 3. How Daredevil sees them -->
+          <details class="rounded-xl bg-surface-800/60 border border-white/5 p-4 group" :open="mappingsOpen">
+            <summary class="flex items-center gap-2 cursor-pointer list-none">
+              <span class="w-5 h-5 rounded-full bg-surface-600 text-gray-300 text-[11px] font-semibold flex items-center justify-center">3</span>
+              <p class="text-sm text-gray-200 flex-1">How Daredevil sees these folders <span class="text-xs text-gray-500">— only needed if your mounts differ from the stock docker-compose</span></p>
+              <i class="fa-solid fa-chevron-down text-xs text-gray-500 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <p class="text-xs text-gray-500 mt-3 mb-3">
+              Each app sees the same disk under its own paths. These pairs let Daredevil confirm imported files and show the folders in the File Browser.
+            </p>
+            <div class="space-y-2">
+              <template x-for="(m, i) in mappingRows" :key="i">
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div class="flex gap-1.5 flex-1 min-w-[10rem]">
+                    <input type="text" x-model="m.remote" placeholder="{{ label }} path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+                    <button type="button" @click="pickMapping(m, 'remote')" title="Browse {{ label }}'s folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                  </div>
+                  <i class="fa-solid fa-arrow-right text-gray-600 text-xs hidden sm:block"></i>
+                  <div class="flex gap-1.5 flex-1 min-w-[10rem]">
+                    <input type="text" x-model="m.local" placeholder="Daredevil path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
+                    <button type="button" @click="pickMapping(m, 'local')" title="Browse Daredevil's folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                  </div>
+                  <button @click="mappingRows.splice(i, 1)" class="px-2 text-gray-500 hover:text-red-400" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+              </template>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <button @click="mappingRows.push({ remote: '', local: '' })" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200"><i class="fa-solid fa-plus mr-1"></i>Add pair</button>
+              <button @click="saveMappings()" :disabled="busy.save" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- ── Defaults for new items ── -->
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1">Defaults when adding {% if kind == 'sonarr' %}shows{% else %}movies{% endif %}</h2>
+        <p class="text-xs text-gray-500 mb-4">Pre-selected in the Add dialog everywhere in Daredevil (search, For You, streaming, Plex, dashboard).</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label class="block">
+            <span class="text-xs text-gray-500">Root folder</span>
+            <select x-model="form.root_folder" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <option value="">First root folder</option>
+              <template x-for="f in data.root_folders || []" :key="f.id"><option :value="f.path" x-text="f.path" :selected="f.path === form.root_folder"></option></template>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-500">Quality profile</span>
+            <select x-model="form.quality_profile_id" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <option value="">First profile</option>
+              <template x-for="p in data.quality_profiles || []" :key="p.id"><option :value="p.id" x-text="p.name" :selected="String(p.id) === String(form.quality_profile_id)"></option></template>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-500">Monitor</span>
+            <select x-model="form.monitor" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <template x-for="c in data.choices?.monitor || []" :key="c[0]"><option :value="c[0]" x-text="c[1]" :selected="c[0] === form.monitor"></option></template>
+            </select>
+          </label>
+          {% if kind == 'sonarr' %}
+          <label class="block">
+            <span class="text-xs text-gray-500">Series type</span>
+            <select x-model="form.series_type" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <template x-for="c in data.choices?.series_type || []" :key="c[0]"><option :value="c[0]" x-text="c[1]" :selected="c[0] === form.series_type"></option></template>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="form.season_folder" class="accent-brand-500"> Use season folders</label>
+          {% else %}
+          <label class="block">
+            <span class="text-xs text-gray-500">Minimum availability <span class="text-gray-600">— when Radarr starts looking</span></span>
+            <select x-model="form.minimum_availability" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <template x-for="c in data.choices?.minimum_availability || []" :key="c[0]"><option :value="c[0]" x-text="c[1]" :selected="c[0] === form.minimum_availability"></option></template>
+            </select>
+          </label>
+          {% endif %}
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="form.search_on_add" class="accent-brand-500"> Start searching as soon as it's added</label>
+        </div>
+        <button @click="saveConfig()" :disabled="busy.save" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+          <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save defaults
+        </button>
+      </div>
+
+      <!-- ── Quality ── -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-start justify-between gap-3 mb-1">
+          <h2 class="text-sm font-semibold text-gray-200">Quality</h2>
+          <a :href="`${data.open_url}/settings/profiles`" target="_blank" rel="noreferrer" x-show="data.open_url" class="text-xs text-gray-500 hover:text-gray-300">
+            Reorder or group in {{ label }} <i class="fa-solid fa-arrow-up-right-from-square ml-0.5"></i></a>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">
+          A profile decides which qualities {{ label }} downloads and how far it upgrades. Sizes are MB per minute of runtime —
+          they belong to the quality, so a change applies in every profile that allows it.
+        </p>
+        <button x-show="!quality.loaded" @click="loadQuality()" :disabled="quality.loading"
+                class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200">
+          <i class="fa-solid mr-1.5" :class="quality.loading ? 'fa-spinner fa-spin' : 'fa-sliders'"></i>Show quality profiles
+        </button>
+        <template x-if="quality.loaded && profile">
+          <div>
+            <div class="flex gap-1.5 overflow-x-auto scrollbar-thin pb-1 mb-4">
+              <template x-for="p in quality.profiles" :key="p.id">
+                <button @click="selectProfile(p.id)" :class="profile.id === p.id ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
+                        class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium" x-text="p.name"></button>
+              </template>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
+              <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="profile.upgrade_allowed" class="accent-brand-500"> Upgrade to better releases</label>
+              <label class="flex items-center gap-2 text-xs text-gray-500" x-show="profile.upgrade_allowed">Upgrade until
+                <select x-model.number="profile.cutoff" class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-200">
+                  <template x-for="it in profile.items.filter(i => i.allowed)" :key="it.id"><option :value="it.id" x-text="it.name" :selected="it.id === profile.cutoff"></option></template>
+                </select></label>
+            </div>
+            <div class="rounded-xl border border-white/5 divide-y divide-white/5 overflow-hidden">
+              <div class="hidden sm:grid grid-cols-[1fr_5.5rem_5.5rem_5.5rem] gap-2 px-3 py-2 bg-surface-800/60 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                <span>Quality (best first)</span><span>Min</span><span>Preferred</span><span>Max</span>
+              </div>
+              <template x-for="it in profile.items" :key="it.id">
+                <div class="px-3 py-2" :class="it.allowed ? 'bg-surface-800/30' : ''">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="it.allowed" class="accent-brand-500">
+                    <span class="text-sm" :class="it.allowed ? 'text-gray-200' : 'text-gray-500'" x-text="it.name"></span>
+                    <span x-show="it.group" class="text-[10px] px-1.5 rounded bg-surface-600 text-gray-300">group</span>
+                    <span x-show="profile.upgrade_allowed && profile.cutoff === it.id" class="text-[10px] px-1.5 rounded bg-brand-600/30 text-brand-200">upgrade until</span>
+                  </label>
+                  <template x-if="it.allowed">
+                    <div class="mt-1.5 space-y-1.5">
+                      <template x-for="q in it.qualities" :key="q.id">
+                        <div x-show="quality.definitions[q.id]" class="grid grid-cols-3 sm:grid-cols-[1fr_5.5rem_5.5rem_5.5rem] gap-2 items-center sm:pl-6">
+                          <span class="col-span-3 sm:col-span-1 text-[11px] text-gray-500">
+                            <span x-text="it.group ? q.name : 'Size'"></span> · <span class="text-gray-600" x-text="sizeHint(q.id)"></span>
+                          </span>
+                          <input type="number" min="0" :max="quality.limits.max" step="0.1" placeholder="0"
+                                 x-model="quality.definitions[q.id].min" @input="quality.dirty[q.id] = true"
+                                 class="w-full bg-surface-700 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-200 tabular-nums">
+                          <input type="number" min="0" :max="quality.limits.max" step="0.1" placeholder="—"
+                                 x-model="quality.definitions[q.id].preferred" @input="quality.dirty[q.id] = true"
+                                 class="w-full bg-surface-700 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-200 tabular-nums">
+                          <input type="number" min="0" :max="quality.limits.max" step="0.1" placeholder="No limit"
+                                 x-model="quality.definitions[q.id].max" @input="quality.dirty[q.id] = true"
+                                 class="w-full bg-surface-700 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-200 tabular-nums">
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 mt-3">
+              <button @click="saveProfile()" :disabled="busy.quality" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+                <i class="fa-solid mr-1.5" :class="busy.quality ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save <span x-text="profile.name"></span>
+              </button>
+              <button @click="loadQuality()" class="px-3 py-2 rounded-xl text-xs text-gray-400 hover:text-gray-200">Discard changes</button>
+              <span class="text-[11px] text-gray-600">Empty max = no limit. Upper limit {{ label }} allows: <span x-text="quality.limits.max"></span> MB/min.</span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ── File naming & importing ── -->
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1">File naming &amp; importing</h2>
+        <p class="text-xs text-gray-500 mb-4">{{ label }} moves and names files itself — Daredevil just confirms they arrived.</p>
+        <div class="space-y-3">
+          {% if kind == 'sonarr' %}
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="naming.renameEpisodes" class="accent-brand-500"> Rename episodes</label>
+          <label class="block"><span class="text-xs text-gray-500">Episode format</span>
+            <input type="text" x-model="naming.standardEpisodeFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block"><span class="text-xs text-gray-500">Series folder</span>
+              <input type="text" x-model="naming.seriesFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+            <label class="block"><span class="text-xs text-gray-500">Season folder</span>
+              <input type="text" x-model="naming.seasonFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.autoUnmonitorPreviouslyDownloadedEpisodes" class="accent-brand-500"> Unmonitor episodes whose files are deleted</label>
+          {% else %}
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="naming.renameMovies" class="accent-brand-500"> Rename movies</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block"><span class="text-xs text-gray-500">Movie file format</span>
+              <input type="text" x-model="naming.standardMovieFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+            <label class="block"><span class="text-xs text-gray-500">Movie folder</span>
+              <input type="text" x-model="naming.movieFolderFormat" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono"></label>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.autoUnmonitorPreviouslyDownloadedMovies" class="accent-brand-500"> Unmonitor movies whose files are deleted</label>
+          {% endif %}
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.copyUsingHardlinks" class="accent-brand-500"> Use hardlinks instead of copying (keeps seeding without using double the space — needs downloads and library on the same filesystem)</label>
+          <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.deleteEmptyFolders" class="accent-brand-500"> Delete empty folders</label>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="mm.importExtraFiles" class="accent-brand-500"> Import extra files</label>
+            <input type="text" x-model="mm.extraFileExtensions" x-show="mm.importExtraFiles" placeholder="srt,nfo"
+                   class="w-40 bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-200 font-mono">
+          </div>
+          <label class="block"><span class="text-xs text-gray-500">Propers &amp; repacks</span>
+            <select x-model="mm.downloadPropersAndRepacks" class="mt-1 w-full sm:w-64 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+              <option value="preferAndUpgrade">Prefer and upgrade</option>
+              <option value="doNotUpgrade">Prefer, don't upgrade</option>
+              <option value="doNotPrefer">Don't prefer</option>
+            </select>
+          </label>
+        </div>
+        <button @click="saveNaming()" :disabled="busy.naming" class="mt-4 px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+          <i class="fa-solid mr-1.5" :class="busy.naming ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+        </button>
+      </div>
+
+      <!-- ── Old Daredevil library ── -->
+      <template x-if="data.legacy && data.legacy.{% if kind == 'sonarr' %}shows{% else %}movies{% endif %}">
+        <div class="glass rounded-2xl p-6 border border-brand-500/20">
+          <h2 class="text-sm font-semibold text-gray-200 mb-1"><i class="fa-solid fa-file-import text-brand-400 mr-2"></i>Import your old Daredevil library</h2>
+          <p class="text-xs text-gray-500 mb-4">
+            <span x-text="data.legacy.{% if kind == 'sonarr' %}shows{% else %}movies{% endif %}"></span>
+            {% if kind == 'sonarr' %}show(s){% else %}movie(s){% endif %} Daredevil tracked before {{ label }} took over aren't in {{ label }} yet.
+            Importing adds them without searching — files already on disk are picked up, and only what you were monitoring stays monitored.
+          </p>
+          <button @click="importLegacy()" :disabled="busy.legacy" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+            <i class="fa-solid mr-1.5" :class="busy.legacy ? 'fa-spinner fa-spin' : 'fa-file-import'"></i><span x-text="busy.legacy ? 'Importing…' : 'Import now'"></span>
+          </button>
+          <p class="text-xs text-gray-400 mt-2" x-text="legacyMsg"></p>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>

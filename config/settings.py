@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -18,6 +19,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Sonarr/Radarr deliver webhooks to the compose service name (see
+# DAREDEVIL_INTERNAL_URL below) — always accept it, whatever .env lists.
+if 'web' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('web')
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 
@@ -40,6 +45,7 @@ INSTALLED_APPS = [
     'django_celery_results',
     'apps.accounts',
     'apps.events',
+    'apps.arr',
     'apps.media_tracker',
     'apps.downloads',
     'apps.qbt',
@@ -190,17 +196,25 @@ TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p'
 
-# Trakt API — https://trakt.tv/oauth/applications (free "VIP" app, only the
-# Client ID is needed; used for the 'anticipated' lists in the For You feed).
-TRAKT_CLIENT_ID = os.environ.get('TRAKT_CLIENT_ID', '')
 
 # qBittorrent Web UI
 QBITTORRENT_HOST = os.environ.get('QBITTORRENT_HOST', 'localhost')
 QBITTORRENT_PORT = int(os.environ.get('QBITTORRENT_PORT', '8080'))
 QBITTORRENT_USERNAME = os.environ.get('QBITTORRENT_USERNAME', 'admin')
 QBITTORRENT_PASSWORD = os.environ.get('QBITTORRENT_PASSWORD', 'adminadmin')
+# Host port qBittorrent's own Web UI is published on (docker-compose maps
+# ${QBT_WEBUI_PORT:-8081} → 8080) — only used for "Open qBittorrent" links.
+QBT_WEBUI_PORT = os.environ.get('QBT_WEBUI_PORT', '8081')
 
 DOWNLOAD_PATH = os.environ.get('DOWNLOAD_PATH', str(BASE_DIR / 'downloads'))
+
+# Prowlarr / Sonarr / Radarr connection details live in the database
+# (apps.arr.models.ArrService, edited on the Settings page). PROWLARR_URL,
+# SONARR_URL, SONARR_API_KEY, … in .env are only used to seed it once.
+#
+# The address Sonarr/Radarr use to reach Daredevil for webhooks — the
+# compose service name by default, since they share its Docker network.
+DAREDEVIL_INTERNAL_URL = os.environ.get('DAREDEVIL_INTERNAL_URL', 'http://web:8000')
 
 PLEX_CLAIM = os.environ.get('PLEX_CLAIM', '')
 PLEX_URL = os.environ.get('PLEX_URL', 'http://localhost:32400')
@@ -217,6 +231,21 @@ PGID = os.environ.get('PGID', '1000')
 
 # Celery / Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+# One cache for every gunicorn worker and the Celery worker, so cached TMDB
+# lists, Plex snapshots and Sonarr/Radarr lookups are shared between requests
+# and can be warmed in the background (warm_caches). Redis DB 1 keeps it apart
+# from Celery's broker. Outside docker (no DB_HOST) each process keeps its own.
+if os.environ.get('DB_HOST'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': re.sub(r'/\d*$', '', REDIS_URL.rstrip('/')) + '/1',
+            'KEY_PREFIX': 'daredevil',
+            'OPTIONS': {'socket_connect_timeout': 2, 'socket_timeout': 5},
+        }
+    }
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

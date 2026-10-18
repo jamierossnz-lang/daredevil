@@ -7,8 +7,8 @@
   <span><i class="fa-solid fa-arrow-down text-blue-400 mr-1"></i><span id="dl-speed">—</span></span>
   <span><i class="fa-solid fa-arrow-up text-green-400 mr-1"></i><span id="ul-speed">—</span></span>
 </div>
-{% if version != 'Not connected' %}
-<span class="text-xs text-gray-600 hidden sm:block">qBT {{ version }}</span>
+{% if connected %}
+<span class="text-xs text-gray-600 hidden sm:block">qBittorrent {{ version }}</span>
 {% endif %}
 {% endblock %}
 
@@ -18,274 +18,241 @@
   <i class="fa-solid fa-plug-circle-xmark text-6xl text-red-500/40 mb-4 block"></i>
   <h3 class="text-xl font-bold text-red-400 mb-2">Not Connected</h3>
   <p class="text-gray-500 mb-6">Unable to reach qBittorrent. Check your connection settings.</p>
-  <a href="{% url 'qbt_settings' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-sm font-medium transition-colors">
+  <a href="{% url 'app_settings' %}#qbittorrent" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-sm font-medium transition-colors">
     <i class="fa-solid fa-sliders"></i> Open Settings
   </a>
 </div>
 {% else %}
+<div x-data="torrentManager()">
 
-<!-- Stats bar -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-  <div class="glass rounded-xl p-3 text-center">
-    <p class="text-2xl font-bold text-brand-300" id="stat-total">—</p>
-    <p class="text-xs text-gray-500 mt-0.5">Total</p>
+  <!-- Status filters (with counts) -->
+  <div class="flex gap-1.5 mb-3 overflow-x-auto scrollbar-thin -mx-1 px-1 pb-1">
+    <template x-for="g in groups" :key="g.key">
+      <button @click="group = g.key; selected = []"
+              :class="group === g.key ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
+              class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors">
+        <i class="fa-solid" :class="g.icon"></i><span x-text="g.label"></span>
+        <span class="opacity-70" x-text="count(g.key)"></span>
+      </button>
+    </template>
   </div>
-  <div class="glass rounded-xl p-3 text-center">
-    <p class="text-2xl font-bold text-blue-400" id="stat-downloading">—</p>
-    <p class="text-xs text-gray-500 mt-0.5">Downloading</p>
+
+  <!-- Search, category, sort -->
+  <div class="flex flex-wrap gap-2 mb-4 items-center">
+    <div class="relative flex-1 min-w-[12rem]">
+      <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+      <input type="text" x-model="q" placeholder="Filter by name…"
+             class="w-full pl-8 pr-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-brand-500">
+    </div>
+    <select x-model="category" class="bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-300">
+      <option value="">All categories</option>
+      <template x-for="c in categories()" :key="c"><option :value="c" x-text="c || '(none)'"></option></template>
+    </select>
+    <select x-model="sort" class="bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-300">
+      <option value="added">Newest first</option>
+      <option value="name">Name</option>
+      <option value="progress">Progress</option>
+      <option value="size">Size</option>
+      <option value="speed">Speed</option>
+      <option value="ratio">Ratio</option>
+    </select>
+    <span class="flex items-center gap-1.5 text-xs text-gray-600 ml-auto">
+      <span x-text="updated"></span>
+      <span class="w-2 h-2 rounded-full" :class="live ? 'bg-green-500 animate-pulse' : 'bg-red-500'" :title="live ? 'Live' : error"></span>
+    </span>
   </div>
-  <div class="glass rounded-xl p-3 text-center">
-    <p class="text-2xl font-bold text-green-400" id="stat-seeding">—</p>
-    <p class="text-xs text-gray-500 mt-0.5">Seeding</p>
+
+  <!-- Bulk actions -->
+  <div x-show="selected.length" x-cloak class="flex flex-wrap items-center gap-2 mb-3 px-3 py-2 rounded-xl bg-brand-600/10 border border-brand-600/20">
+    <span class="text-xs text-brand-200" x-text="`${selected.length} selected`"></span>
+    <button @click="act('start', selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-900/40 hover:bg-green-900/70 text-green-300"><i class="fa-solid fa-play mr-1"></i>Start</button>
+    <button @click="act('stop', selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-900/40 hover:bg-yellow-900/70 text-yellow-300"><i class="fa-solid fa-pause mr-1"></i>Pause</button>
+    <button @click="askRemove(selected)" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-900/40 hover:bg-red-900/70 text-red-300"><i class="fa-solid fa-trash mr-1"></i>Remove</button>
+    <button @click="selected = []" class="ml-auto text-xs text-gray-400 hover:text-gray-200">Clear</button>
   </div>
-  <div class="glass rounded-xl p-3 text-center">
-    <p class="text-2xl font-bold text-gray-400" id="stat-paused">—</p>
-    <p class="text-xs text-gray-500 mt-0.5">Paused</p>
+
+  <!-- List -->
+  <div class="glass rounded-2xl overflow-hidden">
+    <div class="hidden md:grid grid-cols-[2rem_1fr_6rem_9rem_7rem_5rem_7.5rem] gap-3 px-4 py-2.5 border-b border-white/5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+      <input type="checkbox" class="accent-brand-500" :checked="visible().length && visible().every(t => selected.includes(t.hash))" @change="toggleAll($event.target.checked)">
+      <span>Name</span><span class="text-right">Size</span><span>Progress</span><span class="text-right">Speed</span><span class="text-right">Ratio</span><span class="text-right">Actions</span>
+    </div>
+    <div x-show="!loaded" class="py-12 text-center text-gray-600 text-sm"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading torrents…</div>
+    <div x-show="loaded && !visible().length" x-cloak class="py-12 text-center">
+      <i class="fa-solid fa-seedling text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-500 text-sm" x-text="torrents.length ? 'No torrents match these filters' : 'No torrents in qBittorrent'"></p>
+    </div>
+    <div class="divide-y divide-white/5">
+      <template x-for="t in visible()" :key="t.hash">
+        <div class="md:grid md:grid-cols-[2rem_1fr_6rem_9rem_7rem_5rem_7.5rem] md:gap-3 md:items-center px-4 py-3 hover:bg-white/[0.02]"
+             :class="selected.includes(t.hash) ? 'bg-brand-600/5' : ''">
+          <div class="flex items-start gap-3 md:contents">
+            <input type="checkbox" class="accent-brand-500 mt-1 md:mt-0" :value="t.hash" x-model="selected">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-gray-200 truncate" :title="t.name" x-text="t.name"></p>
+              <p class="text-[11px] flex flex-wrap gap-x-2">
+                <span :class="stateClass(t)" x-text="stateLabel(t)"></span>
+                <span x-show="t.category" class="text-gray-500" x-text="t.category"></span>
+                <span x-show="t.eta && t.group === 'downloading'" class="text-gray-500" x-text="`ETA ${t.eta}`"></span>
+                <span class="text-gray-600 md:hidden" x-text="t.size"></span>
+              </p>
+            </div>
+          </div>
+          <span class="hidden md:block text-xs text-gray-400 text-right tabular-nums" x-text="t.size"></span>
+          <div class="flex items-center gap-2 mt-2 md:mt-0 pl-7 md:pl-0">
+            <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden flex-1">
+              <div class="h-full rounded-full" :class="t.progress >= 100 ? 'bg-green-500' : (t.group === 'paused' ? 'bg-gray-500' : 'progress-bar')" :style="`width:${Math.min(t.progress, 100)}%`"></div>
+            </div>
+            <span class="text-xs text-gray-400 tabular-nums w-11 text-right" x-text="`${t.progress.toFixed(0)}%`"></span>
+          </div>
+          <div class="hidden md:block text-right text-xs tabular-nums">
+            <p x-show="t.dl" class="text-blue-400" x-text="`↓ ${t.dlspeed}`"></p>
+            <p x-show="t.up" class="text-green-400" x-text="`↑ ${t.upspeed}`"></p>
+            <p x-show="!t.dl && !t.up" class="text-gray-600">—</p>
+          </div>
+          <span class="hidden md:block text-xs text-gray-400 text-right tabular-nums" x-text="t.ratio.toFixed(2)"></span>
+          <div class="flex items-center justify-end gap-1 mt-2 md:mt-0">
+            <button x-show="t.group === 'paused'" @click="act('start', [t.hash])" title="Start"
+                    class="w-8 h-8 rounded-lg bg-green-900/40 hover:bg-green-900/80 text-green-400 flex items-center justify-center"><i class="fa-solid fa-play text-xs"></i></button>
+            <button x-show="t.group !== 'paused'" @click="act('stop', [t.hash])" title="Pause"
+                    class="w-8 h-8 rounded-lg bg-yellow-900/40 hover:bg-yellow-900/80 text-yellow-400 flex items-center justify-center"><i class="fa-solid fa-pause text-xs"></i></button>
+            <button x-show="t.group === 'error' || t.group === 'stalled'" @click="act('reannounce', [t.hash])" title="Ask trackers for more peers"
+                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-tower-broadcast text-xs"></i></button>
+            <button x-show="t.group === 'error'" @click="act('recheck', [t.hash])" title="Re-check the downloaded data"
+                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-rotate text-xs"></i></button>
+            <button @click="askRemove([t.hash])" title="Remove"
+                    class="w-8 h-8 rounded-lg bg-red-900/40 hover:bg-red-900/80 text-red-400 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+  <p class="text-[11px] text-gray-600 mt-3"><i class="fa-solid fa-circle-info mr-1"></i>Downloads Sonarr and Radarr are tracking are easier to manage from the <a href="{% url 'download_queue' %}" class="text-brand-400 hover:underline">Queue</a> — removing them here can make them search again.</p>
+
+  <!-- Remove dialog -->
+  <div x-show="removing" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="removing = null"></div>
+    <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-5" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+      <h3 class="text-base font-bold text-white mb-1" x-text="removing?.length === 1 ? 'Remove torrent?' : `Remove ${removing?.length} torrents?`"></h3>
+      <p class="text-xs text-gray-400 break-all mb-4" x-text="removing?.length === 1 ? (byHash(removing[0])?.name || '') : ''"></p>
+      <label class="flex items-start gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5 cursor-pointer">
+        <input type="checkbox" x-model="deleteFiles" class="accent-red-500 mt-0.5">
+        <span class="text-sm text-gray-300">Also delete the downloaded files
+          <span class="block text-[11px] text-gray-500">Files already imported into your library are separate copies (or hardlinks) and stay.</span></span>
+      </label>
+      <div class="flex gap-2 mt-4">
+        <button @click="removing = null" class="flex-1 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium">Cancel</button>
+        <button @click="confirmRemove()" class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold">
+          <i class="fa-solid fa-trash mr-1"></i>Remove
+        </button>
+      </div>
+    </div>
   </div>
 </div>
-
-<!-- Filter bar -->
-<div x-data="{ filter: 'all' }" class="mb-4 flex flex-wrap gap-2 items-center">
-  <div class="flex gap-1 p-1 bg-surface-800 rounded-xl">
-    <button @click="filter = 'all'; applyFilter('all')"
-            :class="filter === 'all' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">All</button>
-    <button @click="filter = 'downloading'; applyFilter('downloading')"
-            :class="filter === 'downloading' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Downloading</button>
-    <button @click="filter = 'seeding'; applyFilter('seeding')"
-            :class="filter === 'seeding' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-gray-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Seeding</button>
-    <button @click="filter = 'paused'; applyFilter('paused')"
-            :class="filter === 'paused' ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-gray-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Paused</button>
-    <button @click="filter = 'completed'; applyFilter('completed')"
-            :class="filter === 'completed' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all">Completed</button>
-  </div>
-  <div class="ml-auto flex items-center gap-2">
-    <span id="last-update" class="text-xs text-gray-600"></span>
-    <span id="live-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Live updates"></span>
-  </div>
-</div>
-
-<!-- Torrent table -->
-<div class="glass rounded-2xl overflow-hidden">
-  <div class="overflow-x-auto scrollbar-thin">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b border-white/5">
-          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/2">Name</th>
-          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Size</th>
-          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Progress</th>
-          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Speed</th>
-          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">ETA</th>
-          <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Seeds/Peers</th>
-          <th class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">State / Actions</th>
-        </tr>
-      </thead>
-      <tbody id="torrent-tbody">
-        <tr>
-          <td colspan="7" class="px-4 py-12 text-center text-gray-600">
-            <i class="fa-solid fa-spinner fa-spin text-2xl mb-3 block"></i>
-            Loading torrents…
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- Empty state (shown by JS when 0 results) -->
-<div id="empty-state" class="hidden glass rounded-2xl p-12 text-center mt-4">
-  <i class="fa-solid fa-seedling text-5xl text-gray-700 mb-4 block"></i>
-  <p class="text-gray-500">No torrents found</p>
-  <p class="text-sm text-gray-600 mt-1">Queue downloads from the TV Shows or Movies pages.</p>
-</div>
-
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 {% if connected %}
 <script>
-const csrfToken = '{{ csrf_token }}';
-let currentFilter = 'all';
-let allTorrents = [];
-
-function applyFilter(filter) {
-  currentFilter = filter;
-  renderTorrents();
-}
-
-function stateLabel(state) {
-  const map = {
-    downloading:  ['Downloading',  'text-blue-400'],
-    stalledDL:    ['Stalled',      'text-yellow-500'],
-    uploading:    ['Seeding',      'text-green-400'],
-    stalledUP:    ['Seeding',      'text-green-500'],
-    pausedDL:     ['Paused',       'text-gray-400'],
-    pausedUP:     ['Paused',       'text-gray-400'],
-    queuedDL:     ['Queued',       'text-purple-400'],
-    queuedUP:     ['Queued',       'text-purple-400'],
-    checkingDL:   ['Checking',     'text-cyan-400'],
-    checkingUP:   ['Checking',     'text-cyan-400'],
-    metaDL:       ['Fetching',     'text-orange-400'],
-    forcedDL:     ['Forced DL',    'text-blue-300'],
-    forcedUP:     ['Forced UP',    'text-green-300'],
-    error:        ['Error',        'text-red-400'],
-    missingFiles: ['Missing',      'text-red-500'],
-    moving:       ['Moving',       'text-cyan-500'],
-    unknown:      ['Unknown',      'text-gray-500'],
+function torrentManager() {
+  return {
+    torrents: [], loaded: false, live: true, error: '', updated: '',
+    group: 'all', q: '', category: '', sort: 'added', selected: [],
+    removing: null, deleteFiles: false,
+    groups: [
+      { key: 'all',         label: 'All',         icon: 'fa-layer-group' },
+      { key: 'downloading', label: 'Downloading', icon: 'fa-arrow-down' },
+      { key: 'seeding',     label: 'Seeding',     icon: 'fa-arrow-up' },
+      { key: 'paused',      label: 'Paused',      icon: 'fa-pause' },
+      { key: 'completed',   label: 'Completed',   icon: 'fa-circle-check' },
+      { key: 'stalled',     label: 'Stalled',     icon: 'fa-hourglass-half' },
+      { key: 'error',       label: 'Errors',      icon: 'fa-triangle-exclamation' },
+    ],
+    init() {
+      this.fetch();
+      setInterval(() => this.fetch(), 3000);
+    },
+    async fetch() {
+      try {
+        const d = await (await fetch('{% url "torrents_json" %}')).json();
+        if (d.error) throw new Error(d.error);
+        this.torrents = d.torrents;
+        const present = new Set(d.torrents.map(t => t.hash));
+        this.selected = this.selected.filter(h => present.has(h));
+        this.live = true;
+        this.updated = `Updated ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        this.live = false;
+        this.error = e.message;
+      }
+      this.loaded = true;
+    },
+    inGroup(t, g) {
+      if (g === 'all') return true;
+      if (g === 'completed') return t.progress >= 100;
+      if (g === 'downloading') return t.group === 'downloading' || t.group === 'queued' && t.progress < 100;
+      return t.group === g;
+    },
+    count(g) { const n = this.torrents.filter(t => this.inGroup(t, g)).length; return n ? n : ''; },
+    categories() { return [...new Set(this.torrents.map(t => t.category))].sort(); },
+    visible() {
+      const q = this.q.trim().toLowerCase();
+      const list = this.torrents.filter(t => this.inGroup(t, this.group)
+        && (!q || t.name.toLowerCase().includes(q))
+        && (!this.category || t.category === this.category));
+      const by = {
+        added: (a, b) => b.added_on - a.added_on,
+        name: (a, b) => a.name.localeCompare(b.name),
+        progress: (a, b) => a.progress - b.progress,
+        size: (a, b) => b.size_bytes - a.size_bytes,
+        speed: (a, b) => (b.dl + b.up) - (a.dl + a.up),
+        ratio: (a, b) => b.ratio - a.ratio,
+      }[this.sort];
+      return list.sort(by);
+    },
+    byHash(h) { return this.torrents.find(t => t.hash === h); },
+    toggleAll(on) { this.selected = on ? this.visible().map(t => t.hash) : []; },
+    stateLabel(t) {
+      return {
+        downloading: 'Downloading', forcedDL: 'Downloading (forced)', metaDL: 'Fetching metadata', forcedMetaDL: 'Fetching metadata',
+        stalledDL: 'Stalled — no peers', queuedDL: 'Queued', checkingDL: 'Checking', allocating: 'Allocating',
+        uploading: 'Seeding', forcedUP: 'Seeding (forced)', stalledUP: 'Seeding', queuedUP: 'Queued to seed', checkingUP: 'Checking',
+        pausedDL: 'Paused', stoppedDL: 'Paused', pausedUP: 'Paused — complete', stoppedUP: 'Paused — complete',
+        checkingResumeData: 'Checking', moving: 'Moving', error: 'Error', missingFiles: 'Files missing', unknown: 'Unknown',
+      }[t.state] || t.state;
+    },
+    stateClass(t) {
+      return {
+        downloading: 'text-blue-400', seeding: 'text-green-400', paused: 'text-gray-400', stalled: 'text-yellow-400',
+        queued: 'text-purple-400', checking: 'text-cyan-400', error: 'text-red-400',
+      }[t.group] || 'text-gray-400';
+    },
+    async act(action, hashes, extra) {
+      const d = await ddPost('{% url "torrents_action" %}', { action, hashes, ...(extra || {}) });
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      if (action === 'delete') this.selected = this.selected.filter(h => !hashes.includes(h));
+      // qBittorrent needs a moment before its state reflects the change
+      setTimeout(() => this.fetch(), 600);
+    },
+    askRemove(hashes) { this.removing = [...hashes]; this.deleteFiles = false; },
+    async confirmRemove() {
+      const hashes = this.removing;
+      this.removing = null;
+      await this.act('delete', hashes, { delete_files: this.deleteFiles });
+      ddToast(`Removed ${hashes.length} torrent${hashes.length === 1 ? '' : 's'}${this.deleteFiles ? ' and their files' : ''}`);
+    },
   };
-  return map[state] || [state, 'text-gray-400'];
-}
-
-function matchFilter(t) {
-  if (currentFilter === 'all') return true;
-  if (currentFilter === 'downloading') return t.state.includes('DL') && !t.state.includes('paused') && !t.state.includes('queued');
-  if (currentFilter === 'seeding')     return t.state.includes('UP') || t.state === 'uploading';
-  if (currentFilter === 'paused')      return t.state.includes('paused');
-  if (currentFilter === 'completed')   return t.progress >= 100;
-  return true;
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function renderTorrents() {
-  const filtered = allTorrents.filter(matchFilter);
-  const tbody = document.getElementById('torrent-tbody');
-  const empty = document.getElementById('empty-state');
-
-  if (filtered.length === 0) {
-    tbody.innerHTML = '';
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
-
-  tbody.innerHTML = filtered.map(t => {
-    const [label, cls] = stateLabel(t.state);
-    const isPaused   = t.state.includes('paused');
-    const barClass   = t.progress >= 100 ? 'bg-green-500' : 'progress-bar';
-    const dotClass   = t.progress >= 100 ? 'bg-green-400' : isPaused ? 'bg-gray-500' : 'bg-blue-400 animate-pulse';
-    const pct        = Math.min(t.progress, 100).toFixed(1);
-
-    return `
-      <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-        <td class="px-4 py-3">
-          <div class="flex items-start gap-2.5">
-            <div class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${dotClass}"></div>
-            <div class="min-w-0">
-              <p class="font-medium text-gray-200 truncate max-w-xs lg:max-w-sm" title="${esc(t.name)}">${esc(t.name)}</p>
-              ${t.category ? `<p class="text-xs text-gray-600">${esc(t.category)}</p>` : ''}
-            </div>
-          </div>
-        </td>
-        <td class="px-3 py-3 text-gray-500 text-xs hidden sm:table-cell whitespace-nowrap">${t.size}</td>
-        <td class="px-3 py-3">
-          <div class="flex items-center gap-2">
-            <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden w-20 lg:w-28 flex-shrink-0">
-              <div class="${barClass} h-full rounded-full" style="width:${pct}%"></div>
-            </div>
-            <span class="text-xs text-gray-400 tabular-nums">${pct}%</span>
-          </div>
-        </td>
-        <td class="px-3 py-3 text-xs hidden md:table-cell whitespace-nowrap">
-          <span class="text-blue-400">${t.dlspeed}</span>
-          ${t.upspeed !== '0.0 B/s' ? `<br><span class="text-green-400">${t.upspeed}</span>` : ''}
-        </td>
-        <td class="px-3 py-3 text-xs text-gray-500 hidden lg:table-cell whitespace-nowrap">${t.eta}</td>
-        <td class="px-3 py-3 text-xs hidden lg:table-cell whitespace-nowrap">
-          <span class="text-green-400">${t.seeds}</span><span class="text-gray-600 mx-1">/</span><span class="text-red-400">${t.peers}</span>
-        </td>
-        <td class="px-3 py-3">
-          <div class="flex flex-col items-end gap-1.5">
-            <span class="text-xs ${cls}">${label}</span>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              ${isPaused
-                ? `<button onclick="resumeTorrent('${esc(t.hash)}')" class="w-7 h-7 rounded bg-green-900/40 hover:bg-green-900/80 flex items-center justify-center text-green-400 transition-colors" title="Resume">
-                     <i class="fa-solid fa-play text-xs"></i>
-                   </button>`
-                : `<button onclick="pauseTorrent('${esc(t.hash)}')" class="w-7 h-7 rounded bg-yellow-900/40 hover:bg-yellow-900/80 flex items-center justify-center text-yellow-400 transition-colors" title="Pause">
-                     <i class="fa-solid fa-pause text-xs"></i>
-                   </button>`
-              }
-              <button onclick="deleteTorrent('${esc(t.hash)}', '${esc(t.name).replace(/'/g,"\\\'")}')"
-                      class="w-7 h-7 rounded bg-red-900/40 hover:bg-red-900/80 flex items-center justify-center text-red-400 transition-colors" title="Delete">
-                <i class="fa-solid fa-trash text-xs"></i>
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-async function pauseTorrent(hash) {
-  await fetch(`/qbt/torrent/${hash}/pause/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  // qBT needs a moment to update state before we re-fetch
-  setTimeout(fetchTorrents, 600);
-}
-
-async function resumeTorrent(hash) {
-  await fetch(`/qbt/torrent/${hash}/resume/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  setTimeout(fetchTorrents, 600);
-}
-
-async function deleteTorrent(hash, name) {
-  if (!confirm(`Delete "${name}"?`)) return;
-  const delFiles = confirm('Also delete downloaded files?\n\nOK = delete files too\nCancel = keep files');
-  const fd = new FormData();
-  fd.append('delete_files', delFiles ? 'true' : 'false');
-  await fetch(`/qbt/torrent/${hash}/delete/`, { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
-  fetchTorrents();
-}
-
-async function fetchTorrents() {
-  try {
-    const res = await fetch('/qbt/torrents.json');
-    const data = await res.json();
-    if (data.error) {
-      document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-red-500';
-      return;
-    }
-    allTorrents = data.torrents;
-
-    const stats = { total: allTorrents.length, downloading: 0, seeding: 0, paused: 0 };
-    allTorrents.forEach(t => {
-      if (t.state.includes('DL') && !t.state.includes('paused') && !t.state.includes('queued')) stats.downloading++;
-      else if (t.state.includes('UP') || t.state === 'uploading') stats.seeding++;
-      if (t.state.includes('paused')) stats.paused++;
-    });
-    document.getElementById('stat-total').textContent       = stats.total;
-    document.getElementById('stat-downloading').textContent = stats.downloading;
-    document.getElementById('stat-seeding').textContent     = stats.seeding;
-    document.getElementById('stat-paused').textContent      = stats.paused;
-
-    renderTorrents();
-    document.getElementById('last-update').textContent = `Updated ${new Date().toLocaleTimeString()}`;
-    document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
-  } catch(e) {
-    document.getElementById('live-dot').className = 'w-2 h-2 rounded-full bg-red-500';
-  }
 }
 
 async function fetchTransfer() {
   try {
-    const res = await fetch('/qbt/transfer.json');
-    const d = await res.json();
+    const d = await (await fetch('{% url "transfer_info" %}')).json();
     document.getElementById('dl-speed').textContent = d.dl_speed;
     document.getElementById('ul-speed').textContent = d.up_speed;
-  } catch(e) {}
+  } catch (e) { /* header stats are best-effort */ }
 }
-
-fetchTorrents();
 fetchTransfer();
-setInterval(fetchTorrents, 3000);
 setInterval(fetchTransfer, 5000);
 </script>
 {% endif %}

@@ -1,0 +1,43 @@
+{% include "downloads/_tab_errors.html" %}
+{% if rows %}
+<p class="text-xs text-gray-500 mb-3">
+  {% if app == 'sonarr' %}Monitored episodes airing in the next 30 days — Sonarr grabs each one on its own once it airs.
+  {% elif app == 'radarr' %}Monitored movies that aren't out yet — Radarr grabs each one on its own once it's available.
+  {% else %}Monitored but not out yet — Sonarr and Radarr grab these on their own once they're available.{% endif %}
+</p>
+<div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
+  {% for r in rows %}
+  <a href="{{ r.link }}" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-700/20 transition-colors">
+    {% if r.poster %}<img src="{{ r.poster }}" alt="" loading="lazy" class="w-9 h-12 rounded object-cover flex-shrink-0 bg-surface-800">
+    {% else %}<div class="w-9 h-12 rounded bg-surface-800 flex-shrink-0"></div>{% endif %}
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-medium text-gray-200 truncate">{{ r.title }}</p>
+      <p class="text-xs text-gray-500 truncate">{{ r.subtitle }}</p>
+      <p class="text-[11px] text-gray-600">{{ r.note }}</p>
+    </div>
+    <div class="text-right flex-shrink-0">
+      {% if r.when %}
+      <p class="text-sm font-semibold {% if r.app == 'sonarr' %}text-purple-300{% else %}text-cyan-300{% endif %}">{{ r.when|date:"M j" }}</p>
+      <p class="text-[11px] text-gray-600">{% if r.app == 'sonarr' %}{{ r.when|date:"D g:i A" }}{% else %}{{ r.when|date:"Y" }}{% endif %}</p>
+      {% else %}
+      <p class="text-xs text-gray-500">Date TBA</p>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% elif not errors %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-calendar-check text-4xl text-gray-700 mb-3 block"></i>
+  {% if app == 'sonarr' %}
+  <p class="text-gray-400 text-sm font-medium">No episodes airing soon</p>
+  <p class="text-gray-600 text-xs mt-1">Monitored episodes airing in the next 30 days show up here.</p>
+  {% elif app == 'radarr' %}
+  <p class="text-gray-400 text-sm font-medium">No movies waiting for release</p>
+  <p class="text-gray-600 text-xs mt-1">Monitored movies that aren't out yet show up here.</p>
+  {% else %}
+  <p class="text-gray-400 text-sm font-medium">Nothing waiting for release</p>
+  <p class="text-gray-600 text-xs mt-1">Monitored episodes airing in the next 30 days and unreleased movies show up here.</p>
+  {% endif %}
+</div>
+{% endif %}

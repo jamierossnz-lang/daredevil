@@ -5,7 +5,6 @@ urlpatterns = [
     path('', views.swipe_deck, name='swipe_deck'),
     path('data/', views.deck_data, name='swipe_deck_data'),
     path('<int:pk>/left/', views.swipe_left, name='swipe_left'),
-    path('<int:pk>/add/', views.swipe_right_add, name='swipe_right_add'),
-    path('<int:pk>/add-download/', views.swipe_right_download, name='swipe_right_download'),
+    path('<int:pk>/right/', views.swipe_right, name='swipe_right'),
     path('<int:pk>/trailer/', views.trailer, name='swipe_trailer'),
 ]

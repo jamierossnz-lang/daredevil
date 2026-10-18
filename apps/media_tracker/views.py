@@ -1,108 +1,123 @@
 import json
-from django.shortcuts import render, get_object_or_404, redirect
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+
+from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods, require_POST
-from django.contrib import messages
-from django.db.models import Q
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 
-from .models import TVShow, Season, Episode, Movie
 from .tmdb import tmdb
-from apps.downloads.models import DownloadItem
+from apps.arr.clients import ArrError
+from apps.arr.services import image_url, in_thread, is_configured, library_index, parse_dt, radarr, sonarr
+
+log = logging.getLogger('daredevil.media_tracker')
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
-def dashboard(request):
-    from datetime import timedelta
-
-    now = timezone.now()
-    week_ago = now - timedelta(days=7)
-    week_ago_date = timezone.localdate() - timedelta(days=7)
-
-    upcoming_episodes = list(
-        Episode.objects
-        .filter(
-            download_status=Episode.DownloadStatus.AWAITING_RELEASE,
-            season__show__monitor_new_episodes=True,
-        )
-        .select_related('season__show')
-        .order_by('air_datetime', 'air_date')
-        [:20]
-    )
-
-    new_episodes = list(
-        Episode.objects
-        .filter(
-            season__show__monitor_new_episodes=True,
-            download_status__in=[
-                Episode.DownloadStatus.WAITING_FOR_DOWNLOAD,
-                Episode.DownloadStatus.QUEUED,
-                Episode.DownloadStatus.DOWNLOADING,
-                Episode.DownloadStatus.DOWNLOADED,
-            ],
-        )
-        .filter(
-            Q(air_datetime__gte=week_ago) |
-            Q(air_datetime__isnull=True, air_date__gte=week_ago_date)
-        )
-        .select_related('season__show')
-        .order_by('-air_datetime', '-air_date')
-        [:20]
-    )
-
-    context = {
-        'show_count': TVShow.objects.count(),
-        'movie_count': Movie.objects.count(),
-        'downloading_count': DownloadItem.objects.filter(status=DownloadItem.Status.DOWNLOADING).count(),
-        'queued_count': DownloadItem.objects.filter(status=DownloadItem.Status.PENDING).count(),
-        'downloaded_count': DownloadItem.objects.filter(status=DownloadItem.Status.COMPLETED).count(),
-        'upcoming_episodes': upcoming_episodes,
-        'new_episodes': new_episodes,
+def _episode_tile(ep, queued_ids):
+    series = ep.get('series') or {}
+    air = parse_dt(ep.get('airDateUtc'))
+    if ep.get('hasFile'):
+        state = 'downloaded'
+    elif ep['id'] in queued_ids:
+        state = 'downloading'
+    elif not ep.get('monitored'):
+        state = 'unmonitored'
+    else:
+        state = 'missing'
+    return {
+        'series_id': ep.get('seriesId'),
+        'show_title': series.get('title') or '',
+        'poster': image_url(series.get('images'), 'poster'),
+        'code': f'S{ep.get("seasonNumber", 0):02d}E{ep.get("episodeNumber", 0):02d}',
+        'title': ep.get('title') or '',
+        'air': timezone.localtime(air) if air else None,
+        'state': state,
     }
-    return render(request, 'dashboard.html', context)
 
 
-def dashboard_discover(request):
-    """AJAX — all 8 discover sliders, 30-min cached, fetched in parallel."""
-    from django.core.cache import cache
-    from datetime import date, timedelta
-    import concurrent.futures
+def dashboard(request):
+    """Counts and sliders straight from Sonarr/Radarr (calendar, queue, wanted)."""
+    now = timezone.now()
+    ctx = {
+        'show_count': None, 'movie_count': None, 'downloading_count': None, 'missing_count': None,
+        'upcoming_episodes': [], 'new_episodes': [], 'upcoming_movies': [], 'arr_errors': [],
+        'sonarr_ready': is_configured('sonarr'), 'radarr_ready': is_configured('radarr'),
+    }
 
-    today = date.today()
-    this_week_start = today - timedelta(days=today.weekday())
-    last_week_start = this_week_start - timedelta(days=7)
-    last_week_end   = last_week_start + timedelta(days=6)
+    def _sonarr():
+        c = sonarr()
+        series = c.series_list()
+        cal = c.calendar((now - timedelta(days=7)).isoformat(), (now + timedelta(days=21)).isoformat(),
+                         includeSeries='true', unmonitored='false')
+        queue = c.queue(includeEpisode='false')
+        missing = c.wanted_missing(page_size=1, monitored='true')
+        return series, cal, queue, missing
 
-    IMG_BASE  = 'https://image.tmdb.org/t/p/w300'
-    CACHE_TTL = 1800
+    def _radarr():
+        c = radarr()
+        return c.movies(), c.queue()
 
-    def _raw(key, method, **kwargs):
-        cache_key = f'disc_{key}_{today}'
-        hit = cache.get(cache_key)
-        if hit is not None:
-            return hit
-        try:
-            results = method(**kwargs).get('results', [])
-        except Exception:
-            results = []
-        cache.set(cache_key, results, CACHE_TTL)
-        return results
+    jobs = {}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        if ctx['sonarr_ready']:
+            jobs['sonarr'] = pool.submit(in_thread, _sonarr)
+        if ctx['radarr_ready']:
+            jobs['radarr'] = pool.submit(in_thread, _radarr)
+        results = {}
+        for name, fut in jobs.items():
+            try:
+                results[name] = fut.result()
+            except ArrError as e:
+                ctx['arr_errors'].append(f'{name.title()}: {e}')
 
-    def _fmt(results, is_tv):
-        items = []
-        for r in results[:20]:
-            poster = r.get('poster_path')
-            items.append({
-                'tmdb_id': r.get('id'),
-                'title':   r.get('name') if is_tv else r.get('title'),
-                'poster':  f'{IMG_BASE}{poster}' if poster else None,
-                'year':    (r.get('first_air_date') or r.get('release_date') or '')[:4],
-                'rating':  round(r.get('vote_average', 0), 1),
-            })
-        return items
+    downloading = 0
+    missing = 0
+    if 'sonarr' in results:
+        series, cal, queue, wanted = results['sonarr']
+        ctx['show_count'] = len(series)
+        queued_ids = {r.get('episodeId') for r in queue.get('records', [])}
+        downloading += len({r.get('downloadId') or r.get('id') for r in queue.get('records', [])})
+        missing += wanted.get('totalRecords', 0)
+        upcoming, recent = [], []
+        for ep in cal:
+            air = parse_dt(ep.get('airDateUtc'))
+            if not air:
+                continue
+            (upcoming if air > now else recent).append(_episode_tile(ep, queued_ids))
+        ctx['upcoming_episodes'] = sorted(upcoming, key=lambda e: e['air'])[:20]
+        ctx['new_episodes'] = sorted(recent, key=lambda e: e['air'], reverse=True)[:20]
+    if 'radarr' in results:
+        movies, queue = results['radarr']
+        ctx['movie_count'] = len(movies)
+        downloading += len({r.get('downloadId') or r.get('id') for r in queue.get('records', [])})
+        missing += sum(1 for m in movies if m.get('monitored') and not m.get('hasFile') and m.get('isAvailable'))
+        waiting = []
+        for m in movies:
+            if m.get('monitored') and not m.get('hasFile') and not m.get('isAvailable'):
+                dates = [parse_dt(m.get(k)) for k in ('digitalRelease', 'physicalRelease', 'inCinemas')]
+                when = min((d for d in dates if d), default=None)
+                waiting.append({
+                    'id': m['id'], 'title': m.get('title'), 'year': m.get('year'),
+                    'poster': image_url(m.get('images'), 'poster', size='w342'),
+                    'when': timezone.localtime(when) if when else None,
+                })
+        ctx['upcoming_movies'] = sorted(waiting, key=lambda m: (m['when'] is None, m['when'] or now))[:20]
+    ctx['downloading_count'] = downloading if jobs else None
+    ctx['missing_count'] = missing if jobs else None
+    return render(request, 'dashboard.html', ctx)
 
-    spec = [
+
+def _discover_spec(today):
+    """The eight dashboard sliders: (key, TMDB method, is_tv, discover params)."""
+    from datetime import timedelta as td
+    this_week_start = today - td(days=today.weekday())
+    last_week_start = this_week_start - td(days=7)
+    last_week_end = last_week_start + td(days=6)
+    return [
         ('tv_new_this_week', tmdb.discover_tv, True, {
             'first_air_date.gte': this_week_start.isoformat(),
             'first_air_date.lte': today.isoformat(),
@@ -129,15 +144,15 @@ def dashboard_discover(request):
             'sort_by': 'popularity.desc',
             'with_original_language': 'en',
         }),
-        # Movies new to rent/stream (digital release type 4) — replaces old streaming+digital
+        # Movies new to rent/stream (digital release type 4)
         ('movies_rent_stream_this_week', tmdb.discover_movie, False, {
-            'primary_release_date.gte': (this_week_start - timedelta(days=14)).isoformat(),
+            'primary_release_date.gte': (this_week_start - td(days=14)).isoformat(),
             'primary_release_date.lte': today.isoformat(),
             'with_release_type': '4',
             'sort_by': 'popularity.desc',
         }),
         ('movies_rent_stream_last_week', tmdb.discover_movie, False, {
-            'primary_release_date.gte': (last_week_start - timedelta(days=14)).isoformat(),
+            'primary_release_date.gte': (last_week_start - td(days=14)).isoformat(),
             'primary_release_date.lte': last_week_end.isoformat(),
             'with_release_type': '4',
             'sort_by': 'popularity.desc',
@@ -158,407 +173,56 @@ def dashboard_discover(request):
         # Upcoming / announced movies (next 6 months, by popularity)
         ('movies_announced', tmdb.discover_movie, False, {
             'primary_release_date.gte': today.isoformat(),
-            'primary_release_date.lte': (today + timedelta(days=180)).isoformat(),
+            'primary_release_date.lte': (today + td(days=180)).isoformat(),
             'sort_by': 'popularity.desc',
         }),
     ]
 
+
+def discover_lists(refresh=False):
+    """
+    {slider key: TMDB results} for the dashboard, fetched in parallel. Each
+    list sits in the shared cache for 30 minutes and warm_caches refetches
+    them every 10, so the dashboard doesn't wait on TMDB.
+    """
+    from datetime import date
+
     def _fetch(entry):
-        key, method, is_tv, kwargs = entry
-        return key, _fmt(_raw(key, method, **kwargs), is_tv)
+        key, method, _is_tv, params = entry
+        try:
+            return key, method(refresh=refresh, **params).get('results', [])
+        except Exception as e:
+            log.info('discover %s: %s', key, e)
+            return key, []
+
+    spec = _discover_spec(date.today())
+    with ThreadPoolExecutor(max_workers=len(spec)) as pool:
+        return dict(pool.map(_fetch, spec))
+
+
+def dashboard_discover(request):
+    """AJAX — all 8 discover sliders, marked with what's already in Sonarr/Radarr."""
+    from datetime import date
+
+    img_base = 'https://image.tmdb.org/t/p/w300'
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_lists = pool.submit(discover_lists)
+        f_shows = pool.submit(in_thread, library_index, 'sonarr')
+        f_movies = pool.submit(in_thread, library_index, 'radarr')
+        lists, shows_in_library, movies_in_library = f_lists.result(), f_shows.result(), f_movies.result()
 
     result = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        for key, items in pool.map(_fetch, spec):
-            result[key] = items
-
+    for key, _method, is_tv, _params in _discover_spec(date.today()):
+        in_library = shows_in_library if is_tv else movies_in_library
+        result[key] = [{
+            'tmdb_id': r.get('id'),
+            'title': r.get('name') if is_tv else r.get('title'),
+            'poster': f'{img_base}{r["poster_path"]}' if r.get('poster_path') else None,
+            'year': (r.get('first_air_date') or r.get('release_date') or '')[:4],
+            'rating': round(r.get('vote_average', 0), 1),
+            'library_id': in_library.get(r.get('id')),
+        } for r in lists.get(key, [])[:20]]
     return JsonResponse(result)
-
-
-# ── TV Shows ─────────────────────────────────────────────────────────────────
-
-def tv_shows(request):
-    # Filtering by q/status happens client-side (instant, no round-trip) — the
-    # full list is always rendered; q/status here only pre-fill the form from
-    # a deep link, e.g. /shows/?q=batman.
-    qs = TVShow.objects.all()
-    q = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '')
-    context = {
-        'shows': qs,
-        'q': q,
-        'status_filter': status_filter,
-        'status_choices': TVShow.Status.choices,
-    }
-    return render(request, 'media_tracker/tv_shows.html', context)
-
-
-def tv_show_detail(request, pk):
-    from django.db.models import Count, Q
-    show = get_object_or_404(TVShow, pk=pk)
-    seasons = (
-        show.seasons
-        .prefetch_related('episodes')
-        .annotate(
-            downloaded_count=Count('episodes', filter=Q(episodes__download_status='downloaded')),
-            active_count=Count('episodes', filter=Q(episodes__download_status__in=['queued', 'downloading'])),
-        )
-        .order_by('season_number')
-    )
-    context = {'show': show, 'seasons': seasons}
-    return render(request, 'media_tracker/tv_show_detail.html', context)
-
-
-@require_POST
-def tv_show_toggle_favourite(request, pk):
-    show = get_object_or_404(TVShow, pk=pk)
-    show.is_favourite = not show.is_favourite
-    show.save(update_fields=['is_favourite'])
-    return JsonResponse({'is_favourite': show.is_favourite})
-
-
-@require_POST
-def tv_show_toggle_monitor(request, pk):
-    show = get_object_or_404(TVShow, pk=pk)
-    show.monitor_new_episodes = not show.monitor_new_episodes
-    fields = ['monitor_new_episodes']
-    if show.monitor_new_episodes and show.monitor_from is None:
-        show.monitor_from = timezone.now().date()
-        fields.append('monitor_from')
-    show.save(update_fields=fields)
-    if show.monitor_new_episodes:
-        # Apply awaiting_release/waiting_for_download statuses (also syncs TVMaze if needed)
-        from .tasks import sync_tvmaze_show
-        sync_tvmaze_show.delay(show.pk)
-    return JsonResponse({'monitor_new_episodes': show.monitor_new_episodes})
-
-
-@require_POST
-def tv_show_delete(request, pk):
-    show = get_object_or_404(TVShow, pk=pk)
-    show.delete()
-    if request.headers.get('HX-Request'):
-        return render(request, 'media_tracker/_show_deleted.html', {'name': show.name})
-    messages.success(request, f'Removed {show.name}')
-    return redirect('tv_shows')
-
-
-def tmdb_search_tv(request):
-    query = request.GET.get('q', '').strip()
-    results = []
-    if query:
-        try:
-            data = tmdb.search_tv(query)
-            existing_ids = set(TVShow.objects.values_list('tmdb_id', flat=True))
-            results = [
-                {**r, 'already_added': r['id'] in existing_ids}
-                for r in data.get('results', [])[:12]
-            ]
-        except Exception as e:
-            messages.error(request, f'TMDB search failed: {e}')
-    context = {'results': results, 'query': query}
-    if request.headers.get('HX-Request'):
-        return render(request, 'media_tracker/_tv_search_results.html', context)
-    return render(request, 'media_tracker/tmdb_search_tv.html', context)
-
-
-@require_POST
-def tv_show_add(request):
-    tmdb_id = int(request.POST.get('tmdb_id'))
-    if TVShow.objects.filter(tmdb_id=tmdb_id).exists():
-        show = TVShow.objects.get(tmdb_id=tmdb_id)
-        return JsonResponse({'status': 'exists', 'pk': show.pk, 'name': show.name})
-    try:
-        show = tmdb.sync_show_to_db(tmdb_id)
-        # Fetch precise TVMaze air times asynchronously so the response is fast
-        from .tasks import sync_tvmaze_show
-        sync_tvmaze_show.delay(show.pk)
-        return JsonResponse({'status': 'added', 'pk': show.pk, 'name': show.name})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
-
-@require_POST
-def tv_show_queue_download(request, pk):
-    """Queue download for a show — whole show, seasons, episodes, or monitor."""
-    show = get_object_or_404(TVShow, pk=pk)
-    mode = request.POST.get('mode', 'whole')  # whole | seasons | episodes | monitor
-    monitor = request.POST.get('monitor', 'false') == 'true'
-
-    if monitor:
-        show.monitor_new_episodes = True
-        fields = ['monitor_new_episodes']
-        if show.monitor_from is None:
-            show.monitor_from = timezone.now().date()
-            fields.append('monitor_from')
-        show.save(update_fields=fields)
-
-    created = 0
-
-    if mode == 'seasons':
-        # Full-season downloads try a single season-pack search first (see
-        # search_and_download / MediaType.SEASON in tasks.py) and only fall back to
-        # per-episode queuing if that search finds nothing.
-        season_numbers = [int(s) for s in request.POST.getlist('seasons')]
-        for season in show.seasons.filter(season_number__in=season_numbers).prefetch_related('episodes'):
-            pending = [
-                ep for ep in season.episodes.all()
-                if ep.download_status not in (
-                    Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED,
-                )
-            ]
-            if not pending:
-                continue
-            ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
-            year = show.first_air_date.year if show.first_air_date else ''
-            sq = ' '.join(filter(None, [show.name, str(year) if year else '', f'S{season.season_number:02d}']))
-            item, is_new = DownloadItem.objects.get_or_create(
-                media_type=DownloadItem.MediaType.SEASON,
-                season_id=season.id,
-                defaults={
-                    'title': show.name,
-                    'subtitle': season.name or f'Season {season.season_number}',
-                    'poster_path': season.poster_path or show.poster_path,
-                    'status': DownloadItem.Status.SEARCHING,
-                    'quality': ep_quality,
-                    'search_query': sq,
-                    # Stamped now, not just when a search actually starts, so
-                    # auto_search_queue's short grace window is measured from
-                    # creation — otherwise a null timestamp makes it eligible
-                    # for immediate Celery pickup, racing the browser's own
-                    # client-side search.
-                    'search_started_at': timezone.now(),
-                },
-            )
-            if is_new:
-                for ep in pending:
-                    ep.download_status = Episode.DownloadStatus.QUEUED
-                    ep.save(update_fields=['download_status'])
-                created += len(pending)
-        return JsonResponse({'status': 'ok', 'queued': created})
-
-    # Build (episode, season_number) pairs so we can pre-fill the search query
-    ep_pairs = []  # list of (Episode, season_number)
-
-    if mode == 'whole':
-        for season in show.seasons.prefetch_related('episodes').all():
-            for ep in season.episodes.all():
-                ep_pairs.append((ep, season.season_number))
-    elif mode == 'episodes':
-        episode_ids = [int(e) for e in request.POST.getlist('episode_ids')]
-        eps = Episode.objects.filter(id__in=episode_ids, season__show=show).select_related('season')
-        for ep in eps:
-            ep_pairs.append((ep, ep.season.season_number))
-
-    for ep, season_num in ep_pairs:
-        if ep.download_status not in (Episode.DownloadStatus.QUEUED, Episode.DownloadStatus.DOWNLOADING, Episode.DownloadStatus.DOWNLOADED):
-            ep_quality = show.preferred_quality if show.preferred_quality != 'auto' else '1080p'
-            sq = f'{show.name} S{season_num:02d}E{ep.episode_number:02d} {ep_quality}'
-            item, is_new = DownloadItem.objects.get_or_create(
-                media_type=DownloadItem.MediaType.EPISODE,
-                episode_id=ep.id,
-                defaults={
-                    'title': show.name,
-                    'subtitle': str(ep),
-                    'poster_path': show.poster_path,
-                    'status': DownloadItem.Status.SEARCHING,
-                    'release_date': ep.air_date,
-                    'quality': ep_quality,
-                    'search_query': sq,
-                    # See comment on the season branch above — stamped at
-                    # creation so the auto_search_queue backstop can run
-                    # frequently without racing the browser's own search.
-                    'search_started_at': timezone.now(),
-                },
-            )
-            if is_new:
-                ep.download_status = Episode.DownloadStatus.QUEUED
-                ep.save(update_fields=['download_status'])
-                created += 1
-                # Don't fire Celery here — browser handles the search when the
-                # user lands on the queue page. auto_search_queue is the backstop
-                # if no tab is open (see its short grace-period cutoff).
-
-    return JsonResponse({'status': 'ok', 'queued': created})
-
-
-# ── Movies ───────────────────────────────────────────────────────────────────
-
-def movies(request):
-    # Filtering by q/status happens client-side (instant, no round-trip) — the
-    # full list is always rendered; q/status here only pre-fill the form from
-    # a deep link, e.g. /movies/?q=batman.
-    qs = Movie.objects.all()
-    q = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '')
-    context = {
-        'movies': qs,
-        'q': q,
-        'status_filter': status_filter,
-        'status_choices': Movie.DownloadStatus.choices,
-    }
-    return render(request, 'media_tracker/movies.html', context)
-
-
-def movie_detail(request, pk):
-    movie = get_object_or_404(Movie, pk=pk)
-    IMG_BASE = 'https://image.tmdb.org/t/p/w185'
-    POSTER_BASE = 'https://image.tmdb.org/t/p/w300'
-
-    cast = []
-    directors = []
-    try:
-        credits = tmdb.get_movie_credits(movie.tmdb_id)
-        for p in credits.get('crew', []):
-            if p.get('job') == 'Director':
-                directors.append(p['name'])
-        for c in credits.get('cast', [])[:10]:
-            profile = c.get('profile_path')
-            cast.append({
-                'name': c.get('name', ''),
-                'character': c.get('character', ''),
-                'photo': f'{IMG_BASE}{profile}' if profile else None,
-            })
-    except Exception:
-        pass
-
-    similar = []
-    try:
-        existing_ids = set(Movie.objects.values_list('tmdb_id', flat=True))
-        recs = tmdb.get_movie_recommendations(movie.tmdb_id)
-        for r in recs.get('results', [])[:12]:
-            poster = r.get('poster_path')
-            similar.append({
-                'tmdb_id': r.get('id'),
-                'title': r.get('title', ''),
-                'year': (r.get('release_date') or '')[:4],
-                'rating': round(r.get('vote_average', 0), 1),
-                'poster': f'{POSTER_BASE}{poster}' if poster else None,
-                'already_added': r.get('id') in existing_ids,
-            })
-    except Exception:
-        pass
-
-    return render(request, 'media_tracker/movie_detail.html', {
-        'movie': movie,
-        'cast': cast,
-        'directors': directors,
-        'similar': similar,
-    })
-
-
-@require_POST
-def movie_toggle_favourite(request, pk):
-    movie = get_object_or_404(Movie, pk=pk)
-    movie.is_favourite = not movie.is_favourite
-    movie.save(update_fields=['is_favourite'])
-    return JsonResponse({'is_favourite': movie.is_favourite})
-
-
-@require_POST
-def movie_delete(request, pk):
-    movie = get_object_or_404(Movie, pk=pk)
-    name = movie.title
-    movie.delete()
-    if request.headers.get('HX-Request'):
-        return render(request, 'media_tracker/_movie_deleted.html', {'title': name})
-    messages.success(request, f'Removed {name}')
-    return redirect('movies')
-
-
-def tmdb_search_movie(request):
-    query = request.GET.get('q', '').strip()
-    results = []
-    if query:
-        try:
-            data = tmdb.search_movie(query)
-            existing_ids = set(Movie.objects.values_list('tmdb_id', flat=True))
-            results = [
-                {**r, 'already_added': r['id'] in existing_ids}
-                for r in data.get('results', [])[:12]
-            ]
-        except Exception as e:
-            messages.error(request, f'TMDB search failed: {e}')
-    context = {'results': results, 'query': query}
-    if request.headers.get('HX-Request'):
-        return render(request, 'media_tracker/_movie_search_results.html', context)
-    return render(request, 'media_tracker/tmdb_search_movie.html', context)
-
-
-@require_POST
-def movie_add(request):
-    tmdb_id = int(request.POST.get('tmdb_id'))
-    quality = request.POST.get('quality', '1080p')
-    if quality not in ('1080p', '2160p'):
-        quality = '1080p'
-    if Movie.objects.filter(tmdb_id=tmdb_id).exists():
-        movie = Movie.objects.get(tmdb_id=tmdb_id)
-        item = _queue_movie(movie, quality=quality)
-        return JsonResponse({'status': 'exists', 'pk': movie.pk, 'title': movie.title,
-                             'download_item_pk': item.pk if item else None})
-    try:
-        movie = tmdb.sync_movie_to_db(tmdb_id)
-        item = _queue_movie(movie, quality=quality)
-        return JsonResponse({'status': 'added', 'pk': movie.pk, 'title': movie.title,
-                             'download_item_pk': item.pk if item else None,
-                             'search_query': item.search_query if item else ''})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-
-
-@require_POST
-def movie_queue_download(request, pk):
-    """Queue a movie download with a chosen quality (1080p or 2160p)."""
-    movie = get_object_or_404(Movie, pk=pk)
-    quality = request.POST.get('quality', '1080p')
-    if quality not in ('1080p', '2160p'):
-        quality = '1080p'
-    item = _queue_movie(movie, quality=quality)
-    return JsonResponse({'status': 'ok', 'quality': quality,
-                         'download_item_pk': item.pk if item else None})
-
-
-@require_POST
-def movie_reset_download(request, pk):
-    """Clear all download state so the movie can be re-queued from scratch."""
-    movie = get_object_or_404(Movie, pk=pk)
-    DownloadItem.objects.filter(
-        media_type=DownloadItem.MediaType.MOVIE,
-        movie_id=movie.id,
-    ).delete()
-    movie.download_status = Movie.DownloadStatus.NONE
-    movie.save(update_fields=['download_status'])
-    return JsonResponse({'status': 'ok'})
-
-
-@require_POST
-def tv_show_reset_download(request, pk):
-    """Clear download state for all episodes so they can be re-queued."""
-    show = get_object_or_404(TVShow, pk=pk)
-    episode_ids = list(
-        Episode.objects.filter(season__show=show).values_list('id', flat=True)
-    )
-    DownloadItem.objects.filter(
-        media_type=DownloadItem.MediaType.EPISODE,
-        episode_id__in=episode_ids,
-    ).delete()
-    Episode.objects.filter(season__show=show).update(
-        download_status=Episode.DownloadStatus.NONE
-    )
-    return JsonResponse({'status': 'ok'})
-
-
-@require_POST
-def episode_reset_download(request, pk):
-    """Clear download state for a single episode so it can be re-queued."""
-    episode = get_object_or_404(Episode, pk=pk)
-    DownloadItem.objects.filter(
-        media_type=DownloadItem.MediaType.EPISODE,
-        episode_id=episode.id,
-    ).delete()
-    episode.download_status = Episode.DownloadStatus.NONE
-    episode.save(update_fields=['download_status'])
-    return JsonResponse({'status': 'ok'})
 
 
 # ── App Settings + Restart ───────────────────────────────────────────────────
@@ -575,10 +239,16 @@ def app_settings_view(request):
         return env.get(key, str(getattr(s, key, default)))
 
     return render(request, 'app_settings.html', {
+        'settings_tabs': [
+            ('general', 'General', 'fa-gear'),
+            ('prowlarr', 'Prowlarr', 'fa-magnifying-glass'),
+            ('sonarr', 'Sonarr', 'fa-tv'),
+            ('radarr', 'Radarr', 'fa-film'),
+            ('qbittorrent', 'qBittorrent', 'fa-seedling'),
+            ('tasks', 'Background Tasks', 'fa-gears'),
+        ],
         'cfg': {
             'TMDB_API_KEY':        _get('TMDB_API_KEY'),
-            'TRAKT_CLIENT_ID':     _get('TRAKT_CLIENT_ID'),
-            'DOWNLOAD_PATH':       _get('DOWNLOAD_PATH'),
             'REDIS_URL':           _get('REDIS_URL'),
             'TZ':                  _get('TZ', s.TIME_ZONE),
             'DEBUG':               _get('DEBUG', str(s.DEBUG)) == 'True',
@@ -616,10 +286,6 @@ def app_settings_save(request):
 
     if 'TMDB_API_KEY' in data:
         _set('TMDB_API_KEY', data['TMDB_API_KEY'].strip(), attr='TMDB_API_KEY')
-    if 'TRAKT_CLIENT_ID' in data:
-        _set('TRAKT_CLIENT_ID', data['TRAKT_CLIENT_ID'].strip(), attr='TRAKT_CLIENT_ID')
-    if 'DOWNLOAD_PATH' in data:
-        _set('DOWNLOAD_PATH', data['DOWNLOAD_PATH'].strip(), attr='DOWNLOAD_PATH')
     if 'REDIS_URL' in data:
         _set('REDIS_URL', data['REDIS_URL'].strip(), restart=True)
     if 'TZ' in data:
@@ -733,99 +399,6 @@ def ntfy_test(request):
         return JsonResponse({'ok': False, 'error': str(e)})
 
 
-@require_POST
-def trakt_test(request):
-    """Verify a Trakt Client ID actually works, using the (possibly unsaved) value from the request body."""
-    data = json.loads(request.body)
-    client_id = (data.get('TRAKT_CLIENT_ID') or '').strip()
-    if not client_id:
-        return JsonResponse({'ok': False, 'error': 'TRAKT_CLIENT_ID is required'})
-
-    from apps.discover.trakt import trakt
-    try:
-        trakt.test_connection(client_id=client_id)
-        return JsonResponse({'ok': True})
-    except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)})
-
-
-@require_POST
-def quality_profiles_save(request):
-    """Save size brackets for all quality+media_type combos. Accepts JSON list."""
-    from .models import QualityProfile
-    data = json.loads(request.body)
-    valid = {('1080p', 'tv'), ('2160p', 'tv'), ('1080p', 'movie'), ('2160p', 'movie')}
-    for item in data:
-        key = (item.get('quality'), item.get('media_type'))
-        if key not in valid:
-            continue
-        QualityProfile.objects.update_or_create(
-            quality=key[0],
-            media_type=key[1],
-            defaults={
-                'min_size_mb': int(item.get('min_size_mb') or 0) or None,
-                'max_size_mb': int(item.get('max_size_mb') or 0) or None,
-            },
-        )
-    return JsonResponse({'ok': True})
-
-
-@require_POST
-def tv_show_quality_save(request, pk):
-    """Set preferred_quality on a TVShow ('auto', '1080p', or '2160p')."""
-    show = get_object_or_404(TVShow, pk=pk)
-    data = json.loads(request.body)
-    quality = data.get('quality', 'auto')
-    if quality not in ('auto', '1080p', '2160p'):
-        return JsonResponse({'error': 'Invalid quality'}, status=400)
-    show.preferred_quality = quality
-    show.save(update_fields=['preferred_quality'])
-    return JsonResponse({'preferred_quality': show.preferred_quality})
-
-
-def _queue_movie(movie, quality='1080p'):
-    from apps.downloads.models import DownloadItem
-    if movie.is_digitally_available:
-        initial_status = DownloadItem.Status.SEARCHING
-        dl_status = Movie.DownloadStatus.QUEUED
-    else:
-        initial_status = DownloadItem.Status.WAITING_RELEASE
-        dl_status = Movie.DownloadStatus.WAITING_RELEASE
-
-    year = str(movie.release_date.year) if movie.release_date else ''
-    search_query = ' '.join(filter(None, [movie.title, year, quality]))
-
-    item, created = DownloadItem.objects.get_or_create(
-        media_type=DownloadItem.MediaType.MOVIE,
-        movie_id=movie.id,
-        defaults={
-            'title': movie.title,
-            'poster_path': movie.poster_path,
-            'status': initial_status,
-            'release_date': movie.digital_release_date or movie.release_date,
-            'quality': quality,
-            'search_query': search_query,
-            # See comment in tv_show_queue_download — stamped at creation so
-            # auto_search_queue's backstop can run frequently without racing
-            # the browser's own client-side search.
-            'search_started_at': timezone.now(),
-        },
-    )
-    if not created and item.status == DownloadItem.Status.FAILED:
-        # Allow re-queue with (possibly new) quality
-        item.quality = quality
-        item.status = initial_status
-        item.error_message = ''
-        item.search_query = search_query
-        item.search_started_at = timezone.now()
-        item.save(update_fields=['quality', 'status', 'error_message', 'search_query', 'search_started_at'])
-
-    movie.download_status = dl_status
-    movie.save(update_fields=['download_status'])
-    # Browser handles the search when the user lands on the queue page.
-    return item
-
-
 # ── Streaming browse ─────────────────────────────────────────────────────────
 
 STREAMING_PROVIDERS = [
@@ -868,6 +441,14 @@ TV_GENRES = [
 ]
 
 
+def streaming_params(provider, page=1, genre_id=''):
+    """TMDB discover parameters for one provider's page (also used by warm_caches)."""
+    params = {'with_watch_providers': provider['id'], 'watch_region': 'US', 'sort_by': 'popularity.desc', 'page': page}
+    if genre_id:
+        params['with_genres'] = genre_id
+    return params
+
+
 def streaming_browse(request):
     provider_key = request.GET.get('provider', 'netflix')
     media_type = request.GET.get('type', 'movie')
@@ -879,23 +460,18 @@ def streaming_browse(request):
 
     provider = next((p for p in STREAMING_PROVIDERS if p['key'] == provider_key), STREAMING_PROVIDERS[0])
     genres = MOVIE_GENRES if media_type == 'movie' else TV_GENRES
-
-    discover_kwargs = {
-        'with_watch_providers': provider['id'],
-        'watch_region': 'US',
-        'sort_by': 'popularity.desc',
-        'page': page,
-    }
-    if genre_id:
-        discover_kwargs['with_genres'] = genre_id
+    discover_kwargs = streaming_params(provider, page, genre_id)
 
     items = []
     total_pages = 1
     error = None
     try:
+        # TMDB page (shared-cached, see tmdb.LIST_TTL) and the library index at the same time
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_data = pool.submit(tmdb.discover_tv if media_type == 'tv' else tmdb.discover_movie, **discover_kwargs)
+            f_index = pool.submit(in_thread, library_index, 'sonarr' if media_type == 'tv' else 'radarr')
+            data, existing_ids = f_data.result(), f_index.result()
         if media_type == 'tv':
-            data = tmdb.discover_tv(**discover_kwargs)
-            existing_ids = set(TVShow.objects.values_list('tmdb_id', flat=True))
             for r in data.get('results', []):
                 items.append({
                     'id': r['id'],
@@ -905,11 +481,10 @@ def streaming_browse(request):
                     'vote_average': r.get('vote_average', 0),
                     'overview': r.get('overview', ''),
                     'already_added': r['id'] in existing_ids,
+                    'library_id': existing_ids.get(r['id']),
                     'media': 'tv',
                 })
         else:
-            data = tmdb.discover_movie(**discover_kwargs)
-            existing_ids = set(Movie.objects.values_list('tmdb_id', flat=True))
             for r in data.get('results', []):
                 items.append({
                     'id': r['id'],
@@ -919,6 +494,7 @@ def streaming_browse(request):
                     'vote_average': r.get('vote_average', 0),
                     'overview': r.get('overview', ''),
                     'already_added': r['id'] in existing_ids,
+                    'library_id': existing_ids.get(r['id']),
                     'media': 'movie',
                 })
         total_pages = min(data.get('total_pages', 1), 500)

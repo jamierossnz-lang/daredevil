@@ -1,13 +1,13 @@
 from django.db import models
 
 
+# What each notification category means now that Sonarr/Radarr run the
+# downloads — keys are unchanged from before so saved preferences still apply.
 CATEGORY_META = [
-    ('episodes_queued',   'New Episodes Queued',       'fa-tv',               'Monitored show has new aired episodes ready to download'),
-    ('movie_available',   'Movie Available Digitally', 'fa-film',             'A waiting movie is now streaming and has started downloading'),
-    ('download_complete', 'Download Complete',          'fa-circle-check',     'A torrent has finished downloading'),
-    ('download_failed',   'Download / Search Failed',  'fa-circle-xmark',     'No torrent found after all query attempts'),
-    ('file_moved',        'File Moved to Library',     'fa-folder-open',      'Download moved to the completed media folder'),
-    ('file_failed',       'File Move Failed',          'fa-circle-xmark',     'An error occurred while moving a download to the library'),
+    ('episodes_queued',   'Episodes Grabbed',          'fa-tv',               'Sonarr grabbed a release for a monitored episode'),
+    ('movie_available',   'Movie Grabbed',             'fa-film',             'Radarr grabbed a release — e.g. a waiting movie came out'),
+    ('file_moved',        'Imported to Library',       'fa-file-import',      'Sonarr/Radarr imported a download and Daredevil confirmed the file'),
+    ('file_failed',       'Import Problem',            'fa-circle-xmark',     "An import needs attention, or the file couldn't be confirmed on disk"),
     ('storage_warning',   'Storage Warning',           'fa-hard-drive',       'A drive has reached 75 % or 90 % capacity'),
 ]
 
@@ -42,8 +42,8 @@ class NotificationPrefs(models.Model):
 
     episodes_queued   = models.BooleanField(default=True)
     movie_available   = models.BooleanField(default=True)
-    download_complete = models.BooleanField(default=True)
-    download_failed   = models.BooleanField(default=True)
+    download_complete = models.BooleanField(default=True)  # legacy — no longer sent
+    download_failed   = models.BooleanField(default=True)  # legacy — no longer sent
     file_moved        = models.BooleanField(default=True)
     file_failed       = models.BooleanField(default=True)
     storage_warning   = models.BooleanField(default=True)

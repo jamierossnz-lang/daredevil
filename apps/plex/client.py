@@ -1,5 +1,6 @@
-import re
 import logging
+import re
+import threading
 from django.conf import settings
 
 log = logging.getLogger('daredevil.plex')
@@ -17,17 +18,32 @@ def _plex_setting(key, fallback_attr):
     return getattr(settings, fallback_attr, '')
 
 
+_server = {'key': None, 'plex': None}
+_server_lock = threading.Lock()
+
+
 def get_plex():
+    """
+    The Plex server, connected once per process and reused until the URL or
+    token changes — connecting costs a round trip of its own, on every page
+    that touches Plex.
+    """
     url   = _plex_setting('PLEX_URL',   'PLEX_URL')
     token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
     if not url or not token:
         return None
+    with _server_lock:
+        if _server['key'] == (url, token):
+            return _server['plex']
     try:
         from plexapi.server import PlexServer
-        return PlexServer(url, token, timeout=10)
+        plex = PlexServer(url, token, timeout=10)
     except Exception as e:
         log.warning('Plex connection failed: %s', e)
         return None
+    with _server_lock:
+        _server.update(key=(url, token), plex=plex)
+    return plex
 
 
 def extract_tmdb_id(item):

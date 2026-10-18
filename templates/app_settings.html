@@ -3,55 +3,32 @@
 {% block page_title %}App Settings{% endblock %}
 
 {% block content %}
+<div x-data="{ tab: 'general', fromHash() { const h = location.hash.replace('#', ''); if (['general','prowlarr','sonarr','radarr','qbittorrent','tasks'].includes(h)) this.tab = h; } }"
+     x-init="fromHash(); $watch('tab', v => history.replaceState({}, '', v === 'general' ? location.pathname : '#' + v))"
+     @hashchange.window="fromHash()">
+
+<!-- Tabs -->
+<div class="max-w-5xl mx-auto mb-6 overflow-x-auto scrollbar-thin -mx-4 px-4 sm:mx-auto sm:px-0">
+  <div class="flex gap-1.5 min-w-max">
+    {% for key, label, icon in settings_tabs %}
+    <button @click="tab = '{{ key }}'"
+            :class="tab === '{{ key }}' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+      <i class="fa-solid {{ icon }}"></i> {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+<div x-show="tab === 'general'">
 <div class="max-w-3xl mx-auto space-y-6" x-data="appSettings()" x-cloak>
 
   <!-- TMDB -->
   <div class="glass rounded-2xl p-6">
     <h2 class="text-sm font-semibold text-gray-200 mb-1">TMDB</h2>
-    <p class="text-xs text-gray-500 mb-4">API key for fetching movie/TV metadata and artwork. Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" class="text-brand-400 hover:underline">themoviedb.org</a>.</p>
+    <p class="text-xs text-gray-500 mb-4">API key for movie/TV metadata, artwork and the For You deck (recommendations, trending, new and upcoming titles). Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" class="text-brand-400 hover:underline">themoviedb.org</a>.</p>
     <label class="block text-xs text-gray-500 mb-1">API Key</label>
     <input type="text" x-model="cfg.TMDB_API_KEY"
-           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
-  </div>
-
-  <!-- Trakt -->
-  <div class="glass rounded-2xl p-6">
-    <h2 class="text-sm font-semibold text-gray-200 mb-1">Trakt</h2>
-    <p class="text-xs text-gray-500 mb-4">Client ID for the "New &amp; Anticipated" half of the For You swipe deck — pulls Trending, Releases, Anticipated, and Popular movies/shows. Only the Client ID is needed — no OAuth. Get one at <a href="https://trakt.tv/oauth/applications" target="_blank" class="text-brand-400 hover:underline">trakt.tv/oauth/applications</a>. Leave blank to skip — recommendations based on your library still work without it.</p>
-    <label class="block text-xs text-gray-500 mb-1">Client ID</label>
-    <input type="text" x-model="cfg.TRAKT_CLIENT_ID"
-           class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors mb-4">
-
-    <div class="flex items-center gap-3">
-      <button @click="testTrakt()" :disabled="traktState !== 'idle'"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border"
-              :class="{
-                'bg-surface-700 border-surface-600 text-gray-300 hover:bg-surface-600': traktState === 'idle',
-                'bg-surface-700 border-surface-600 text-gray-500 cursor-not-allowed': traktState === 'sending',
-                'bg-green-500/15 border-green-500/30 text-green-400': traktState === 'ok',
-                'bg-red-500/15 border-red-500/30 text-red-400': traktState === 'error',
-              }">
-        <i class="fa-solid"
-           :class="{
-             'fa-plug': traktState === 'idle',
-             'fa-spinner fa-spin': traktState === 'sending',
-             'fa-circle-check': traktState === 'ok',
-             'fa-circle-exclamation': traktState === 'error',
-           }"></i>
-        <span x-text="{ idle:'Test Connection', sending:'Testing…', ok:'Connected!', error:'Failed' }[traktState]"></span>
-      </button>
-      <span x-show="traktMsg" x-text="traktMsg" x-cloak
-            :class="traktState === 'error' ? 'text-red-400' : 'text-gray-400'"
-            class="text-xs"></span>
-    </div>
-  </div>
-
-  <!-- Paths -->
-  <div class="glass rounded-2xl p-6">
-    <h2 class="text-sm font-semibold text-gray-200 mb-1">Paths</h2>
-    <p class="text-xs text-gray-500 mb-4">Default download destination used when no category path is configured.</p>
-    <label class="block text-xs text-gray-500 mb-1">Default Download Path</label>
-    <input type="text" x-model="cfg.DOWNLOAD_PATH"
            class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
   </div>
 
@@ -390,9 +367,23 @@
   </div>
 
 </div>
+</div>
+
+<div x-show="tab === 'prowlarr'" x-cloak>{% include "settings/_prowlarr_tab.html" %}</div>
+<div x-show="tab === 'sonarr'" x-cloak>{% include "settings/_media_arr_tab.html" with kind="sonarr" label="Sonarr" %}</div>
+<div x-show="tab === 'radarr'" x-cloak>{% include "settings/_media_arr_tab.html" with kind="radarr" label="Radarr" %}</div>
+<div x-show="tab === 'qbittorrent'" x-cloak>{% include "settings/_qbittorrent_tab.html" %}</div>
+<div x-show="tab === 'tasks'" x-cloak>
+  <div class="max-w-5xl mx-auto" hx-get="{% url 'tasks_panel' %}" hx-trigger="intersect once" hx-swap="innerHTML">
+    <div class="py-12 text-center text-gray-500 text-sm"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading background tasks…</div>
+  </div>
+</div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+{% include "settings/_arr_tabs_js.html" %}
+{% include "tasks/_panel_js.html" %}
 <script>
 function appearanceSettings() {
   const THEMES = [
@@ -409,7 +400,7 @@ function appearanceSettings() {
     { key: 'movies',    icon: 'fa-film',              label: 'Movies'    },
     { key: 'queue',     icon: 'fa-download',          label: 'Queue'     },
     { key: 'streaming', icon: 'fa-satellite-dish',    label: 'Streaming' },
-    { key: 'moves',     icon: 'fa-file-export',       label: 'Moves'     },
+    { key: 'moves',     icon: 'fa-file-import',       label: 'Imports'   },
     { key: 'torrents',  icon: 'fa-seedling',          label: 'Torrents'  },
     { key: 'search',    icon: 'fa-magnifying-glass',  label: 'Search'    },
     { key: 'tasks',     icon: 'fa-gears',             label: 'Tasks'     },
@@ -445,8 +436,6 @@ function appSettings() {
   return {
     cfg: {
       TMDB_API_KEY:       '{{ cfg.TMDB_API_KEY|escapejs }}',
-      TRAKT_CLIENT_ID:    '{{ cfg.TRAKT_CLIENT_ID|escapejs }}',
-      DOWNLOAD_PATH:      '{{ cfg.DOWNLOAD_PATH|escapejs }}',
       REDIS_URL:          '{{ cfg.REDIS_URL|escapejs }}',
       TZ:                 '{{ cfg.TZ|escapejs }}',
       DEBUG:               {{ cfg.DEBUG|yesno:"true,false" }},
@@ -470,8 +459,6 @@ function appSettings() {
     celeryState: 'idle',
     ntfyState: 'idle',
     ntfyMsg: '',
-    traktState: 'idle',
-    traktMsg: '',
     notifPrefs: {},
     notifMeta: [],
     prefsLoading: true,
@@ -574,31 +561,6 @@ function appSettings() {
         this.ntfyMsg = e.message;
       }
       setTimeout(() => { this.ntfyState = 'idle'; this.ntfyMsg = ''; }, 5000);
-    },
-
-    async testTrakt() {
-      this.traktState = 'sending';
-      this.traktMsg = '';
-      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-      try {
-        const r = await fetch('/settings/trakt-test/', {
-          method: 'POST',
-          body: JSON.stringify({ TRAKT_CLIENT_ID: this.cfg.TRAKT_CLIENT_ID }),
-          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
-        });
-        const d = await r.json();
-        if (d.ok) {
-          this.traktState = 'ok';
-          this.traktMsg = 'Client ID is valid';
-        } else {
-          this.traktState = 'error';
-          this.traktMsg = d.error || 'Failed';
-        }
-      } catch(e) {
-        this.traktState = 'error';
-        this.traktMsg = e.message;
-      }
-      setTimeout(() => { this.traktState = 'idle'; this.traktMsg = ''; }, 5000);
     },
 
     async restartDjango() {

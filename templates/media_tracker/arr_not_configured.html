@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ app }} not connected{% endblock %}
+{% block page_title %}{% if kind == 'sonarr' %}TV Shows{% else %}Movies{% endif %}{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto glass rounded-2xl p-8 text-center mt-8">
+  <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-600/20 flex items-center justify-center mb-4">
+    <i class="fa-solid {% if kind == 'sonarr' %}fa-tv{% else %}fa-film{% endif %} text-2xl text-brand-400"></i>
+  </div>
+  <h2 class="text-lg font-semibold text-white mb-2">Connect {{ app }} first</h2>
+  <p class="text-sm text-gray-400 mb-6">
+    Your {% if kind == 'sonarr' %}TV shows{% else %}movies{% endif %} are stored and managed by {{ app }} — Daredevil is the front end.
+    Add {{ app }}'s URL and API key (in {{ app }}: Settings → General → Security) to get started.
+  </p>
+  <a href="{% url 'app_settings' %}#{{ kind }}"
+     class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-plug"></i> Open Settings → {{ app }}
+  </a>
+</div>
+{% endblock %}

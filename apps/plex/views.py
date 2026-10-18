@@ -1,11 +1,14 @@
 import logging
 import os
 import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
+import requests
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -22,153 +25,177 @@ _180_DAYS = timedelta(days=180)
 _365_DAYS = timedelta(days=365)
 
 
-def library(request):
-    plex = get_plex()
-    if not plex:
-        return render(request, 'plex/library.html', {
-            'configured': False,
-            'error': 'Could not connect to Plex. Check PLEX_URL and PLEX_TOKEN in App Settings.',
-        })
+def _plex_web_url(request):
+    """Plex's web app on the same host Daredevil was opened on. The bare
+    :32400 address is Plex's API (raw XML) — the app itself lives at /web."""
+    host = request.get_host().split(':')[0]
+    return f'{request.scheme}://{host}:32400/web'
 
-    plex_movies, plex_shows, recent, watched = [], [], [], []
+
+SNAPSHOT_KEY = 'plex_library_snapshot'
+SNAPSHOT_TTL = 15 * 60  # warm_caches refreshes it every 10 minutes
+
+
+def library_snapshot(plex, refresh=False):
+    """
+    Everything the Plex page shows from Plex, Sonarr and Radarr. The seven
+    reads are independent so they run in parallel, and the result is kept in
+    the shared cache (refreshed in the background by warm_caches, and
+    dropped when something is deleted from this page).
+    """
+    from django.core.cache import cache
+    data = None if refresh else cache.get(SNAPSHOT_KEY)
+    if data is not None:
+        return data
+
+    from apps.arr.services import image_url, in_thread, is_configured, radarr, sonarr
+
+    def movies():
+        return [movie_to_dict(m) for m in plex.library.section(settings.PLEX_MOVIE_SECTION).all()]
+
+    def shows():
+        return [show_to_dict(s) for s in plex.library.section(settings.PLEX_TV_SECTION).all()]
+
+    def recent_movies():
+        return [d for d in (item_to_dict(i) for i in plex.library.section(settings.PLEX_MOVIE_SECTION).recentlyAdded()[:20]) if d]
+
+    def recent_episodes():
+        eps = plex.library.section(settings.PLEX_TV_SECTION).search(sort='addedAt:desc', libtype='episode', maxresults=20)
+        return [d for d in (item_to_dict(e) for e in eps) if d]
+
+    def watched_episodes():
+        eps = plex.library.section(settings.PLEX_TV_SECTION).search(libtype='episode', sort='lastViewedAt:desc', maxresults=100)
+        return [d for d in (item_to_dict(e) for e in eps) if d and d.get('last_viewed')]
+
+    reads = {
+        'movies': movies, 'shows': shows, 'recent_movies': recent_movies, 'recent_episodes': recent_episodes,
+        'watched_episodes': watched_episodes,
+        'arr_movies': lambda: radarr().movies() if is_configured('radarr') else [],
+        'arr_series': lambda: sonarr().series_list() if is_configured('sonarr') else [],
+    }
+    results, failed = {}, {}
+    with ThreadPoolExecutor(max_workers=len(reads)) as pool:
+        futures = {k: pool.submit(in_thread, fn) for k, fn in reads.items()}
+        for k, f in futures.items():
+            try:
+                results[k] = f.result()
+            except Exception as e:
+                log.warning('Plex page: %s failed — %s', k, e)
+                results[k], failed[k] = [], e
+
     error = None
+    if 'movies' in failed:
+        error = f'Could not load Movies section "{settings.PLEX_MOVIE_SECTION}": {failed["movies"]}'
+    elif 'shows' in failed:
+        error = f'Could not load TV section "{settings.PLEX_TV_SECTION}": {failed["shows"]}'
 
-    try:
-        movie_section = plex.library.section(settings.PLEX_MOVIE_SECTION)
-        plex_movies = [movie_to_dict(m) for m in movie_section.all()]
-    except Exception as e:
-        log.warning('Plex movies fetch failed: %s', e)
-        error = f'Could not load Movies section "{settings.PLEX_MOVIE_SECTION}": {e}'
+    plex_movies, plex_shows = results['movies'], results['shows']
+    arr_movies, arr_series = results['arr_movies'], results['arr_series']
+    recent = sorted(results['recent_movies'] + results['recent_episodes'],
+                    key=lambda x: x.get('added_at') or 0, reverse=True)[:24]
 
-    try:
-        tv_section = plex.library.section(settings.PLEX_TV_SECTION)
-        plex_shows = [show_to_dict(s) for s in tv_section.all()]
-    except Exception as e:
-        log.warning('Plex TV fetch failed: %s', e)
-        if not error:
-            error = f'Could not load TV section "{settings.PLEX_TV_SECTION}": {e}'
+    # Recently watched: movies + shows by last viewed
+    watched = sorted(
+        [m for m in plex_movies if m.get('last_viewed')] + [s for s in plex_shows if s.get('view_count', 0) > 0],
+        key=lambda x: x.get('last_viewed') or x.get('added_at') or 0, reverse=True,
+    )[:24]
+    # Individual movies + episodes for the delete tab
+    watched_items = sorted(
+        [m for m in plex_movies if m.get('last_viewed')] + results['watched_episodes'],
+        key=lambda x: x.get('last_viewed') or 0, reverse=True,
+    )[:80]
 
-    try:
-        recent_raw = []
-        try:
-            ms = plex.library.section(settings.PLEX_MOVIE_SECTION)
-            recent_raw += list(ms.recentlyAdded()[:20])
-        except Exception as e:
-            log.warning('Plex recent movies: %s', e)
-        try:
-            ts = plex.library.section(settings.PLEX_TV_SECTION)
-            recent_raw += list(ts.search(sort='addedAt:desc', libtype='episode', maxresults=20))
-        except Exception as e:
-            log.warning('Plex recent TV episodes: %s', e)
-        recent = sorted(
-            [d for d in (item_to_dict(i) for i in recent_raw) if d],
-            key=lambda x: x.get('added_at') or 0,
-            reverse=True,
-        )[:24]
-    except Exception as e:
-        log.warning('Plex recent fetch failed: %s', e)
-
-    # Recently watched: merge movies + shows sorted by lastViewedAt
-    try:
-        def _sort_key(x):
-            return x.get('last_viewed') or x.get('added_at') or 0
-
-        watched = sorted(
-            [m for m in plex_movies if m.get('last_viewed')] +
-            [s for s in plex_shows  if s.get('view_count', 0) > 0],
-            key=_sort_key, reverse=True
-        )[:24]
-    except Exception as e:
-        log.warning('Plex watched merge failed: %s', e)
-
-    # Recently watched individual items (movies + episodes) for the delete tab
-    watched_items = []
-    try:
-        # Movies: reuse the already-fetched plex_movies dicts
-        watched_movie_dicts = [m for m in plex_movies if m.get('last_viewed')]
-
-        # Episodes: same search pattern that works for recently-added episodes
-        watched_ep_dicts = []
-        try:
-            ts_sec = plex.library.section(settings.PLEX_TV_SECTION)
-            eps_raw = ts_sec.search(libtype='episode', sort='lastViewedAt:desc', maxresults=100)
-            watched_ep_dicts = [d for d in (item_to_dict(e) for e in eps_raw) if d and d.get('last_viewed')]
-        except Exception as e:
-            log.warning('Plex watched episodes fetch: %s', e)
-
-        watched_items = sorted(
-            watched_movie_dicts + watched_ep_dicts,
-            key=lambda x: x.get('last_viewed') or 0, reverse=True
-        )[:80]
-    except Exception as e:
-        log.warning('Plex watched_items fetch failed: %s', e)
-
-    # ── Cross-reference with Daredevil ──
-    from apps.media_tracker.models import Movie, TVShow, Episode
-
-    movie_tmdb_to_pk = {str(m.tmdb_id): m.pk for m in Movie.objects.all()}
-    show_tmdb_to_pk  = {str(s.tmdb_id): s.pk for s in TVShow.objects.all()}
-    show_name_to_pk  = {s.name.lower(): s.pk for s in TVShow.objects.all()}
+    # ── Cross-reference with Sonarr / Radarr (the library) ──
+    movie_tmdb_to_id = {str(m['tmdbId']): m['id'] for m in arr_movies if m.get('tmdbId')}
+    show_tmdb_to_id = {str(s['tmdbId']): s['id'] for s in arr_series if s.get('tmdbId')}
+    show_name_to_id = {(s.get('title') or '').lower(): s['id'] for s in arr_series}
 
     def _enrich(items, is_show=False):
         for item in items:
             tmdb = item.get('tmdb_id')
             if is_show or item.get('type') == 'show':
-                pk = (tmdb and show_tmdb_to_pk.get(tmdb)) or \
-                     show_name_to_pk.get(item.get('parent_title', '')) or \
-                     show_name_to_pk.get(item.get('title', '').lower())
-                if pk:
-                    item['detail_url'] = f'/shows/{pk}/'
+                sid = (tmdb and show_tmdb_to_id.get(tmdb)) or \
+                      show_name_to_id.get((item.get('parent_title') or '').lower()) or \
+                      show_name_to_id.get((item.get('title') or '').lower())
+                if sid:
+                    item['detail_url'] = f'/shows/{sid}/'
             else:
-                pk = tmdb and movie_tmdb_to_pk.get(tmdb)
-                if pk:
-                    item['detail_url'] = f'/movies/{pk}/'
+                mid = tmdb and movie_tmdb_to_id.get(tmdb)
+                if mid:
+                    item['detail_url'] = f'/movies/{mid}/'
 
     _enrich(plex_movies)
     _enrich(plex_shows, is_show=True)
     _enrich(recent)
     _enrich(watched)
 
-    # ── Not in Plex ──
-    plex_movie_tmdb = {m['tmdb_id'] for m in plex_movies if m.get('tmdb_id')}
-    plex_show_tmdb  = {s['tmdb_id'] for s in plex_shows  if s.get('tmdb_id')}
-
-    downloaded_movies = list(Movie.objects.filter(download_status=Movie.DownloadStatus.DOWNLOADED))
-    missing_movies    = [m for m in downloaded_movies if str(m.tmdb_id) not in plex_movie_tmdb]
-
-    shows_with_downloads = set(
-        Episode.objects.filter(download_status=Episode.DownloadStatus.DOWNLOADED)
-        .values_list('season__show__tmdb_id', flat=True)
-    )
-    missing_shows = list(TVShow.objects.filter(
-        tmdb_id__in=shows_with_downloads,
-    ).exclude(
-        tmdb_id__in=[int(x) for x in plex_show_tmdb if x and x.isdigit()]
-    ))
-
-    # ── Cleanup candidates ──
-    from .models import PlexIgnored
-    ignored_keys = set(PlexIgnored.objects.values_list('rating_key', flat=True))
-    all_items = [i for i in plex_movies + plex_shows if i.get('rating_key') not in ignored_keys]
-
-    now = timezone.now()
-
-    candidates = _build_candidates(all_items, now.replace(tzinfo=None))
-    drives = get_disk_usage()
-
-    return render(request, 'plex/library.html', {
-        'configured': True,
+    # ── In Sonarr/Radarr with files on disk, but not in Plex ──
+    plex_movie_tmdb = {str(m['tmdb_id']) for m in plex_movies if m.get('tmdb_id')}
+    plex_show_tmdb = {str(s['tmdb_id']) for s in plex_shows if s.get('tmdb_id')}
+    data = {
         'error': error,
         'plex_movies': plex_movies,
         'plex_shows': plex_shows,
         'recent': recent,
         'watched': watched,
-        'missing_movies': missing_movies,
-        'missing_shows': missing_shows,
-        'candidates': candidates,
         'watched_items': watched_items,
-        'drives': drives,
+        'missing_movies': [
+            {'id': m['id'], 'title': m.get('title'), 'year': m.get('year'),
+             'poster': image_url(m.get('images'), 'poster', size='w92')}
+            for m in arr_movies if m.get('hasFile') and str(m.get('tmdbId')) not in plex_movie_tmdb
+        ],
+        'missing_shows': [
+            {'id': s['id'], 'title': s.get('title'), 'year': s.get('year'),
+             'poster': image_url(s.get('images'), 'poster')}
+            for s in arr_series
+            if (s.get('statistics') or {}).get('episodeFileCount', 0) > 0 and str(s.get('tmdbId')) not in plex_show_tmdb
+        ],
+        'fetched_at': timezone.now(),
+    }
+    # A failed read isn't cached, so the next visit tries again
+    if not failed:
+        cache.set(SNAPSHOT_KEY, data, SNAPSHOT_TTL)
+    return data
+
+
+def library(request):
+    plex = get_plex()
+    if not plex:
+        return render(request, 'plex/library.html', {
+            'configured': False,
+            'error': 'Could not connect to Plex. Check PLEX_URL and PLEX_TOKEN in App Settings.',
+            'plex_web_url': _plex_web_url(request),
+        })
+
+    if request.GET.get('refresh') == '1':
+        library_snapshot(plex, refresh=True)
+        return redirect(request.path)
+    data = library_snapshot(plex)
+
+    # ── Cleanup candidates (ignored items can change between snapshots) ──
+    from .models import PlexIgnored
+    ignored_keys = set(PlexIgnored.objects.values_list('rating_key', flat=True))
+    all_items = [i for i in data['plex_movies'] + data['plex_shows'] if i.get('rating_key') not in ignored_keys]
+    candidates = _build_candidates(all_items, timezone.now().replace(tzinfo=None))
+
+    return render(request, 'plex/library.html', {
+        'configured': True,
+        **data,
+        'candidates': candidates,
+        'drives': get_disk_usage(),
+        'plex_web_url': _plex_web_url(request),
     })
+
+
+def _rescan_plex(plex, item_type):
+    """Tell Plex to scan the affected library section so the entry disappears."""
+    try:
+        for section in plex.library.sections():
+            if (item_type == 'movie' and section.type == 'movie') or \
+               (item_type in ('show', 'season', 'episode') and section.type == 'show'):
+                section.update()
+    except Exception as exc:
+        log.warning('plex_delete: library scan failed: %s', exc)
 
 
 def _build_candidates(items, now):
@@ -274,15 +301,69 @@ def _build_candidates(items, now):
 
 # ── Action endpoints ──────────────────────────────────────────────────────────
 
+def _delete_via_arr(item, item_type, tmdb_id):
+    """
+    Delete through Sonarr/Radarr when they manage the item, so they don't
+    simply re-download it: a movie/show is removed from Radarr/Sonarr along
+    with its files; an episode/season has its files deleted and is
+    unmonitored. Returns a description of what was done, or None if the item
+    isn't managed by Sonarr/Radarr (caller falls back to deleting files).
+    """
+    from apps.arr.clients import ArrError
+    from apps.arr.services import invalidate_library, is_configured, library_index, radarr, sonarr
+    from .client import extract_tmdb_id
+
+    try:
+        if item_type == 'movie' and tmdb_id and is_configured('radarr'):
+            movie = radarr().movie_by_tmdb(int(tmdb_id))
+            if movie:
+                radarr().delete_movie(movie['id'], delete_files=True)
+                invalidate_library('radarr')
+                return f'removed {movie.get("title")} from Radarr (files deleted)'
+            return None
+
+        if item_type not in ('show', 'season', 'episode') or not is_configured('sonarr'):
+            return None
+        show = item if item_type == 'show' else item.show()
+        show_tmdb = tmdb_id if item_type == 'show' else extract_tmdb_id(show)
+        series_id = show_tmdb and library_index('sonarr').get(int(show_tmdb))
+        if not series_id:
+            return None
+        c = sonarr()
+        if item_type == 'show':
+            c.delete_series(series_id, delete_files=True)
+            invalidate_library('sonarr')
+            return 'removed the show from Sonarr (files deleted)'
+
+        episodes = c.episodes(series_id)
+        if item_type == 'season':
+            targets = [e for e in episodes if e.get('seasonNumber') == item.index]
+        else:
+            targets = [e for e in episodes
+                       if e.get('seasonNumber') == item.parentIndex and e.get('episodeNumber') == item.index]
+        if not targets:
+            return None
+        # Unmonitor first so Sonarr doesn't immediately grab them again
+        c.set_episodes_monitored([e['id'] for e in targets], False)
+        deleted = 0
+        for e in targets:
+            if e.get('episodeFileId'):
+                c.delete_episode_file(e['episodeFileId'])
+                deleted += 1
+        return f'deleted {deleted} episode file(s) via Sonarr and unmonitored them'
+    except ArrError as e:
+        log.warning('plex_delete: Sonarr/Radarr delete failed, falling back to filesystem — %s', e)
+        return None
+
+
 @require_POST
 def plex_delete(request, rating_key):
     """
-    Delete a Plex item by removing its files directly from the filesystem,
-    then trigger a Plex library scan to remove the entry from Plex.
-    Also removes the matching Movie/TVShow from the Daredevil library.
+    Delete a Plex item. Anything Sonarr/Radarr manage is deleted through
+    them (see _delete_via_arr); anything else has its files removed
+    directly. Either way Plex then rescans so the entry disappears.
     """
     from .client import extract_tmdb_id
-    from apps.media_tracker.models import Movie, TVShow
 
     plex = get_plex()
     if not plex:
@@ -292,6 +373,14 @@ def plex_delete(request, rating_key):
         item_type  = getattr(item, 'type', '')
         item_title = getattr(item, 'title', '')
         tmdb_id    = extract_tmdb_id(item)
+
+        from django.core.cache import cache
+        cache.delete(SNAPSHOT_KEY)
+        via_arr = _delete_via_arr(item, item_type, tmdb_id)
+        if via_arr:
+            log.info('plex_delete: ratingKey=%s %r — %s', rating_key, item_title, via_arr)
+            _rescan_plex(plex, item_type)
+            return JsonResponse({'ok': True, 'deleted': [], 'warnings': [], 'via': via_arr})
 
         # Plex runs in our docker-compose with /data/movies and /data/tv mounts.
         # The web container has the same dirs at /media/movies and /media/tv.
@@ -337,25 +426,7 @@ def plex_delete(request, rating_key):
         log.info('plex_delete: ratingKey=%s %r deleted=%s errors=%s',
                  rating_key, item_title, deleted_paths, errors)
 
-        # Tell Plex to scan the affected library section so the entry disappears
-        try:
-            for section in plex.library.sections():
-                if (item_type == 'movie' and section.type == 'movie') or \
-                   (item_type in ('show', 'season', 'episode') and section.type == 'show'):
-                    section.update()
-        except Exception as exc:
-            log.warning('plex_delete: library scan failed: %s', exc)
-
-        # Remove from Daredevil library
-        if tmdb_id:
-            if item_type == 'movie':
-                n, _ = Movie.objects.filter(tmdb_id=int(tmdb_id)).delete()
-                if n:
-                    log.info('plex_delete: removed Movie tmdb_id=%s', tmdb_id)
-            elif item_type == 'show':
-                n, _ = TVShow.objects.filter(tmdb_id=int(tmdb_id)).delete()
-                if n:
-                    log.info('plex_delete: removed TVShow tmdb_id=%s', tmdb_id)
+        _rescan_plex(plex, item_type)
 
         if errors and not deleted_paths:
             return JsonResponse({'error': '; '.join(errors)}, status=500)
@@ -405,20 +476,32 @@ def plex_ignore(request, rating_key):
     return JsonResponse({'ok': True})
 
 
+_thumb_local = threading.local()
+
+
 def thumb(request):
     """Proxy Plex thumbnails — keeps token server-side and handles Docker networking."""
+    from .client import _plex_setting
+
     path = request.GET.get('path', '')
     if not path or not path.startswith('/'):
         return HttpResponse(status=400)
 
-    plex_url   = getattr(settings, 'PLEX_URL', '')
-    plex_token = getattr(settings, 'PLEX_TOKEN', '')
+    plex_url = _plex_setting('PLEX_URL', 'PLEX_URL')
+    plex_token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
     if not plex_url or not plex_token:
         return HttpResponse(status=503)
 
-    url = f'{plex_url}{path}?X-Plex-Token={plex_token}'
+    # A page of posters is dozens of requests — reuse one connection per thread
+    session = getattr(_thumb_local, 'session', None)
+    if session is None:
+        session = _thumb_local.session = requests.Session()
     try:
-        r = http_requests.get(url, timeout=8)
+        # Plex's own resizer — a poster-sized JPEG is about a tenth of the original artwork
+        r = session.get(f'{plex_url.rstrip("/")}/photo/:/transcode', timeout=8, params={
+            'url': path, 'width': 300, 'height': 450, 'upscale': 0, 'X-Plex-Token': plex_token,
+        })
+        r.raise_for_status()
         resp = HttpResponse(r.content, content_type=r.headers.get('Content-Type', 'image/jpeg'))
         resp['Cache-Control'] = 'max-age=86400'
         return resp

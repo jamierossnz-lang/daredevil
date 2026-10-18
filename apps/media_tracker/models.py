@@ -1,6 +1,11 @@
 from django.db import models
 from django.utils import timezone
 
+# LEGACY — Sonarr and Radarr are the library now (apps.arr). These tables are
+# no longer read or written by the app; they're kept only as the source for
+# the one-off "Import old library" step (apps.arr.legacy / manage.py
+# import_library_to_arr) and can be dropped once that has been run.
+
 
 class TVShow(models.Model):
     class Status(models.TextChoices):

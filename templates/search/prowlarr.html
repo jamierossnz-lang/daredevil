@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block page_title %}Search{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'app_settings' %}#prowlarr" title="Indexers"
+   class="hidden sm:flex items-center gap-2 px-3 py-2 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-xl text-sm font-medium transition-colors">
+  <i class="fa-solid fa-list-check text-xs"></i> Indexers
+</a>
+{% endblock %}
+
+{% block content %}
+{% if not configured %}
+<div class="max-w-xl mx-auto glass rounded-2xl p-8 text-center mt-8">
+  <i class="fa-solid fa-magnifying-glass text-4xl text-brand-400 mb-4 block"></i>
+  <h2 class="text-lg font-semibold text-white mb-2">Connect Prowlarr to search</h2>
+  <p class="text-sm text-gray-400 mb-6">Search runs through Prowlarr's indexers. Add its URL and API key, then add some indexers.</p>
+  <a href="{% url 'app_settings' %}#prowlarr" class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium">
+    <i class="fa-solid fa-plug"></i> Settings → Prowlarr
+  </a>
+</div>
+{% else %}
+{% if error %}
+<div class="glass rounded-2xl p-4 border border-red-500/30 mb-4 text-sm text-red-300"><i class="fa-solid fa-circle-exclamation mr-2"></i>Prowlarr: {{ error }}</div>
+{% endif %}
+
+<div x-data="prowlarrSearch()" x-init="init()">
+  <!-- ── Search form ── -->
+  <div class="glass rounded-2xl p-4 sm:p-5 mb-5 space-y-3">
+    <form @submit.prevent="run(true)" class="flex flex-col lg:flex-row gap-2">
+      <div class="relative flex-1 min-w-0">
+        <i class="fa-solid absolute left-3.5 top-1/2 -translate-y-1/2" :class="loading ? 'fa-spinner fa-spin text-brand-400' : 'fa-magnifying-glass text-gray-500'"></i>
+        <input type="text" x-ref="q" x-model="query" autocomplete="off"
+               @keyup="caret = $event.target.selectionStart" @click="caret = $event.target.selectionStart"
+               :placeholder="type === 'tvsearch' ? 'Search TV — a show, S01E01, or {Token:value} parameters…' : 'Search movies — a title, year, or {Token:value} parameters…'"
+               class="w-full pl-10 pr-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 font-mono">
+      </div>
+      <div class="flex gap-2">
+        <div class="flex rounded-xl bg-surface-800 border border-surface-600 p-1">
+          <template x-for="t in types" :key="t.key">
+            <button type="button" @click="setType(t.key)"
+                    :class="type === t.key ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+              <i class="fa-solid mr-1.5" :class="t.key === 'tvsearch' ? 'fa-tv' : 'fa-film'"></i><span x-text="t.label"></span>
+            </button>
+          </template>
+        </div>
+        <button type="submit" :disabled="loading"
+                class="px-5 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-colors">
+          Search
+        </button>
+      </div>
+    </form>
+
+    <!-- Parameter tokens for the chosen search type -->
+    <div x-show="currentType().tokens.length" class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[11px] text-gray-500 mr-1">Insert parameter:</span>
+      <template x-for="tok in currentType().tokens" :key="tok.token">
+        <button type="button" @click="insertToken(tok.token)" :title="`e.g. ${tok.example}`"
+                class="px-2 py-1 rounded-lg bg-surface-800 border border-surface-600 hover:border-brand-500 text-[11px] font-mono text-brand-300 transition-colors"
+                x-text="tok.token"></button>
+      </template>
+      <span class="text-[11px] text-gray-600 ml-1">— e.g. <span class="font-mono">{TvdbId:71663} {Season:32}</span>. Not every indexer supports every parameter.</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Indexers -->
+      <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+        <button type="button" @click="open = !open"
+                class="flex items-center gap-2 px-3 py-1.5 bg-surface-800 border border-surface-600 rounded-lg text-xs text-gray-300 hover:border-brand-500">
+          <i class="fa-solid fa-server text-gray-500"></i><span x-text="indexerLabel()"></span><i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
+        </button>
+        <div x-show="open" x-cloak class="absolute z-30 mt-1 w-72 max-h-80 overflow-y-auto scrollbar-thin glass rounded-xl shadow-2xl p-2 text-sm">
+          <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer">
+            <input type="radio" value="all" x-model="indexerMode" class="accent-brand-500"> All indexers
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer">
+            <input type="radio" value="-2" x-model="indexerMode" class="accent-brand-500"> All torrent indexers
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer">
+            <input type="radio" value="-1" x-model="indexerMode" class="accent-brand-500"> All usenet indexers
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer">
+            <input type="radio" value="pick" x-model="indexerMode" class="accent-brand-500"> Choose…
+          </label>
+          <div x-show="indexerMode === 'pick'" class="border-t border-white/5 mt-1 pt-1">
+            <template x-for="ix in indexers" :key="ix.id">
+              <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer">
+                <input type="checkbox" :value="ix.id" x-model.number="indexerIds" class="accent-brand-500">
+                <span class="flex-1 truncate" x-text="ix.name"></span>
+                <span class="text-[10px] text-gray-500" x-text="ix.protocol"></span>
+              </label>
+            </template>
+            <p x-show="!indexers.length" class="text-xs text-gray-500 px-2 py-2">No enabled indexers — add some in Settings → Prowlarr.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+        <button type="button" @click="open = !open"
+                class="flex items-center gap-2 px-3 py-1.5 bg-surface-800 border border-surface-600 rounded-lg text-xs text-gray-300 hover:border-brand-500">
+          <i class="fa-solid fa-tags text-gray-500"></i><span x-text="categoryLabel()"></span><i class="fa-solid fa-chevron-down text-[10px] text-gray-500"></i>
+        </button>
+        <div x-show="open" x-cloak class="absolute z-30 mt-1 w-72 max-h-96 overflow-y-auto scrollbar-thin glass rounded-xl shadow-2xl p-2 text-sm">
+          <button type="button" @click="cats = []" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-surface-700 text-xs text-gray-400" x-text="`Clear — search all ${type === 'tvsearch' ? 'TV' : 'movie'} categories`"></button>
+          <template x-for="c in categories.filter(c => c.id === currentType().category)" :key="c.id">
+            <div>
+              <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-700 cursor-pointer font-medium text-gray-200">
+                <input type="checkbox" :checked="cats.includes(c.id)" @change="toggleTop(c, $event.target.checked)" class="accent-brand-500">
+                <span x-text="`${c.name} (${c.id})`"></span>
+              </label>
+              <template x-for="sc in c.subs" :key="sc.id">
+                <label class="flex items-center gap-2 pl-7 pr-2 py-1 rounded-lg hover:bg-surface-700 cursor-pointer text-xs text-gray-400">
+                  <input type="checkbox" :value="sc.id" x-model.number="cats" class="accent-brand-500">
+                  <span x-text="sc.name.split('/').slice(1).join('/') || sc.name"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <label class="flex items-center gap-1.5 text-xs text-gray-400">
+        Limit
+        <select x-model.number="limit" class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1 text-xs text-gray-300">
+          <template x-for="n in [50, 100, 250, 500, 1000]" :key="n"><option :value="n" x-text="n" :selected="n === limit"></option></template>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div x-show="error" x-cloak class="glass rounded-2xl p-4 border border-red-500/30 mb-4 text-sm text-red-300" x-text="error"></div>
+
+  <template x-if="searched">
+    <div>
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="text-sm text-gray-400" x-text="`${filtered().length} of ${results.length} results`"></span>
+        <input type="text" x-model="filter" placeholder="Filter results…"
+               class="flex-1 min-w-[10rem] max-w-xs px-3 py-1.5 bg-surface-800 border border-surface-600 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+        <div x-show="selected.length" class="flex flex-wrap items-center gap-1.5 ml-auto">
+          <span class="text-xs text-gray-500" x-text="`${selected.length} selected`"></span>
+          <button @click="chooseDownload(selectedReleases())" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium">
+            <i class="fa-solid fa-download mr-1"></i>Download
+          </button>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-[11px] uppercase tracking-wider text-gray-500 border-b border-white/5">
+              <tr>
+                <th class="px-3 py-2.5 w-8"><input type="checkbox" class="accent-brand-500" @change="toggleAll($event.target.checked)"></th>
+                <template x-for="col in columns" :key="col.key">
+                  <th class="px-3 py-2.5 text-left whitespace-nowrap cursor-pointer select-none hover:text-gray-300" :class="col.cls" @click="sortBy(col.key)">
+                    <span x-text="col.label"></span>
+                    <i x-show="sortKey === col.key" class="fa-solid ml-0.5" :class="sortDir > 0 ? 'fa-caret-up' : 'fa-caret-down'"></i>
+                  </th>
+                </template>
+                <th class="px-3 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-700/30">
+              <template x-for="r in filtered()" :key="r.guid + r.indexer_id">
+                <tr class="hover:bg-surface-700/20" :class="selected.includes(r.guid) ? 'bg-brand-600/5' : ''">
+                  <td class="px-3 py-2"><input type="checkbox" :value="r.guid" x-model="selected" class="accent-brand-500"></td>
+                  <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 hidden sm:table-cell" x-text="ageLabel(r)"></td>
+                  <td class="px-3 py-2 min-w-[11rem] sm:min-w-[18rem]">
+                    <a :href="r.info_url || '#'" target="_blank" rel="noreferrer" class="text-xs text-gray-100 hover:text-brand-300 break-all leading-snug" x-text="r.title"></a>
+                    <div class="flex flex-wrap gap-1 mt-0.5">
+                      <template x-for="c in r.categories.slice(0, 3)" :key="c"><span class="text-[10px] px-1.5 rounded bg-surface-700 text-gray-400" x-text="c"></span></template>
+                      <template x-for="f in r.indexer_flags" :key="f"><span class="text-[10px] px-1.5 rounded bg-green-600/20 text-green-300" x-text="f"></span></template>
+                    </div>
+                  </td>
+                  <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-400 hidden md:table-cell" x-text="r.indexer"></td>
+                  <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-300 text-right" x-text="r.size_fmt"></td>
+                  <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-400 text-right hidden lg:table-cell" x-text="r.grabs ?? '—'"></td>
+                  <td class="px-3 py-2 whitespace-nowrap text-xs text-right">
+                    <template x-if="r.protocol === 'torrent'">
+                      <span><span class="text-green-400" x-text="r.seeders ?? '?'"></span><span class="text-gray-600"> / </span><span class="text-gray-400" x-text="r.leechers ?? '?'"></span></span>
+                    </template>
+                    <template x-if="r.protocol !== 'torrent'"><span class="text-gray-500">usenet</span></template>
+                  </td>
+                  <td class="px-3 py-2 whitespace-nowrap text-right">
+                    <button @click="chooseDownload([r])" :disabled="busy === r.guid" title="Download — Sonarr (TV) or Radarr (movies) grabs it and imports it"
+                            class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-brand-600/60 text-gray-300 hover:text-white inline-flex items-center justify-center">
+                      <i class="fa-solid text-xs" :class="busy === r.guid ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div x-show="!results.length && !loading" class="py-12 text-center text-gray-500 text-sm">No results.</div>
+      </div>
+
+      <div class="mt-4 text-center" x-show="canLoadMore">
+        <button @click="run(false)" :disabled="loading"
+                class="px-5 py-2 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-xl text-sm font-medium">
+          <i class="fa-solid mr-1.5" :class="loading ? 'fa-spinner fa-spin' : 'fa-angles-down'"></i>Load more
+        </button>
+      </div>
+      <p class="text-[11px] text-gray-600 mt-3">
+        <i class="fa-solid fa-circle-info mr-1"></i><strong class="text-gray-500">Download</strong> hands the file to Sonarr (TV) or Radarr (movies):
+        they grab it, track it in the Queue and import it into the library. Not in your library yet? You'll be asked to add it first.
+      </p>
+    </div>
+  </template>
+
+  <template x-if="!searched && !loading">
+    <div class="text-center py-16 text-gray-500">
+      <i class="fa-solid fa-magnifying-glass text-5xl text-gray-700 mb-4 block"></i>
+      <p>Search every indexer in Prowlarr for TV shows and movies</p>
+    </div>
+  </template>
+
+  <!-- Download as… -->
+  <div x-show="chooser" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="chooser = null"></div>
+    <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-5" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Download as</p>
+      <p class="text-xs text-gray-300 break-all mb-4" x-text="chooser?.releases.length === 1 ? chooser.releases[0].title : `${chooser?.releases.length} releases`"></p>
+      <div class="grid grid-cols-2 gap-2">
+        <template x-for="k in ['sonarr', 'radarr']" :key="k">
+          <button @click="download(k, chooser.releases)" x-show="enabled[k]"
+                  :class="chooser?.guess === k ? (k === 'sonarr' ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-purple-600 hover:bg-purple-500 text-white') : 'bg-surface-700 hover:bg-surface-600 text-gray-200'"
+                  class="py-4 rounded-xl flex flex-col items-center gap-1 transition-colors">
+            <i class="fa-solid text-xl" :class="k === 'sonarr' ? 'fa-tv' : 'fa-film'"></i>
+            <span class="text-sm font-semibold" x-text="k === 'sonarr' ? 'TV show' : 'Movie'"></span>
+            <span class="text-[10px] opacity-75" x-text="k === 'sonarr' ? 'Sonarr' : 'Radarr'"></span>
+          </button>
+        </template>
+      </div>
+      <button @click="chooser = null" class="w-full mt-3 py-2 text-gray-500 hover:text-gray-300 text-xs">Cancel</button>
+    </div>
+  </div>
+
+  <!-- What Sonarr/Radarr said -->
+  <div x-show="outcomes.length" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="absolute inset-0 bg-black/70" @click="outcomes = []"></div>
+    <div class="relative glass rounded-t-3xl sm:rounded-2xl p-5 w-full sm:max-w-lg max-h-[85vh] overflow-y-auto" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+      <h3 class="text-base font-bold text-white mb-3" x-text="outcomeKind === 'sonarr' ? 'Sonarr' : 'Radarr'"></h3>
+      <template x-for="o in outcomes" :key="o.guid">
+        <div class="mb-3 p-3 rounded-xl bg-surface-800/60 border border-white/5">
+          <p class="text-xs text-gray-200 break-all" x-text="o.title"></p>
+          <p x-show="o.approved" class="text-xs text-green-400 mt-1">
+            <i class="fa-solid fa-circle-check mr-1"></i><span x-text="o.forced ? 'Sent to qBittorrent — it imports when done' : 'Grabbed'"></span>
+          </p>
+          <template x-if="!o.approved">
+            <div>
+              <p x-show="o.unknown" class="text-xs text-yellow-300/90 mt-1">
+                <i class="fa-solid fa-circle-info mr-1"></i><span x-text="`Not in your library yet${o.match ? ` — it looks like ${o.match.title}${o.match.year ? ` (${o.match.year})` : ''}` : ''}.`"></span>
+              </p>
+              <ul x-show="!o.unknown" class="text-xs text-red-300 list-disc list-inside mt-1">
+                <template x-for="r in o.rejections" :key="r"><li x-text="r"></li></template>
+              </ul>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <button x-show="o.unknown && o.match" @click="addThenDownload(o)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white">
+                  <i class="fa-solid fa-plus mr-1"></i><span x-text="`Add to ${outcomeKind === 'sonarr' ? 'Sonarr' : 'Radarr'} & download`"></span>
+                </button>
+                <a x-show="o.unknown && !o.match" :href="outcomeKind === 'sonarr' ? '/shows/search/' : '/movies/search/'"
+                   class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-700 hover:bg-surface-600 text-gray-200">Find it to add…</a>
+                <button x-show="o.can_force" @click="forceDownload(o)" :disabled="busy === o.guid"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-700 hover:bg-surface-600 text-gray-200">
+                  <i class="fa-solid mr-1" :class="busy === o.guid ? 'fa-spinner fa-spin' : 'fa-download'"></i>Download anyway
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+      <button @click="outcomes = []" class="w-full mt-1 py-2 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm">Close</button>
+    </div>
+  </div>
+</div>
+{{ indexers|json_script:"px-indexers" }}
+{{ categories|json_script:"px-categories" }}
+{{ search_types|json_script:"px-types" }}
+{{ initial|json_script:"px-initial" }}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if configured %}
+<script>
+function prowlarrSearch() {
+  const j = id => JSON.parse(document.getElementById(id).textContent);
+  return {
+    indexers: j('px-indexers'),
+    categories: j('px-categories'),
+    types: j('px-types'),
+    query: '', type: 'tvsearch', caret: null,
+    indexerMode: 'all', indexerIds: [], cats: [], limit: 100,
+    results: [], offset: 0, canLoadMore: false, searched: false, loading: false, error: '',
+    filter: '', selected: [], busy: null, chooser: null, outcomes: [], outcomeKind: null,
+    enabled: { sonarr: {{ sonarr_enabled|yesno:'true,false' }}, radarr: {{ radarr_enabled|yesno:'true,false' }} },
+    sortKey: null, sortDir: -1,
+    columns: [
+      { key: 'age_hours', label: 'Age', cls: 'hidden sm:table-cell' },
+      { key: 'title', label: 'Title' },
+      { key: 'indexer', label: 'Indexer', cls: 'hidden md:table-cell' },
+      { key: 'size', label: 'Size', cls: 'text-right' },
+      { key: 'grabs', label: 'Grabs', cls: 'text-right hidden lg:table-cell' },
+      { key: 'seeders', label: 'Peers', cls: 'text-right' },
+    ],
+    init() {
+      const initial = j('px-initial');
+      this.query = initial.q || '';
+      this.type = initial.type || 'tvsearch';
+      if (this.query) this.run(true);
+      else if (window.matchMedia('(min-width: 640px)').matches) this.$nextTick(() => this.$refs.q.focus());
+    },
+    currentType() { return this.types.find(t => t.key === this.type) || this.types[0]; },
+    setType(key) {
+      if (key === this.type) return;
+      this.type = key;
+      this.cats = [];  // each type has its own category tree
+      if (this.searched && this.query.trim()) this.run(true);
+    },
+    insertToken(token) {
+      const el = this.$refs.q;
+      const pos = this.caret ?? this.query.length;
+      const before = this.query.slice(0, pos);
+      const sep = before && !before.endsWith(' ') ? ' ' : '';
+      this.query = `${before}${sep}${token}${this.query.slice(pos)}`;
+      this.$nextTick(() => {
+        el.focus();
+        // Select the example value inside the braces so typing replaces it
+        const start = before.length + sep.length + token.indexOf(':') + 1;
+        el.setSelectionRange(start, start + token.length - token.indexOf(':') - 2);
+        this.caret = start;
+      });
+    },
+    indexerLabel() {
+      if (this.indexerMode === '-2') return 'All torrent indexers';
+      if (this.indexerMode === '-1') return 'All usenet indexers';
+      if (this.indexerMode === 'pick') return this.indexerIds.length ? `${this.indexerIds.length} indexer${this.indexerIds.length === 1 ? '' : 's'}` : 'Choose indexers';
+      return 'All indexers';
+    },
+    categoryLabel() {
+      if (!this.cats.length) return this.type === 'tvsearch' ? 'All TV' : 'All movies';
+      const names = this.categories.flatMap(c => [c, ...c.subs]).filter(c => this.cats.includes(c.id)).map(c => c.name);
+      return names.length > 2 ? `${names.length} categories` : names.join(', ');
+    },
+    toggleTop(c, on) {
+      const ids = [c.id, ...c.subs.map(s => s.id)];
+      this.cats = on ? [...new Set([...this.cats, ...ids])] : this.cats.filter(id => !ids.includes(id));
+    },
+    async run(fresh) {
+      if (!this.query.trim()) { this.error = 'Enter something to search for'; return; }
+      this.loading = true;
+      this.error = '';
+      if (fresh) { this.offset = 0; this.selected = []; }
+      const p = new URLSearchParams({ q: this.query.trim(), type: this.type, limit: this.limit, offset: this.offset });
+      if (this.indexerMode === '-1' || this.indexerMode === '-2') p.append('indexer', this.indexerMode);
+      else if (this.indexerMode === 'pick') this.indexerIds.forEach(id => p.append('indexer', id));
+      this.cats.forEach(c => p.append('cat', c));
+      history.replaceState({}, '', `?${new URLSearchParams({ q: this.query.trim(), type: this.type })}`);
+      try {
+        const r = await fetch(`{% url 'search_run' %}?${p}`);
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.error || 'Search failed');
+        this.results = fresh ? d.results : [...this.results, ...d.results];
+        this.offset += d.results.length;
+        this.canLoadMore = d.results.length >= this.limit;
+        this.searched = true;
+      } catch (e) {
+        this.error = e.message;
+      }
+      this.loading = false;
+    },
+    ageLabel(r) {
+      if (r.age_hours == null) return '';
+      if (r.age_hours < 1) return '<1h';
+      if (r.age_hours < 48) return `${Math.round(r.age_hours)}h`;
+      return `${r.age}d`;
+    },
+    sortBy(key) {
+      if (this.sortKey === key) this.sortDir = -this.sortDir;
+      else { this.sortKey = key; this.sortDir = key === 'title' || key === 'indexer' || key === 'age_hours' ? 1 : -1; }
+    },
+    filtered() {
+      const q = this.filter.trim().toLowerCase();
+      let list = q ? this.results.filter(r => r.title.toLowerCase().includes(q) || r.indexer.toLowerCase().includes(q)) : [...this.results];
+      if (this.sortKey) {
+        const k = this.sortKey, dir = this.sortDir;
+        list.sort((a, b) => {
+          const x = a[k] ?? (typeof b[k] === 'string' ? '' : -1), y = b[k] ?? (typeof a[k] === 'string' ? '' : -1);
+          return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir;
+        });
+      }
+      return list;
+    },
+    toggleAll(on) { this.selected = on ? this.filtered().map(r => r.guid) : []; },
+    selectedReleases() { return this.results.filter(r => this.selected.includes(r.guid)); },
+    // ── Download: hand releases to Sonarr (TV) or Radarr (movies) ──
+    guessKind(releases) {
+      // Newznab categories: 5000s are TV, 2000s are movies
+      const ids = releases.flatMap(r => r.category_ids || []);
+      const tv = ids.filter(i => i >= 5000 && i < 6000).length, mv = ids.filter(i => i >= 2000 && i < 3000).length;
+      if (tv !== mv) return tv > mv ? 'sonarr' : 'radarr';
+      return this.currentType().kind;
+    },
+    chooseDownload(releases) {
+      if (!releases.length) return;
+      const kinds = ['sonarr', 'radarr'].filter(k => this.enabled[k]);
+      if (!kinds.length) return ddToast('Connect Sonarr or Radarr in Settings first', 'error');
+      if (kinds.length === 1) return this.download(kinds[0], releases);
+      this.chooser = { releases, guess: this.guessKind(releases) };
+    },
+    async download(kind, releases, extra) {
+      this.chooser = null;
+      this.busy = releases.length === 1 ? releases[0].guid : null;
+      const d = await ddPost('{% url "search_grab" %}', { action: kind, releases, ...(extra || {}) });
+      this.busy = null;
+      if (!d.outcomes) return ddToast(d.error || 'Download failed', 'error');
+      const app = kind === 'sonarr' ? 'Sonarr' : 'Radarr';
+      if (d.outcomes.every(o => o.approved)) {
+        this.selected = [];
+        ddAddedBanner({
+          kind, heading: `Downloading via ${app}`, url: '/downloads/',
+          title: releases.length === 1 ? releases[0].title : `${releases.length} releases`,
+          message: `${app} tracks it in the Queue and imports it when it's done`,
+        });
+        return;
+      }
+      this.outcomeKind = kind;
+      this.outcomes = d.outcomes;
+    },
+    _release(o) { return this.results.find(r => r.guid === o.guid); },
+    async forceDownload(o) {
+      const kind = this.outcomeKind;
+      this.busy = o.guid;
+      const d = await ddPost('{% url "search_grab" %}', { action: `force_${kind}`, releases: [this._release(o)] });
+      this.busy = null;
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      o.approved = true;
+      o.forced = true;
+    },
+    addThenDownload(o) {
+      const kind = this.outcomeKind, release = this._release(o), m = o.match;
+      this.outcomes = [];
+      openAddModal({
+        kind, tvdbId: m.tvdb_id, tmdbId: m.tmdb_id, title: m.title, year: m.year, poster: m.poster, release,
+        onAdded: (d) => this.download(kind, [release], { series_id: kind === 'sonarr' ? d.id : null, force_if_rejected: true }),
+      });
+    },
+  };
+}
+</script>
+{% endif %}
+{% endblock %}

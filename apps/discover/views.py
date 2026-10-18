@@ -2,7 +2,6 @@ import random
 
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import DiscoverItem, DiscoverDecision
@@ -80,54 +79,10 @@ def swipe_left(request, pk):
 
 
 @require_POST
-def swipe_right_add(request, pk):
-    """Right swipe, 'Add to Library' — track it, no download/monitor triggered."""
+def swipe_right(request, pk):
+    """Right swipe — called once the show/movie has been added through the
+    shared Add dialog (tagged 'for-you' in Sonarr/Radarr)."""
     item = get_object_or_404(DiscoverItem, pk=pk)
     _record_decision(item, DiscoverDecision.Direction.RIGHT)
-    result = _add_to_library(item, download=False)
     item.delete()
-    return JsonResponse(result)
-
-
-@require_POST
-def swipe_right_download(request, pk):
-    """Right swipe, 'Add to Library + Download' — for unreleased titles this
-    falls through to the same waiting-for-release / monitor behaviour the
-    rest of the app already uses, it doesn't try to download something that
-    doesn't exist yet."""
-    item = get_object_or_404(DiscoverItem, pk=pk)
-    _record_decision(item, DiscoverDecision.Direction.RIGHT)
-    result = _add_to_library(item, download=True)
-    item.delete()
-    return JsonResponse(result)
-
-
-def _add_to_library(item, download):
-    from apps.media_tracker.tmdb import tmdb
-    from apps.media_tracker.models import Movie, TVShow
-    from apps.media_tracker.views import _queue_movie
-
-    if item.media_type == DiscoverItem.MediaType.MOVIE:
-        movie = Movie.objects.filter(tmdb_id=item.tmdb_id).first()
-        if not movie:
-            movie = tmdb.sync_movie_to_db(item.tmdb_id)
-        if download:
-            _queue_movie(movie, quality='1080p')
-        return {'status': 'ok', 'title': movie.title, 'media_type': 'movie', 'pk': movie.pk}
-
-    show = TVShow.objects.filter(tmdb_id=item.tmdb_id).first()
-    if not show:
-        show = tmdb.sync_show_to_db(item.tmdb_id)
-        from apps.media_tracker.tasks import sync_tvmaze_show
-        sync_tvmaze_show.delay(show.pk)
-    if download:
-        fields = []
-        if not show.monitor_new_episodes:
-            show.monitor_new_episodes = True
-            fields.append('monitor_new_episodes')
-        if show.monitor_from is None:
-            show.monitor_from = timezone.now().date()
-            fields.append('monitor_from')
-        if fields:
-            show.save(update_fields=fields)
-    return {'status': 'ok', 'title': show.name, 'media_type': 'tv', 'pk': show.pk}
+    return JsonResponse({'status': 'ok'})

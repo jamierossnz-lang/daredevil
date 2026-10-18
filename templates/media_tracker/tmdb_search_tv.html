@@ -1,17 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Search TV Shows{% endblock %}
+{% block title %}Add TV Show{% endblock %}
 {% block page_title %}Add TV Show{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-4xl mx-auto">
   <!-- Search Box -->
   <div class="glass rounded-2xl p-4 sm:p-6 mb-6">
     <form id="searchForm" class="flex gap-2 sm:gap-3">
-      {% csrf_token %}
       <div class="relative flex-1 min-w-0">
         <i id="searchIcon" class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
         <input type="text" id="searchInput" name="q" value="{{ query }}" autocomplete="off"
-               placeholder="Search TMDB for TV shows…"
+               placeholder="Search for a TV show…"
                class="w-full pl-10 pr-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-colors">
       </div>
       <button type="submit" class="flex-none px-4 sm:px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors">
@@ -19,64 +18,20 @@
         <span class="hidden sm:inline">Search</span>
       </button>
     </form>
+    <p class="text-xs text-gray-600 mt-2">Results come from Sonarr (TheTVDB). You can also search by id: <span class="font-mono text-gray-500">tvdb:121361</span> or <span class="font-mono text-gray-500">imdb:tt0944947</span>.</p>
   </div>
 
-  <!-- Results -->
-  <div id="results">
-    {% if results %}
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-      {% for show in results %}
-      <div class="glass rounded-xl overflow-hidden card-hover animate-slide-in relative group"
-           style="animation-delay: {{ forloop.counter0 }}0ms">
-        {% if show.poster_path %}
-        <img src="https://image.tmdb.org/t/p/w342{{ show.poster_path }}" alt="{{ show.name }}" class="w-full aspect-[2/3] object-cover">
-        {% else %}
-        <div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center">
-          <i class="fa-solid fa-tv text-3xl text-gray-600"></i>
-        </div>
-        {% endif %}
-        <div class="p-3">
-          <p class="text-sm font-medium text-gray-200 truncate mb-1">{{ show.name }}</p>
-          <p class="text-xs text-gray-500 mb-3">{% if show.first_air_date %}{{ show.first_air_date|slice:":4" }}{% endif %}</p>
-          {% if show.already_added %}
-          <span class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
-            <i class="fa-solid fa-circle-check mr-1"></i>Already Added
-          </span>
-          {% else %}
-          <button onclick="addShow({{ show.id }}, '{{ show.name|escapejs }}', this)"
-                  class="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors">
-            <i class="fa-solid fa-plus mr-1"></i>Add Show
-          </button>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% elif query %}
-    <div class="text-center py-16">
-      <i class="fa-solid fa-tv text-4xl text-gray-700 mb-4"></i>
-      <p class="text-gray-500">No results for "{{ query }}"</p>
-    </div>
-    {% else %}
-    <div class="text-center py-16 text-gray-500">
-      <i class="fa-brands fa-themeco text-5xl text-gray-700 mb-4 block"></i>
-      <p>Search TMDB to find a show to add</p>
-    </div>
-    {% endif %}
-  </div>
+  <div id="results">{% include "media_tracker/_tv_search_results.html" %}</div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const csrfToken = '{{ csrf_token }}';
 const searchInput = document.getElementById('searchInput');
 const searchIcon = document.getElementById('searchIcon');
 const MIN_QUERY_LEN = 2;
-const DEBOUNCE_MS = 350;
+const DEBOUNCE_MS = 500;   // Sonarr's lookup hits TheTVDB — a little slower than TMDB
 
-// Autofocus only on larger screens — on mobile it pops the keyboard before
-// the user has seen the page, which shoves the whole layout up unexpectedly.
 if (!searchInput.value && window.matchMedia('(min-width: 640px)').matches) {
   searchInput.focus();
 }
@@ -86,32 +41,18 @@ let inFlightController = null;
 let latestQuery = null;
 
 async function runSearch(q) {
-  // Guard against out-of-order responses: only the most recently *issued*
-  // query is allowed to paint the results (partial input while typing means
-  // earlier, shorter queries can resolve after a later, more specific one).
+  // Only the most recently *issued* query may paint results — earlier,
+  // shorter queries can resolve after a later, more specific one.
   latestQuery = q;
   if (inFlightController) inFlightController.abort();
-
-  if (!q) {
-    document.getElementById('results').innerHTML = `
-      <div class="text-center py-16 text-gray-500">
-        <i class="fa-brands fa-themeco text-5xl text-gray-700 mb-4 block"></i>
-        <p>Search TMDB to find a show to add</p>
-      </div>`;
-    searchIcon.className = 'fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500';
-    history.replaceState({}, '', location.pathname);
-    return;
-  }
+  if (!q) { history.replaceState({}, '', location.pathname); return; }
 
   inFlightController = new AbortController();
   searchIcon.className = 'fa-solid fa-spinner fa-spin absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400';
   try {
-    const res = await fetch(`?q=${encodeURIComponent(q)}`, {
-      headers: {'HX-Request': 'true'},
-      signal: inFlightController.signal,
-    });
+    const res = await fetch(`?q=${encodeURIComponent(q)}`, { headers: {'HX-Request': 'true'}, signal: inFlightController.signal });
     const html = await res.text();
-    if (q !== latestQuery) return; // a newer keystroke superseded this request
+    if (q !== latestQuery) return;
     document.getElementById('results').innerHTML = html;
     history.replaceState({}, '', `?q=${encodeURIComponent(q)}`);
   } catch (err) {
@@ -123,12 +64,10 @@ async function runSearch(q) {
   }
 }
 
-// Live search — fires on every keystroke (debounced) so partial input while
-// still typing returns results immediately, not just on full-title submit.
 searchInput.addEventListener('input', () => {
   clearTimeout(debounceTimer);
   const q = searchInput.value.trim();
-  if (q.length > 0 && q.length < MIN_QUERY_LEN) return; // too short — wait for more input
+  if (q.length > 0 && q.length < MIN_QUERY_LEN) return;
   debounceTimer = setTimeout(() => runSearch(q), DEBOUNCE_MS);
 });
 
@@ -137,25 +76,5 @@ document.getElementById('searchForm').addEventListener('submit', e => {
   clearTimeout(debounceTimer);
   runSearch(searchInput.value.trim());
 });
-
-async function addShow(tmdbId, name, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Adding…';
-  const fd = new FormData();
-  fd.append('tmdb_id', tmdbId);
-  try {
-    const res = await fetch('/shows/add/', { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
-    const data = await res.json();
-    if (data.status === 'added' || data.status === 'exists') {
-      window.location.href = `/shows/${data.pk}/`;
-    } else {
-      btn.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i>Failed';
-      btn.disabled = false;
-    }
-  } catch(err) {
-    btn.innerHTML = 'Error — retry';
-    btn.disabled = false;
-  }
-}
 </script>
 {% endblock %}

@@ -1,0 +1,131 @@
+{# Library tabs for TV Shows / Movies — include with noun="shows"|"movies" and watching_url (TV only) #}
+<div id="libTabs" class="flex gap-1.5 mb-4 overflow-x-auto scrollbar-thin -mx-1 px-1 pb-1">
+  <button type="button" data-tab="all" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-layer-group text-xs"></i>All
+  </button>
+  <button type="button" data-tab="recent" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-clock text-xs"></i>Recently added
+  </button>
+  <button type="button" data-tab="foryou" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-heart text-xs"></i>From For You<span class="lib-count text-[11px] opacity-70"></span>
+  </button>
+  {% if watching_url %}
+  <button type="button" data-tab="watching" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+    <i class="fa-solid fa-circle-play text-xs"></i>Watching<span class="lib-count text-[11px] opacity-70"></span>
+  </button>
+  {% endif %}
+</div>
+
+<script>
+// Tabs + search box + status filter over the cards already on the page.
+// Cards carry data-name, data-id, data-added (unix time) and data-foryou;
+// the Watching tab asks Plex (via watchingUrl) the first time it's opened.
+function initLibraryFilter({ matches, noun, watchingUrl }) {
+  const input = document.getElementById('filterInput');
+  const status = document.getElementById('filterStatus');
+  const grid = document.getElementById('posterGrid');
+  const tabsEl = document.getElementById('libTabs');
+  const empty = document.getElementById('noMatches');
+  document.getElementById('filterForm')?.addEventListener('submit', e => e.preventDefault());
+  if (!grid || !input || !status) return;
+
+  const cards = [...grid.querySelectorAll('[data-name]')];
+  const RECENT = 50;
+  let tab = new URLSearchParams(location.search).get('tab') || 'all';
+  let watching = null, watchingError = '';
+
+  const ago = ts => {
+    const days = Math.floor((Date.now() / 1000 - ts) / 86400);
+    if (days < 1) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 45) return `${days} days ago`;
+    return new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const setCount = (key, n) => {
+    const el = tabsEl?.querySelector(`[data-tab="${key}"] .lib-count`);
+    if (el) el.textContent = n ? ` ${n}` : '';
+  };
+  const setEmpty = (title, sub) => {
+    if (!empty) return;
+    empty.querySelector('.nm-title').textContent = title;
+    empty.querySelector('.nm-sub').textContent = sub || '';
+  };
+  setCount('foryou', cards.filter(c => c.dataset.foryou === '1').length);
+
+  async function loadWatching() {
+    if (watching || !watchingUrl) return;
+    try {
+      const d = await (await fetch(watchingUrl)).json();
+      if (!d.ok) throw new Error(d.error || 'Plex is unavailable');
+      watching = Object.fromEntries(d.items.map(i => [String(i.series_id), i]));
+      setCount('watching', d.items.length);
+    } catch (e) {
+      watching = {};
+      watchingError = e.message;
+    }
+  }
+
+  function apply() {
+    const q = input.value.trim().toLowerCase();
+    const s = status.value;
+    let list = cards.filter(c => (!q || c.dataset.name.includes(q)) && matches(c, s));
+    let note = () => '';
+    const byAdded = (a, b) => (+b.dataset.added || 0) - (+a.dataset.added || 0);
+    if (tab === 'recent') {
+      list = list.filter(c => c.dataset.added).sort(byAdded).slice(0, RECENT);
+      note = c => `Added ${ago(+c.dataset.added)}`;
+    } else if (tab === 'foryou') {
+      list = list.filter(c => c.dataset.foryou === '1').sort(byAdded);
+      note = c => `Added ${ago(+c.dataset.added)}`;
+    } else if (tab === 'watching') {
+      const w = watching || {};
+      list = list.filter(c => w[c.dataset.id]).sort((a, b) => w[b.dataset.id].last_viewed - w[a.dataset.id].last_viewed);
+      note = c => { const i = w[c.dataset.id]; return `Watched ${ago(i.last_viewed)} · ${i.watched}/${i.total} episodes`; };
+    }
+    const rank = new Map(list.map((c, i) => [c, i]));
+    cards.forEach(c => {
+      const on = rank.has(c);
+      c.classList.toggle('hidden', !on);
+      c.style.order = on && tab !== 'all' ? rank.get(c) : '';
+      const n = c.querySelector('.lib-note');
+      if (n) { const t = on ? note(c) : ''; n.textContent = t; n.classList.toggle('hidden', !t); }
+    });
+    grid.classList.toggle('hidden', list.length === 0);
+    empty?.classList.toggle('hidden', list.length !== 0);
+    if (!list.length) {
+      if (q || s) setEmpty(`No ${noun} match your filter`, 'Try a different search term or filter.');
+      else if (tab === 'foryou') setEmpty(`Nothing from For You yet`, `Swipe right on For You to add ${noun} here.`);
+      else if (tab === 'watching' && !watching) setEmpty("Checking what's being watched in Plex…");
+      else if (tab === 'watching') setEmpty(watchingError || 'Nothing watched in Plex lately', watchingError ? '' : `${noun[0].toUpperCase() + noun.slice(1)} played in Plex in the last 60 days show up here.`);
+      else setEmpty(`No ${noun} yet`);
+    }
+    tabsEl?.querySelectorAll('.lib-tab').forEach(b => {
+      const active = b.dataset.tab === tab;
+      b.classList.toggle('bg-brand-600', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('bg-surface-800', !active);
+      b.classList.toggle('text-gray-400', !active);
+    });
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (s) params.set('status', s);
+    if (tab !== 'all') params.set('tab', tab);
+    const qs = params.toString();
+    history.replaceState({}, '', qs ? `?${qs}` : location.pathname);
+  }
+
+  async function select(key) {
+    tab = key;
+    if (tab === 'watching' && !watching) {
+      apply();  // shows the loading message straight away
+      await loadWatching();
+    }
+    apply();
+  }
+
+  tabsEl?.querySelectorAll('.lib-tab').forEach(b => b.addEventListener('click', () => select(b.dataset.tab)));
+  input.addEventListener('input', apply);
+  status.addEventListener('change', apply);
+  select(tab);
+}
+</script>

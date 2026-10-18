@@ -5,65 +5,14 @@ from django.views.decorators.http import require_POST
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 from django_celery_results.models import TaskResult
 
+# Only Daredevil's own housekeeping lives here now — searching, downloading,
+# importing and release-date watching are Sonarr/Radarr's job (see the
+# Prowlarr / Sonarr / Radarr tabs on the Settings page).
 TASK_REGISTRY = {
-    'sync_all_shows': {
-        'label': 'Sync All TV Shows',
-        'description': 'Re-fetch every tracked show from TMDB + TVMaze (air times) and update episode statuses.',
-        'icon': 'fa-tv',
-        'color': 'brand',
-    },
-    'update_episode_statuses': {
-        'label': 'Update Episode Statuses',
-        'description': 'Transition awaiting_release → waiting_for_download for episodes whose NZT air time has passed.',
-        'icon': 'fa-satellite-dish',
-        'color': 'purple',
-    },
-    'queue_waiting_episodes': {
-        'label': 'Queue Waiting Episodes',
-        'description': 'Queue waiting_for_download episodes on monitored shows for immediate download.',
-        'icon': 'fa-rss',
-        'color': 'brand',
-    },
-    'check_movie_releases': {
-        'label': 'Check Movie Releases',
-        'description': 'Check if any waiting movies are now digitally available and move them to the download queue.',
-        'icon': 'fa-film',
-        'color': 'cyan',
-    },
-    'sync_download_progress': {
-        'label': 'Sync Download Progress',
-        'description': 'Poll qBittorrent for progress updates on all active downloads.',
-        'icon': 'fa-arrow-down',
-        'color': 'yellow',
-    },
-    'refresh_movie_release_dates': {
-        'label': 'Refresh Movie Release Dates',
-        'description': 'Re-check TMDB for confirmed digital release dates (type 4) on waiting movies; falls back to theatrical + 45 days.',
-        'icon': 'fa-calendar-check',
-        'color': 'cyan',
-    },
-    'cleanup_non_video_files': {
-        'label': 'Clean Up Non-Video Files',
-        'description': 'Delete junk files (.nfo, .txt, .jpg, …) left in completed download folders, keeping only video files.',
-        'icon': 'fa-broom',
-        'color': 'yellow',
-    },
-    'remove_empty_folders': {
-        'label': 'Remove Empty Folders',
-        'description': 'Delete any empty directories found inside download path(s). Runs bottom-up so nested empties collapse in one pass.',
-        'icon': 'fa-folder-minus',
-        'color': 'orange',
-    },
-    'auto_search_queue': {
-        'label': 'Auto-Search Queue',
-        'description': 'Fire search_and_download for any queued items stuck in SEARCHING status without an active task — so searches run without the queue page open.',
-        'icon': 'fa-magnifying-glass-arrow-right',
-        'color': 'cyan',
-    },
-    'poll_download_progress': {
-        'label': 'Poll Download Progress',
-        'description': 'Check qBittorrent for completed downloads and trigger file moves — runs in the background so the queue page does not need to be open.',
-        'icon': 'fa-rotate',
+    'warm_caches': {
+        'label': 'Keep Pages Fast',
+        'description': 'Refetch what the Dashboard, Streaming and Plex pages show from TMDB and Plex, so they open straight from the cache.',
+        'icon': 'fa-bolt',
         'color': 'brand',
     },
     'check_storage': {
@@ -74,15 +23,21 @@ TASK_REGISTRY = {
     },
     'generate_recommendations': {
         'label': 'For You: Recommendations',
-        'description': 'Pull TMDB recommendations + similar titles for everything in your library and add new ones to the For You swipe deck.',
+        'description': 'Pull TMDB recommendations + similar titles for everything in Sonarr/Radarr and add new ones to the For You swipe deck.',
         'icon': 'fa-layer-group',
         'color': 'cyan',
     },
     'generate_anticipated': {
         'label': 'For You: New & Anticipated',
-        'description': "Pull Trakt's Trending, Releases, Anticipated, and Popular lists for movies/shows and add new ones to the For You swipe deck. Skipped if TRAKT_CLIENT_ID isn't set.",
+        'description': "Pull TMDB's Trending, New Releases, Coming Soon and Popular lists for movies and shows and add titles you haven't seen to the For You swipe deck.",
         'icon': 'fa-fire',
         'color': 'cyan',
+    },
+    'import_library_to_arr': {
+        'label': 'Import Old Library into Sonarr/Radarr',
+        'description': "One-off: add the shows/movies Daredevil tracked before Sonarr/Radarr took over. Existing files are picked up; nothing is re-downloaded. Safe to re-run.",
+        'icon': 'fa-file-import',
+        'color': 'brand',
     },
 }
 
@@ -93,7 +48,7 @@ PERIOD_CHOICES = [
 ]
 
 
-def tasks_dashboard(request):
+def _dashboard_context():
     beat_tasks = {t.task: t for t in PeriodicTask.objects.all()}
 
     tasks = []
@@ -129,7 +84,18 @@ def tasks_dashboard(request):
         'period_choices': PERIOD_CHOICES,
         'beat_configured': bool(beat_tasks),
     }
-    return render(request, 'tasks/dashboard.html', context)
+    return context
+
+
+def tasks_dashboard(request):
+    """Moved to App Settings → Background Tasks."""
+    from django.shortcuts import redirect
+    return redirect('/settings/#tasks')
+
+
+def tasks_panel(request):
+    """The Background Tasks panel, loaded into its App Settings tab."""
+    return render(request, 'tasks/_panel.html', _dashboard_context())
 
 
 @require_POST
@@ -180,22 +146,15 @@ def _annotate_recent(qs):
         # Friendly label map (covers both task_name populated and not)
         name = r.task_name or ''
         label = {
-            'sync_all_shows':              'Sync All TV Shows',
-            'update_episode_statuses':     'Update Episode Statuses',
-            'queue_waiting_episodes':      'Queue Waiting Episodes',
-            'sync_tvmaze_show':            'Sync TVMaze Airdates',
-            'check_movie_releases':        'Check Movie Releases',
-            'sync_download_progress':      'Sync Download Progress',
-            'poll_download_progress':      'Poll Download Progress',
-            'search_and_download':         'Search & Download',
-            'refresh_movie_release_dates': 'Refresh Movie Release Dates',
-            'cleanup_non_video_files':     'Clean Up Non-Video Files',
-            'remove_empty_folders':        'Remove Empty Folders',
-            'execute_file_move':           'Execute File Move',
-            'auto_search_queue':           'Auto-Search Queue',
-            'check_storage':               'Check Storage Usage',
-            'generate_recommendations':    'For You: Recommendations',
-            'generate_anticipated':        'For You: New & Anticipated',
+            **{k: v['label'] for k, v in TASK_REGISTRY.items()},
+            # Retired jobs — kept so their old results still read nicely
+            'sync_all_shows':              'Sync All TV Shows (retired)',
+            'update_episode_statuses':     'Update Episode Statuses (retired)',
+            'queue_waiting_episodes':      'Queue Waiting Episodes (retired)',
+            'check_movie_releases':        'Check Movie Releases (retired)',
+            'poll_download_progress':      'Poll Download Progress (retired)',
+            'search_and_download':         'Search & Download (retired)',
+            'auto_search_queue':           'Auto-Search Queue (retired)',
         }.get(name, name or 'Unknown Task')
 
         r.label = label
@@ -244,29 +203,14 @@ def schedule_delete(request, pk):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _dispatch(task_name):
-    from apps.media_tracker.tasks import (
-        sync_all_shows,
-        update_episode_statuses, queue_waiting_episodes,
-        check_movie_releases, sync_download_progress,
-        cleanup_non_video_files, refresh_movie_release_dates,
-        remove_empty_folders, auto_search_queue, check_storage,
-    )
-    from apps.downloads.tasks import poll_download_progress
+    from apps.media_tracker.tasks import check_storage
     from apps.discover.tasks import generate_recommendations, generate_anticipated
+    from apps.arr.tasks import import_library_to_arr
     mapping = {
-        'sync_all_shows':              sync_all_shows,
-        'update_episode_statuses':     update_episode_statuses,
-        'queue_waiting_episodes':      queue_waiting_episodes,
-        'check_movie_releases':        check_movie_releases,
-        'sync_download_progress':      sync_download_progress,
-        'cleanup_non_video_files':     cleanup_non_video_files,
-        'refresh_movie_release_dates': refresh_movie_release_dates,
-        'remove_empty_folders':        remove_empty_folders,
-        'auto_search_queue':           auto_search_queue,
-        'poll_download_progress':      poll_download_progress,
-        'check_storage':               check_storage,
-        'generate_recommendations':    generate_recommendations,
-        'generate_anticipated':        generate_anticipated,
+        'check_storage':            check_storage,
+        'generate_recommendations': generate_recommendations,
+        'generate_anticipated':     generate_anticipated,
+        'import_library_to_arr':    import_library_to_arr,
     }
     return mapping[task_name].delay()
 

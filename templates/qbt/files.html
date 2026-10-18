@@ -3,7 +3,7 @@
 {% block page_title %}File Browser{% endblock %}
 
 {% block content %}
-<div x-data="fileBrowser()" class="flex flex-col gap-4" style="height:calc(100dvh - 9rem - env(safe-area-inset-top, 0px))">
+<div x-data="fileBrowser()" data-first-tab="{{ tabs.0.path|default:'' }}" class="flex flex-col gap-4" style="height:calc(100dvh - 9rem - env(safe-area-inset-top, 0px))">
 
   <!-- ── Folder tabs ──────────────────────────────────────────────────────── -->
   <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-1 flex-shrink-0">
@@ -12,16 +12,8 @@
       <button @click="openRoot('{{ tab.path|escapejs }}')"
               :class="rootMatches('{{ tab.path|escapejs }}') ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
               class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all {% if tab.kind == 'custom' %}pr-7{% endif %}">
-        {% if tab.kind == 'download' %}
-        <i class="fa-solid fa-arrow-down text-blue-300 text-xs"></i>
-        {% elif tab.kind == 'completed' %}
-        <i class="fa-solid fa-circle-check text-green-300 text-xs"></i>
-        {% else %}
-        <i class="fa-solid fa-folder text-purple-300 text-xs"></i>
-        {% endif %}
+        <i class="fa-solid {{ tab.icon }} text-xs"></i>
         <span>{{ tab.label }}</span>
-        {% if tab.kind == 'download' %}<span class="text-xs opacity-60">dl</span>
-        {% elif tab.kind == 'completed' %}<span class="text-xs opacity-60">done</span>{% endif %}
       </button>
       {% if tab.kind == 'custom' %}
       <button @click.stop="removeTab({{ tab.pk }})"
@@ -32,8 +24,8 @@
       {% endif %}
     </div>
     {% empty %}
-    <span class="text-xs text-gray-600 italic py-2">No paths configured —
-      <a href="{% url 'qbt_categories' %}" class="text-brand-400 hover:underline">set up categories</a>
+    <span class="text-xs text-gray-600 italic py-2">No folders yet — they appear automatically once Sonarr/Radarr are connected and their
+      <a href="{% url 'app_settings' %}#sonarr" class="text-brand-400 hover:underline">path mappings</a> are set.
     </span>
     {% endfor %}
 
@@ -81,7 +73,7 @@
           </button>
           <button @click="showMoveModal = true"
                   class="flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-600/30 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium transition-colors">
-            <i class="fa-solid fa-folder-arrow-up text-xs"></i><span class="hidden sm:inline ml-1">Move</span>
+            <i class="fa-solid fa-file-import text-xs"></i><span class="hidden sm:inline ml-1">Import</span>
           </button>
         </div>
       </template>
@@ -264,10 +256,15 @@
                  class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500 transition-colors">
         </div>
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Path</label>
-          <input type="text" x-model="addTabPath" placeholder="/Volumes/Media"
-                 @keydown.enter="addTab()"
-                 class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+          <label class="block text-xs text-gray-500 mb-1">Path <span class="text-gray-600">(inside Daredevil's container, e.g. /media/…)</span></label>
+          <div class="flex gap-2">
+            <input type="text" x-model="addTabPath" placeholder="/media/downloads"
+                   @keydown.enter="addTab()"
+                   class="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono focus:outline-none focus:border-brand-500 transition-colors">
+            <button type="button" title="Browse"
+                    @click="openFolderPicker({ source: 'daredevil', path: addTabPath || '/media', title: 'Folder to show in the File Browser', onPick: p => { addTabPath = p; if (!addTabLabel) addTabLabel = p.split('/').filter(Boolean).pop() || p; } })"
+                    class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open"></i></button>
+          </div>
         </div>
         <p x-show="addTabError" x-text="addTabError" x-cloak class="text-xs text-red-400"></p>
       </div>
@@ -285,26 +282,40 @@
     </div>
   </div>
 
-  <!-- ── Move to Completed Modal ───────────────────────────────────────────── -->
+  <!-- ── Import with Sonarr / Radarr Modal ─────────────────────────────────── -->
   <div x-show="showMoveModal" x-cloak
        class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/70" @click="showMoveModal = false"></div>
     <div class="relative glass rounded-2xl p-6 w-full max-w-md shadow-2xl">
       <h3 class="text-base font-bold text-gray-100 mb-1">
-        <i class="fa-solid fa-folder-arrow-up text-brand-400 mr-2"></i>Move to Completed
+        <i class="fa-solid fa-file-import text-brand-400 mr-2"></i>Import into Library
       </h3>
-      <p class="text-xs text-gray-500 mb-4" x-text="`${selected.size} item${selected.size !== 1 ? 's' : ''} selected`"></p>
+      <p class="text-xs text-gray-500 mb-1" x-text="`${selected.size} item${selected.size !== 1 ? 's' : ''} selected`"></p>
+      <p class="text-xs text-gray-600 mb-4">Sonarr (TV) or Radarr (movies) matches the files to your library, then moves and renames them itself. The show or movie must already be in Sonarr/Radarr.</p>
 
       <div class="mb-4">
-        <p class="text-xs text-gray-500 mb-2">Media type (auto-detects if left on Auto)</p>
+        <p class="text-xs text-gray-500 mb-2">Send to (auto-detects from the file names if left on Auto)</p>
         <div class="flex gap-2">
-          <template x-for="opt in [{v:'auto',l:'Auto-detect'},{v:'movie',l:'Movie'},{v:'tv',l:'TV Show'}]" :key="opt.v">
+          <template x-for="opt in [{v:'auto',l:'Auto-detect'},{v:'movie',l:'Radarr (movie)'},{v:'tv',l:'Sonarr (TV)'}]" :key="opt.v">
             <button @click="moveMediaType = opt.v"
                     :class="moveMediaType === opt.v ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:bg-surface-600'"
                     class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                     x-text="opt.l"></button>
           </template>
         </div>
+      </div>
+
+      <div class="mb-4">
+        <p class="text-xs text-gray-500 mb-2">Import mode</p>
+        <div class="flex gap-2">
+          <template x-for="opt in [{v:'Auto',l:'Auto'},{v:'Move',l:'Move'},{v:'Copy',l:'Copy / hardlink'}]" :key="opt.v">
+            <button @click="importMode = opt.v"
+                    :class="importMode === opt.v ? 'bg-brand-600 text-white' : 'bg-surface-700 text-gray-400 hover:bg-surface-600'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    x-text="opt.l"></button>
+          </template>
+        </div>
+        <p class="text-[11px] text-gray-600 mt-1.5">Auto copies (keeps seeding) if qBittorrent still has the torrent, otherwise moves.</p>
       </div>
 
       <div class="bg-surface-800/60 rounded-xl p-3 mb-5 max-h-28 overflow-y-auto scrollbar-thin">
@@ -320,7 +331,7 @@
         </button>
         <button @click="moveSelected()"
                 class="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
-          <i class="fa-solid fa-folder-arrow-up"></i> Move
+          <i class="fa-solid fa-file-import"></i> Import
         </button>
       </div>
     </div>
@@ -344,6 +355,7 @@ function fileBrowser() {
     selected: new Set(),
     showMoveModal: false,
     moveMediaType: 'auto',
+    importMode: 'Auto',
     showAddTab: false,
     addTabLabel: '',
     addTabPath: '',
@@ -369,6 +381,15 @@ function fileBrowser() {
         result.push(sorted[i]);
       }
       return result;
+    },
+
+    // Open the folder in the URL (#/path) or the first tab, so there's
+    // always something to look at.
+    init() {
+      const fromHash = decodeURIComponent(location.hash.slice(1));
+      const start = fromHash || this.$el.dataset.firstTab;
+      if (start) this.open(start);
+      this.$watch('currentPath', p => { if (p) history.replaceState(null, '', '#' + encodeURIComponent(p)); });
     },
 
     rootMatches(root) {
@@ -454,18 +475,19 @@ function fileBrowser() {
       const fd = new FormData();
       for (const path of this.selected) fd.append('paths', path);
       fd.append('media_type', this.moveMediaType);
-      const res = await fetch('/qbt/files/move-completed/', { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
+      fd.append('import_mode', this.importMode);
+      const res = await fetch('/qbt/files/import/', { method: 'POST', body: fd, headers: {'X-CSRFToken': csrfToken} });
       const data = await res.json();
       const errs = (data.results || []).filter(r => r.error);
       if (errs.length) {
         this.error = errs.map(r => `${r.path.split('/').pop()}: ${r.error}`).join('\n');
       } else {
         this.selected = new Set();
-        // Give the task a moment then refresh
-        setTimeout(() => this.refresh(), 800);
+        // Sonarr/Radarr import in the background — refresh after a moment
+        setTimeout(() => this.refresh(), 3000);
       }
       const ok = (data.results || []).filter(r => !r.error).length;
-      if (ok) window.location.href = '/downloads/moves/';
+      if (ok && !errs.length) window.location.href = '/downloads/imports/';
     },
 
     async addTab() {

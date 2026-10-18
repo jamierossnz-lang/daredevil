@@ -85,9 +85,10 @@
       </p>
       <div class="mt-auto">
         {% if item.already_added %}
-        <span class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30">
-          <i class="fa-solid fa-circle-check"></i> Added
-        </span>
+        <a href="/{% if item.media == 'tv' %}shows{% else %}movies{% endif %}/{{ item.library_id }}/"
+           class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30">
+          <i class="fa-solid fa-circle-check"></i> In library
+        </a>
         {% elif item.media == 'movie' %}
         <button onclick="addMovieFromStream({{ item.id }}, '{{ item.title|escapejs }}', this)"
                 class="w-full py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-medium transition-colors">
@@ -147,31 +148,15 @@ function toggleStreamInfo(posterEl) {
 function markAdded(btn) {
   btn.disabled = true;
   btn.className = 'w-full py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium';
-  btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Added';
+  btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> In library';
 }
 
 function addMovieFromStream(tmdbId, title, btn) {
-  openMovieAddModal({ mode: 'add', tmdbId, title, onSuccess: () => markAdded(btn) });
+  openAddModal({ kind: 'radarr', tmdbId, title, onAdded: () => markAdded(btn) });
 }
 
-async function addShowFromStream(tmdbId, title, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-  const fd = new FormData();
-  fd.append('tmdb_id', tmdbId);
-  try {
-    const res = await fetch('/shows/add/', { method: 'POST', body: fd, headers: { 'X-CSRFToken': csrfToken } });
-    const data = await res.json();
-    if (data.status === 'added' || data.status === 'exists') {
-      window.location.href = `/shows/${data.pk}/`;
-    } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-0.5"></i>Error';
-    }
-  } catch {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-plus mr-0.5"></i>Add';
-  }
+function addShowFromStream(tmdbId, title, btn) {
+  openAddModal({ kind: 'sonarr', tmdbId, title, onAdded: () => markAdded(btn) });
 }
 
 /* ── Card renderer (for infinite scroll) ── */
@@ -203,7 +188,7 @@ function buildStreamCard(item) {
 
   let addBtn;
   if (item.already_added) {
-    addBtn = `<span class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30"><i class="fa-solid fa-circle-check"></i> Added</span>`;
+    addBtn = `<a href="/${item.media === 'tv' ? 'shows' : 'movies'}/${item.library_id}/" class="block text-center py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-medium border border-green-500/30"><i class="fa-solid fa-circle-check"></i> In library</a>`;
   } else if (item.media === 'movie') {
     addBtn = `<button onclick="addMovieFromStream(${item.id},${_jsAttr(item.title)},this)" class="w-full py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-medium transition-colors"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
   } else {

@@ -1,13 +1,26 @@
 import logging
-import re
-import time
+import threading
+
 import qbittorrentapi
 from django.conf import settings
 
 log = logging.getLogger('daredevil.qbt')
 
+_local = threading.local()
+
 
 def get_client():
+    """
+    A logged-in qBittorrent client, reused per thread until the connection
+    settings change (qbittorrent-api logs in again by itself if the session
+    expires). Logging in on every call was slow, and with a wrong password
+    it got Daredevil banned by qBittorrent.
+    """
+    key = (settings.QBITTORRENT_HOST, str(settings.QBITTORRENT_PORT),
+           settings.QBITTORRENT_USERNAME, settings.QBITTORRENT_PASSWORD)
+    cached = getattr(_local, 'client', None)
+    if cached and cached[0] == key:
+        return cached[1]
     client = qbittorrentapi.Client(
         host=settings.QBITTORRENT_HOST,
         port=settings.QBITTORRENT_PORT,
@@ -17,7 +30,13 @@ def get_client():
         VERIFY_WEBUI_CERTIFICATE=False,
     )
     client.auth_log_in()
+    _local.client = (key, client)
     return client
+
+
+def reset_client():
+    """Forget this thread's client (after an error), so the next call logs in fresh."""
+    _local.client = None
 
 
 def is_connected():
@@ -29,25 +48,6 @@ def is_connected():
         return False
 
 
-def get_torrents(filter_status=None):
-    try:
-        c = get_client()
-        kwargs = {}
-        if filter_status:
-            kwargs['filter'] = filter_status
-        return list(c.torrents_info(**kwargs))
-    except Exception as e:
-        log.warning('get_torrents: failed — %s', e)
-        return []
-
-
-def get_torrent(torrent_hash):
-    try:
-        c = get_client()
-        results = c.torrents_info(hashes=torrent_hash)
-        return results[0] if results else None
-    except Exception:
-        return None
 
 
 def add_magnet(magnet_link, save_path=None, category=None):
@@ -66,83 +66,25 @@ def add_magnet(magnet_link, save_path=None, category=None):
         raise
 
 
-def _hash_from_magnet(url: str) -> str:
-    """Extract the BitTorrent info-hash from a magnet URI (hex or base32)."""
-    m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[A-Z2-7]{32})', url or '', re.IGNORECASE)
-    return m.group(1).lower() if m else ''
+def stop_torrents(hashes):
+    """Pause ("stop" since qBittorrent 5)."""
+    get_client().torrents_stop(torrent_hashes=hashes)
 
 
-def add_torrent_and_resolve_hash(url, save_path=None, category=None):
-    """
-    Add a magnet/.torrent URL to qBittorrent and return its info-hash so the
-    caller can save it on the DownloadItem immediately — the record then knows
-    exactly which torrent it owns without ever needing to fall back to
-    matching on (unreliable, ambiguous) torrent names.
-
-    Search-plugin results aren't always true magnets — some are .torrent
-    download URLs with no urn:btih — so when the hash isn't in the URI itself,
-    this diffs qBT's torrent list before/after adding to find the new one.
-    """
-    c = get_client()
-    torrent_hash = _hash_from_magnet(url)
-
-    hashes_before = set()
-    if not torrent_hash:
-        try:
-            hashes_before = {t.hash.lower() for t in c.torrents_info()}
-        except Exception:
-            hashes_before = set()
-
-    kwargs = {'urls': url}
-    if save_path:
-        kwargs['save_path'] = save_path
-    if category:
-        kwargs['category'] = category
-    try:
-        c.torrents_add(**kwargs)
-    except Exception as e:
-        if isinstance(e, qbittorrentapi.Conflict409Error) or '409' in str(e) or 'conflict' in str(e).lower():
-            log.debug('add_torrent_and_resolve_hash: torrent already in qBittorrent (duplicate) — carrying on')
-            return torrent_hash
-        raise
-
-    if torrent_hash:
-        return torrent_hash
-
-    # Poll with backoff — qBT needs a moment to fetch/parse the .torrent file
-    # before the new hash shows up in torrents_info().
-    for delay in (1, 2, 3, 3):
-        time.sleep(delay)
-        try:
-            hashes_after = {t.hash.lower() for t in c.torrents_info()}
-        except Exception:
-            continue
-        new_hashes = hashes_after - hashes_before
-        if len(new_hashes) == 1:
-            resolved = new_hashes.pop()
-            log.info('add_torrent_and_resolve_hash: resolved hash via diff: %s', resolved)
-            return resolved
-        if len(new_hashes) > 1:
-            log.warning('add_torrent_and_resolve_hash: ambiguous diff (%d new torrents) — cannot resolve', len(new_hashes))
-            break
-
-    log.warning('add_torrent_and_resolve_hash: could not resolve hash for newly added torrent')
-    return ''
+def start_torrents(hashes):
+    get_client().torrents_start(torrent_hashes=hashes)
 
 
-def pause_torrent(torrent_hash):
-    c = get_client()
-    c.torrents_pause(hashes=torrent_hash)
+def delete_torrents(hashes, delete_files=False):
+    get_client().torrents_delete(torrent_hashes=hashes, delete_files=delete_files)
 
 
-def resume_torrent(torrent_hash):
-    c = get_client()
-    c.torrents_resume(hashes=torrent_hash)
+def recheck_torrents(hashes):
+    get_client().torrents_recheck(torrent_hashes=hashes)
 
 
-def delete_torrent(torrent_hash, delete_files=False):
-    c = get_client()
-    c.torrents_delete(hashes=torrent_hash, delete_files=delete_files)
+def reannounce_torrents(hashes):
+    get_client().torrents_reannounce(torrent_hashes=hashes)
 
 
 def get_transfer_info():
@@ -184,6 +126,43 @@ def edit_category(name, save_path):
     c.torrents_edit_category(name=name, save_path=save_path)
 
 
+def category_folder(name, categories, prefs):
+    """
+    Where qBittorrent saves a new torrent in this category when it's added
+    without a path — which is how Sonarr and Radarr add them.
+
+    In qBittorrent's default (manual) mode category folders are ignored
+    unless "use category paths in manual mode" is on; with it on (or in
+    automatic mode) an empty category folder means <default>/<category>.
+    """
+    default = (prefs.get('save_path') or '/').rstrip('/') or '/'
+    if not name or not (prefs.get('auto_tmm_enabled') or prefs.get('use_category_paths_in_manual_mode')):
+        return default
+    cat = categories.get(name) or {}
+    path = (cat.get('savePath') or cat.get('save_path') or name).rstrip('/')
+    return path if path.startswith('/') else f'{default.rstrip("/")}/{path}'
+
+
+def set_category_folder(name, save_path):
+    """
+    Create or update a category's folder, and make sure qBittorrent actually
+    uses it for torrents added in manual mode. Returns True if that
+    preference had to be switched on.
+    """
+    c = get_client()
+    if name in dict(c.torrents_categories()):
+        c.torrents_edit_category(name=name, save_path=save_path)
+    else:
+        c.torrents_create_category(name=name, save_path=save_path)
+    if save_path:
+        prefs = c.app_preferences()
+        if not (prefs.get('auto_tmm_enabled') or prefs.get('use_category_paths_in_manual_mode')):
+            c.app_set_preferences({'use_category_paths_in_manual_mode': True})
+            log.info('set_category_folder: switched on "use category paths in manual mode" for %r', name)
+            return True
+    return False
+
+
 def delete_category(name):
     c = get_client()
     c.torrents_remove_categories(categories=[name])
@@ -199,114 +178,3 @@ def rename_torrent(torrent_hash, new_name):
     """Rename the torrent (renames root folder for multi-file torrents)."""
     c = get_client()
     c.torrents_rename(torrent_hash=torrent_hash, new_torrent_name=new_name)
-
-
-def search_torrents(query, category='all', plugins='all'):
-    """
-    Use qBittorrent's built-in search API.
-    Requires at least one search plugin installed in qBittorrent.
-    """
-    import time
-    log.info('search_torrents: starting search for %r', query)
-    c = get_client()
-
-    try:
-        job = c.search_start(pattern=query, plugins=plugins, category=category)
-    except Exception as e:
-        log.error('search_torrents: search_start failed — %s', e)
-        raise
-
-    job_id = job.id
-    log.debug('search_torrents: job_id=%s', job_id)
-
-    # Thresholds for early exit — stop waiting as soon as we have a good-enough set.
-    _EARLY_SEEDED_COUNT = 5   # stop if this many results have enough seeds
-    _EARLY_MIN_SEEDS    = 3   # "enough seeds" for the above count
-    _EARLY_TOP_SEEDS    = 20  # stop immediately if any single result has this many seeds
-
-    # Poll until qBT marks the job Stopped or we have enough good results.
-    # Check actual results on each tick so we can exit early.
-    delays = [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]  # 49 s max
-    raw = []
-    for i, delay in enumerate(delays):
-        time.sleep(delay)
-        try:
-            status = c.search_status(search_id=job_id)
-            job_status = status[0].status if status else 'unknown'
-            total_so_far = getattr(status[0], 'total', 0) if status else 0
-            log.debug('search_torrents: poll #%d status=%s total=%d', i + 1, job_status, total_so_far)
-
-            if not status or job_status == 'Stopped':
-                log.info('search_torrents: job stopped after %d poll(s)', i + 1)
-                break
-
-            # After the first couple of seconds, peek at results and exit early if good enough
-            if i >= 1 and total_so_far > 0:
-                try:
-                    peek = c.search_results(search_id=job_id, limit=200)
-                    peek_list = list(peek.results)
-                    seeded = [r for r in peek_list if (r.get('nbSeeders') or 0) >= _EARLY_MIN_SEEDS]
-                    top_seeds = max((r.get('nbSeeders') or 0 for r in peek_list), default=0)
-                    log.debug('search_torrents: poll #%d peek=%d results, %d seeded, top=%d seeds',
-                              i + 1, len(peek_list), len(seeded), top_seeds)
-                    if len(seeded) >= _EARLY_SEEDED_COUNT or top_seeds >= _EARLY_TOP_SEEDS:
-                        raw = peek_list
-                        log.info('search_torrents: early exit at poll #%d — %d seeded, top=%d seeds',
-                                 i + 1, len(seeded), top_seeds)
-                        break
-                except Exception:
-                    pass  # peek failed, keep waiting
-
-        except Exception as e:
-            log.warning('search_torrents: status poll #%d failed (%s) — assuming done', i + 1, e)
-            break
-
-    # If early-exit already populated raw, skip the final fetch
-    if not raw:
-        for attempt in range(3):
-            try:
-                results = c.search_results(search_id=job_id, limit=200)
-                raw = list(results.results)
-                log.info('search_torrents: got %d results (attempt %d)', len(raw), attempt + 1)
-                break
-            except Exception as e:
-                log.warning('search_torrents: search_results attempt %d failed — %s', attempt + 1, e)
-                if attempt < 2:
-                    time.sleep(1)
-
-    try:
-        c.search_delete(search_id=job_id)
-    except Exception:
-        pass
-
-    return raw
-
-
-def get_app_version():
-    try:
-        c = get_client()
-        return c.app_version()
-    except Exception:
-        return 'Not connected'
-
-
-def get_torrents_stats():
-    torrents = get_torrents()
-    stats = {
-        'total': len(torrents),
-        'downloading': 0,
-        'seeding': 0,
-        'paused': 0,
-        'completed': 0,
-    }
-    for t in torrents:
-        state = t.state
-        if 'download' in state:
-            stats['downloading'] += 1
-        elif 'upload' in state or state == 'stalledUP':
-            stats['seeding'] += 1
-        elif 'paused' in state:
-            stats['paused'] += 1
-        if t.progress >= 1.0:
-            stats['completed'] += 1
-    return stats

@@ -1,6 +1,10 @@
 from django.db import models
 from django.utils import timezone
 
+# LEGACY — Daredevil's own download queue and file-move records from before
+# Sonarr/Radarr took over. Nothing writes to these any more: the queue is
+# read live from Sonarr/Radarr (apps.arr.queue) and imports from their history.
+
 
 class DownloadItem(models.Model):
     class MediaType(models.TextChoices):

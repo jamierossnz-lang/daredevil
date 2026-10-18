@@ -1,16 +1,21 @@
 # Daredevil
 
-A self-hosted media manager that integrates [TMDB](https://www.themoviedb.org/) for metadata and [qBittorrent](https://www.qbittorrent.org/) for downloads. Track TV shows and movies, search for torrents, manage downloads, and automatically organise completed files into a Plex-ready folder structure.
+A self-hosted front end for an *arr media stack. [Sonarr](https://sonarr.tv/) (TV) and [Radarr](https://radarr.video/) (movies) store the library, monitor for new releases, grab them through [qBittorrent](https://www.qbittorrent.org/) and import finished downloads into a Plex-ready folder structure; [Prowlarr](https://prowlarr.com/) manages the indexers for both. Daredevil is the one place you search, add, monitor, download, retry and keep an eye on all of it — plus discovery (For You, streaming charts, [TMDB](https://www.themoviedb.org/)) and Plex clean-up.
 
 ---
 
 ## Features
 
-- **Media tracking** — search TMDB for movies and TV shows, monitor for new episodes, track download status
-- **Download queue** — real-time progress synced from qBittorrent, auto-search and download
-- **File organisation** — moves completed downloads to Plex-standard folder structure (`Movie (Year)/`, `Show (Year)/Season 01/`)
-- **File browser** — browse category folders directly from the UI
-- **qBittorrent integration** — torrent search (via qBT plugins), category management, settings
+- **TV shows (Sonarr)** — search and add shows, turn monitoring on/off per show, season and episode, download a whole show, seasons or single episodes, pick a release yourself, retry or reset — all stored in and carried out by Sonarr. Library tabs: All, Recently added, From For You, and Watching (what's been played in Plex lately)
+- **Movies (Radarr)** — the same for movies; Radarr's minimum availability watches unreleased movies and grabs them once they're out
+- **One Add dialog everywhere** — *Add to Library* (saved, nothing downloads), *Add & pick release*, or *Add to Plex* (monitored and searched). New shows default to future episodes if they're still airing and to nothing if they've ended. You stay on the page; a banner links to what you added
+- **Search (Prowlarr)** — TV or Movies, with Prowlarr's `{Token:value}` parameters, indexer and category filters. *Download* hands a result to Sonarr or Radarr (adding the show/movie first if it isn't in the library yet)
+- **Download queue** — Sonarr's and Radarr's queues in one place with qBittorrent's live speed/peers: pause, retry with a different release, remove; waiting-for-release (TV and Movies), wanted, history, failed
+- **Torrent Manager** — every torrent in qBittorrent: filter by state, category or name, start, pause, remove (with or without files), one at a time or in bulk
+- **Imports** — Sonarr/Radarr move and rename finished downloads; Daredevil confirms each file really landed in the library
+- **Settings** — Prowlarr, Sonarr, Radarr, qBittorrent and Background Tasks tabs: connections, indexers (add with category/language filters, test, edit), download and library folders with folder pickers, quality profiles and sizes, naming, add defaults, Plex (refresh on import, Watchlist), and one-click wiring (qBittorrent, webhooks, indexer sync)
+- **File browser** — the download and library folders appear automatically; hand files to Sonarr/Radarr to import
+- **For You** — swipe through recommendations based on your library plus TMDB's trending, new, coming-soon and popular titles
 
 ---
 
@@ -20,7 +25,8 @@ A self-hosted media manager that integrates [TMDB](https://www.themoviedb.org/) 
 |------------|---------|-------|
 | Python | 3.11+ | Not needed if using Docker |
 | Redis | 7+ | Required for background tasks (Celery) — included in Docker |
-| qBittorrent | 4.6+ | Web UI must be enabled |
+| qBittorrent | 4.6+ | Web UI must be enabled — included in Docker |
+| Sonarr / Radarr / Prowlarr | v4 / v5+ / v1+ | Included in Docker; their data lives in the same PostgreSQL as Daredevil's |
 
 ---
 
@@ -28,19 +34,18 @@ A self-hosted media manager that integrates [TMDB](https://www.themoviedb.org/) 
 
 ### Docker (recommended)
 
-Docker Compose runs the full stack — Daredevil, qBittorrent, Plex, Redis, and Celery — in one command. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+Docker Compose runs the full stack — Daredevil, Sonarr, Radarr, Prowlarr, qBittorrent, Plex, Redis, and Celery — in one command. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌──────────┐
-│  Daredevil  │────▶│ qBittorrent  │     │   Plex   │
-│  :8000      │     │  :8080       │     │  :32400  │
-└──────┬──────┘     └──────┬───────┘     └────┬─────┘
-       │                   │                   │
-       │  downloads volume │                   │
-       │◀──────────────────┘                   │
-       │                                       │
-       │  movies + tv volumes                  │
-       └──────────────────────────────────────▶│
+               ┌──────────────┐  indexers   ┌──────────┐
+               │   Prowlarr   │────────────▶│  Sonarr  │──┐ grabs   ┌──────────────┐
+               │   :9696      │────────┐    │  :8989   │  ├────────▶│ qBittorrent  │
+               └──────▲───────┘        └───▶│  Radarr  │──┘         │  :8080       │
+                      │ search              │  :7878   │◀── imports └──────────────┘
+┌─────────────┐       │                     └────▲─────┘   finished       │
+│  Daredevil  │───────┴──────────────────────────┘ API + webhooks         │ /downloads
+│  :8000      │                                                           ▼
+└─────────────┘                      movies + tv folders ───────────▶ Plex :32400
 ```
 
 **Quick start:**
@@ -75,8 +80,10 @@ signup page; it's a single-user home server.
 | Service | URL |
 |---------|-----|
 | Daredevil | http://localhost:8000 |
-| qBittorrent | http://localhost:8080 |
-| Jackett | http://localhost:9117 |
+| Sonarr | http://localhost:8989 |
+| Radarr | http://localhost:7878 |
+| Prowlarr | http://localhost:9696 |
+| qBittorrent | http://localhost:8081 |
 | Plex | http://localhost:32400/web |
 
 ---
@@ -104,31 +111,22 @@ After `docker compose up -d`, open Docker Desktop. The entire stack appears as a
 2. Go to Tools → Options → Web UI and set a permanent password
 3. Update `QBITTORRENT_PASSWORD` in `.env` to match, then `docker compose restart web worker`
 
-**Set up Jackett:**
+**Set up Sonarr, Radarr and Prowlarr:**
 
-Jackett gives qBittorrent access to hundreds of torrent indexers through a single search interface.
+Daredevil drives these three apps — your shows and movies are stored in Sonarr and Radarr, and Prowlarr feeds both with indexers.
 
-1. Open http://localhost:9117 and click **+ Add Indexer** to add your preferred sites (e.g. 1337x, YTS, RARBG mirrors, etc.)
-2. Copy your **API Key** from the top-right of the Jackett dashboard
-3. In qBittorrent → Tools → Options → **Search** → tick *Search enabled* 
-4. Install the Jackett search plugin for qBittorrent:
-   - Download [`jackett_qbittorrent.py`](https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins#jackett) (or use the `jack.py` one from the Jackett repo)
-   - In qBittorrent → Search → **Search Plugins** → Install a new one → select the `.py` file
-   - Configure the plugin with:
-     - URL: `http://jackett:9117` (Docker internal hostname)
-     - API Key: (from Jackett dashboard)
-5. Run a test search in qBittorrent to confirm Jackett is returning results
-6. Daredevil's auto-search and torrent search page will now use Jackett-backed results
+1. Open Sonarr (:8989), Radarr (:7878) and Prowlarr (:9696) once each and finish their first-run login setup.
+2. In each app, copy the **API key** from *Settings → General*.
+3. In Daredevil → **App Settings**, paste each key into the **Sonarr**, **Radarr** and **Prowlarr** tabs and **Save**. The URLs default to the Docker service names (`http://sonarr:8989`, `http://radarr:7878`, `http://prowlarr:9696`).
+4. On the **Sonarr** and **Radarr** tabs:
+   - **Connect** qBittorrent (uses the login from the **qBittorrent** tab),
+   - **Connect** the webhook (so grabs and imports reach Daredevil instantly),
+   - under **Folders**, add a library root folder — `/tv` for Sonarr, `/movies` for Radarr — and optionally a download folder for its qBittorrent category (the folder buttons browse each app's own view of the disk),
+   - under **Plex**, switch on *Refresh Plex when files change* (and the Plex Watchlist if you want it).
+5. On the **Prowlarr** tab: **Add indexer** (600+ to pick from — filter by TV/Movies and language), then **Connect Sonarr & Radarr** so they receive every indexer automatically.
+6. Upgrading from an older Daredevil? The Sonarr/Radarr tabs show an **Import your old Daredevil library** button (or run `docker compose exec web python manage.py import_library_to_arr`). It adds your existing shows/movies without re-downloading anything — files already on disk are picked up.
 
-**Set up Daredevil categories:**
-
-In Daredevil → Categories, configure paths using the container-internal paths:
-
-| Field | Value |
-|-------|-------|
-| Download Path | `/media/downloads` |
-| Completed Path (movies) | `/media/movies` |
-| Completed Path (TV) | `/media/tv` |
+> **Hardlinks:** qBittorrent keeps seeding after an import, so Sonarr/Radarr either hardlink (no extra space) or copy the file. Hardlinks only work when the download and library folders are on the same filesystem *and* the same mount inside the container; with the separate `DOWNLOADS_DIR` / `TV_DIR` / `MOVIES_DIR` mounts they fall back to copying.
 
 **Set up Plex libraries:**
 
@@ -143,7 +141,7 @@ In Plex → Libraries → Add Library, point it at:
 ```bash
 docker compose logs -f web          # Daredevil logs
 docker compose logs -f qbittorrent  # qBittorrent logs
-docker compose logs -f jackett      # Jackett logs
+docker compose logs -f sonarr       # Sonarr logs (also radarr, prowlarr)
 docker compose logs -f plex         # Plex logs
 docker compose restart web          # restart after .env change
 docker compose pull                 # update all third-party images
@@ -160,6 +158,8 @@ git pull
 docker compose build web worker beat
 docker compose up -d
 ```
+
+> **First update to the Sonarr/Radarr version:** `docker compose up -d` also creates the new `prowlarr`, `sonarr` and `radarr` containers. Jackett is no longer part of the stack — add `--remove-orphans` to remove its old container (its `data/jackett` folder is left alone). Then follow *Set up Sonarr, Radarr and Prowlarr* above.
 
 **Using existing folders on the host (instead of Docker volumes):**
 
@@ -266,8 +266,10 @@ docker-compose exec web python manage.py createsuperuser
 | Service | URL |
 |---------|-----|
 | Daredevil | http://tower:8000 |
+| Sonarr | http://tower:8989 |
+| Radarr | http://tower:7878 |
+| Prowlarr | http://tower:9696 |
 | qBittorrent | http://tower:8081 (note: Unraid WebUI uses 8080) |
-| Jackett | http://tower:9118 |
 | Plex | http://tower:32400/web |
 | PostgreSQL | internal only (not exposed) |
 
@@ -277,10 +279,14 @@ docker-compose exec web python manage.py createsuperuser
 
 ```bash
 cd /mnt/user/appdata/daredevil
+bash scripts/backup-db.sh
 git pull
 docker-compose build web worker beat
 docker-compose up -d
 ```
+
+> The first `up -d` after updating to the Sonarr/Radarr version creates the `db-init`, `prowlarr`, `sonarr` and `radarr` containers and restarts PostgreSQL once (it now allows 100 connections). `db-init` creates the apps' databases; their settings and libraries then live in PostgreSQL. Rebuilding only `web worker beat` won't start them.
+> If Sonarr, Radarr or Prowlarr already run as Community Apps, comment their blocks out of `docker-compose.yml` and point Daredevil at them from **App Settings** instead (use the Unraid IP, e.g. `http://192.168.1.10:8989`), then set the **path mappings** on each tab to match your shares.
 
 ---
 
@@ -392,8 +398,17 @@ QBITTORRENT_PASSWORD=adminadmin
 # Redis (for Celery background tasks)
 REDIS_URL=redis://localhost:6379/0
 
-# Default download path (fallback if no category path is set)
-DOWNLOAD_PATH=/path/to/downloads
+# Prowlarr / Sonarr / Radarr — optional here: they're configured on the
+# App Settings page (stored in the database). These only seed it on first start.
+SONARR_URL=http://sonarr:8989
+SONARR_API_KEY=
+RADARR_URL=http://radarr:7878
+RADARR_API_KEY=
+PROWLARR_URL=http://prowlarr:9696
+PROWLARR_API_KEY=
+
+# How Sonarr/Radarr reach Daredevil for webhooks (Docker service name by default)
+DAREDEVIL_INTERNAL_URL=http://web:8000
 ```
 
 ---
@@ -401,41 +416,63 @@ DOWNLOAD_PATH=/path/to/downloads
 ## qBittorrent setup
 
 1. Open qBittorrent → **Tools → Options → Web UI** → enable Web UI, set a username/password
-2. In Daredevil, go to **qBT Settings** and verify the connection
-3. Go to **Categories** and create categories for movies and TV (e.g. `movies`, `tv-shows`)
-4. Set a **Download Path** (where qBT saves in-progress files) and a **Completed Path** (where Daredevil moves finished files)
+2. In Daredevil, go to **App Settings → qBittorrent** and enter the same login, then **Save & test**
+3. Connect it to Sonarr, Radarr and Prowlarr from their tabs on **App Settings** — each adds torrents under its own category (`sonarr`, `radarr`, `prowlarr`)
 
-> If qBittorrent runs on a different machine, set `QBITTORRENT_HOST` to that machine's hostname or IP.  
-> The **Download Path** and **Completed Path** in Categories must be paths that **Daredevil itself can read/write** — use network mounts (SMB/NFS) if qBT and Daredevil are on separate machines.
+> If qBittorrent runs on a different machine, set `QBITTORRENT_HOST` to that machine's hostname or IP.
+> qBittorrent bans an IP after 5 failed logins (for an hour by default). If the queue shows *qBittorrent unreachable — banned*, fix the password on **App Settings → qBittorrent** and wait for the ban to expire (or restart qBittorrent).
 
 ---
 
 ## Folder structure for Plex
 
-Daredevil organises completed files automatically:
+Sonarr and Radarr name and folder files themselves when they import (configurable on their **App Settings** tabs):
 
 ```
-Movies/
+movies/
   Inception (2010)/
-    Inception.2010.1080p.mkv
+    Inception (2010) Bluray-1080p.mkv
 
-TV/
-  Breaking Bad (2008)/
-    Season 01/
-      E01-Pilot/
-        Breaking.Bad.S01E01.mkv
+tv/
+  Breaking Bad/
+    Season 1/
+      Breaking Bad - S01E01 - Pilot Bluray-1080p.mkv
 ```
 
 ---
 
 ## Background tasks (Celery)
 
-Celery handles:
-- Syncing TV show metadata from TMDB
-- Auto-queuing new episodes when they air
-- Checking movie digital release dates
+Searching, downloading, importing and watching for releases are done by Sonarr and Radarr themselves, and they report back through webhooks — Daredevil doesn't poll for any of it. Celery only runs Daredevil's own housekeeping:
+- *Keep pages fast* (every 10 minutes) — refetches what the Dashboard, Streaming and Plex pages show from TMDB and Plex, so they open from the cache
+- Storage alerts (every 6 hours)
+- For You recommendations and new/trending titles from TMDB (nightly)
+- The one-off *Import old library into Sonarr/Radarr* task
 
-If Redis is not running, Daredevil still works for manual searches and downloads — background automation is just disabled.
+Schedules and recent runs are on **App Settings → Background Tasks**.
+
+---
+
+## Databases and backups
+
+Daredevil, Sonarr, Radarr and Prowlarr all keep their data in the one PostgreSQL container (`db`). Each *arr app has a main and a log database (`sonarr-main`, `sonarr-log`, …), created by the one-shot `db-init` service; their API keys stay in `config.xml` in `DATA_DIR`.
+
+`scripts/backup-db.sh` dumps Daredevil's database and the three apps' main databases to `DAREDEVIL_BACKUP_DIR` (default `/mnt/user/Backups/daredevil`) and keeps 14 days (`DAREDEVIL_BACKUP_KEEP_DAYS`). On Unraid, schedule it with the User Scripts plugin.
+
+Restore Daredevil:
+
+```bash
+gunzip -c /mnt/user/Backups/daredevil/db_YYYYMMDD_HHMM.sql.gz | docker compose exec -T db psql -U daredevil daredevil
+```
+
+Restore one of the apps (Sonarr shown) into a fresh database:
+
+```bash
+docker compose stop sonarr
+docker compose exec -T db psql -U daredevil -d postgres -c 'DROP DATABASE "sonarr-main"' -c 'CREATE DATABASE "sonarr-main"'
+gunzip -c /mnt/user/Backups/daredevil/sonarr_YYYYMMDD_HHMM.sql.gz | docker compose exec -T db psql -U daredevil sonarr-main
+docker compose start sonarr
+```
 
 ---
 
@@ -444,9 +481,10 @@ If Redis is not running, Daredevil still works for manual searches and downloads
 ```
 daredevil/
 ├── apps/
-│   ├── downloads/      # Download queue, file moves
-│   ├── media_tracker/  # TMDB sync, movies, TV shows, episodes
-│   └── qbt/            # qBittorrent client, categories, file browser
+│   ├── arr/            # Sonarr / Radarr / Prowlarr clients, Settings tabs, Search, webhooks
+│   ├── downloads/      # Download queue + imports (read from Sonarr/Radarr)
+│   ├── media_tracker/  # Dashboard, TV shows (Sonarr) and movies (Radarr) pages
+│   └── qbt/            # qBittorrent client, Torrent Manager, file browser
 ├── config/             # Django settings, URLs, Celery config
 ├── templates/          # Jinja-style Django templates (Tailwind + Alpine.js)
 ├── static/             # Static assets

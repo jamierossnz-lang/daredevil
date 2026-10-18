@@ -15,30 +15,60 @@ def _fmt_bytes(b):
     return f'{b:.1f} TB'
 
 
+def _storage_paths():
+    """
+    [{label, color, icon, path}] for the folders worth watching, as Daredevil
+    sees them: Sonarr's and Radarr's root folders (the library) plus the
+    downloads folder, translated through each app's path mappings. Falls
+    back to the completed paths on the qBittorrent Categories page if
+    neither app is connected.
+    """
+    from django.core.cache import cache
+
+    cached = cache.get('storage_paths')
+    if cached is not None:
+        return cached
+
+    entries = []
+    try:
+        from apps.arr.clients import ArrError
+        from apps.arr.models import ArrService
+        from apps.arr.services import client, is_configured
+
+        for kind, label, color, icon in (('sonarr', 'TV Shows', 'purple', 'fa-tv'),
+                                         ('radarr', 'Movies', 'cyan', 'fa-film')):
+            if not is_configured(kind):
+                continue
+            svc = ArrService.get(kind)
+            try:
+                folders = client(kind).root_folders()
+            except ArrError as e:
+                log.info('storage: %s root folders unavailable — %s', kind, e)
+                continue
+            for f in folders:
+                entries.append({'label': label, 'color': color, 'icon': icon, 'path': svc.to_local(f['path'])})
+            for remote, local in svc.mappings():
+                if 'download' in remote.lower():
+                    entries.append({'label': 'Downloads', 'color': 'brand', 'icon': 'fa-download', 'path': local})
+    except Exception as e:
+        log.warning('storage: could not read Sonarr/Radarr folders — %s', e)
+
+    if not entries:
+        from apps.qbt.models import CategoryPath
+        entries = [
+            {'label': cp.category_name, 'color': 'brand', 'icon': 'fa-folder', 'path': cp.completed_path}
+            for cp in CategoryPath.objects.exclude(completed_path='')
+        ]
+    cache.set('storage_paths', entries, 300)
+    return entries
+
+
 def get_disk_usage():
     """
-    Return one dict per unique filesystem that has a completed_path configured.
-    Paths on the same device are merged into one entry.
+    Return one dict per unique filesystem among the watched folders
+    (see _storage_paths). Folders on the same device are merged into one entry.
     """
-    from apps.qbt.models import CategoryPath, CategoryConfig
-
-    try:
-        cfg = CategoryConfig.get()
-        tv_cat    = (cfg.tv_category    or '').lower()
-        movie_cat = (cfg.movie_category or '').lower()
-    except Exception:
-        return []
-
-    raw = []
-    for cp in CategoryPath.objects.exclude(completed_path=''):
-        name = cp.category_name.lower()
-        if name == tv_cat:
-            label, color, icon = 'TV Shows', 'purple', 'fa-tv'
-        elif name == movie_cat:
-            label, color, icon = 'Movies', 'cyan', 'fa-film'
-        else:
-            label, color, icon = cp.category_name, 'brand', 'fa-folder'
-        raw.append({'label': label, 'color': color, 'icon': icon, 'path': cp.completed_path})
+    raw = _storage_paths()
 
     seen_dev = {}
     drives = []
@@ -54,9 +84,10 @@ def get_disk_usage():
             continue
 
         if dev in seen_dev:
-            seen_dev[dev]['labels'].append(
-                {'label': entry['label'], 'color': entry['color'], 'icon': entry['icon']}
-            )
+            if all(l['label'] != entry['label'] for l in seen_dev[dev]['labels']):
+                seen_dev[dev]['labels'].append(
+                    {'label': entry['label'], 'color': entry['color'], 'icon': entry['icon']}
+                )
         else:
             pct  = round(usage.used / usage.total * 100) if usage.total else 0
             info = {

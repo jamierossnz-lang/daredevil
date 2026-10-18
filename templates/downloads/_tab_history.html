@@ -1,0 +1,39 @@
+{% include "downloads/_tab_errors.html" %}
+{% if rows %}
+<div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
+  {% for r in rows %}
+  <div class="flex items-start gap-3 px-4 py-3 hover:bg-surface-700/20 transition-colors">
+    <div class="w-8 h-8 rounded-lg bg-surface-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <i class="fa-solid {{ r.icon }} {{ r.color }} text-sm"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-x-2">
+        {% if r.link %}<a href="{{ r.link }}" class="text-sm font-medium text-gray-200 hover:text-brand-300 truncate">{{ r.title }}</a>
+        {% else %}<span class="text-sm font-medium text-gray-200 truncate">{{ r.title }}</span>{% endif %}
+        <span class="text-[11px] {{ r.color }}">{{ r.label }}</span>
+      </div>
+      <p class="text-[11px] text-gray-500 truncate" title="{{ r.release }}">{{ r.release }}</p>
+      <p class="text-[11px] text-gray-600">
+        {% if r.quality %}{{ r.quality }} · {% endif %}{% if r.indexer %}{{ r.indexer }} · {% endif %}<span class="uppercase tracking-wider text-[10px]">{{ r.app }}</span>
+      </p>
+      {% if r.message %}<p class="text-[11px] text-orange-300/90 mt-0.5">{{ r.message }}</p>{% endif %}
+      {% if r.imported %}<p class="text-[11px] text-gray-600 font-mono truncate mt-0.5" title="{{ r.imported }}">→ {{ r.imported }}</p>{% endif %}
+    </div>
+    <div class="flex-shrink-0 text-right">
+      <p class="text-[11px] text-gray-500 whitespace-nowrap">{{ r.when|date:"M j, g:i A" }}</p>
+      {% if r.event == 'grabbed' %}
+      <button onclick="markFailed('{{ r.app }}', {{ r.id }}, this)" title="Bad release? Mark it failed — it's blocklisted and a replacement is searched for"
+              class="mt-1 px-2 py-1 bg-surface-700 hover:bg-red-900/40 text-gray-400 hover:text-red-300 rounded-lg text-[11px]">
+        <i class="fa-solid fa-ban mr-1"></i>Mark failed
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% elif not errors %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-clock-rotate-left text-4xl text-gray-700 mb-3 block"></i>
+  <p class="text-gray-400 text-sm font-medium">No history yet</p>
+</div>
+{% endif %}

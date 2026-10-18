@@ -1,0 +1,32 @@
+{% include "downloads/_tab_errors.html" %}
+{% if rows %}
+<p class="text-xs text-gray-500 mb-3">Downloads that failed in qBittorrent or were rejected on import. The release is blocklisted automatically; search again to find a different one.</p>
+<div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
+  {% for r in rows %}
+  <div class="flex items-start gap-3 px-4 py-3 hover:bg-surface-700/20 transition-colors">
+    {% if r.poster %}<img src="{{ r.poster }}" alt="" loading="lazy" class="w-9 h-12 rounded object-cover flex-shrink-0 bg-surface-800">
+    {% else %}<div class="w-9 h-12 rounded bg-surface-800 flex-shrink-0"></div>{% endif %}
+    <div class="flex-1 min-w-0">
+      {% if r.link %}<a href="{{ r.link }}" class="text-sm font-medium text-gray-200 hover:text-brand-300 truncate block">{{ r.title }}</a>
+      {% else %}<p class="text-sm font-medium text-gray-200 truncate">{{ r.title }}</p>{% endif %}
+      <p class="text-[11px] text-gray-500 truncate" title="{{ r.release }}">{{ r.release }}</p>
+      {% if r.message %}<p class="text-[11px] text-red-300/90 mt-0.5">{{ r.message }}</p>{% endif %}
+      <p class="text-[11px] text-gray-600">{{ r.when|date:"M j, g:i A" }} · <span class="uppercase tracking-wider text-[10px]">{{ r.app }}</span></p>
+    </div>
+    {% if r.has_file %}
+    <span class="text-[11px] text-green-400 flex-shrink-0 mt-1"><i class="fa-solid fa-circle-check mr-1"></i>Since downloaded</span>
+    {% else %}
+    <button onclick='searchAgain({{ r.target_json|safe }}, this)'
+            class="flex-shrink-0 px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium">
+      <i class="fa-solid fa-magnifying-glass mr-1"></i>Search again
+    </button>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% elif not errors %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-circle-check text-4xl text-green-600 mb-3 block"></i>
+  <p class="text-gray-400 text-sm font-medium">No failed downloads</p>
+</div>
+{% endif %}

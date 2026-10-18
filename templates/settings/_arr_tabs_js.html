@@ -1,0 +1,435 @@
+<script>
+// Shared by the Prowlarr / Sonarr / Radarr settings tabs: connection form,
+// lazy overview load, and the "Connect …" wiring buttons.
+function arrConnection(kind) {
+  return {
+    kind, loaded: false, loading: false, data: {}, form: {}, showKey: false,
+    busy: {}, msg: '', msgOk: true,
+    ensureLoaded() { if (!this.loaded && !this.loading) this.load(); },
+    async load() {
+      this.loading = true;
+      try {
+        const r = await fetch(`/arr/${kind}/overview/`);
+        this.data = await r.json();
+        this.form = { ...this.data.config };
+        if (this.form.quality_profile_id === null) this.form.quality_profile_id = '';
+        if (this.afterLoad) this.afterLoad();
+      } catch (e) {
+        this.data = { error: 'Could not load — is Daredevil running?' };
+      }
+      this.loaded = true;
+      this.loading = false;
+    },
+    flash(msg, ok = true) {
+      this.msg = msg; this.msgOk = ok;
+      clearTimeout(this._t); this._t = setTimeout(() => { this.msg = ''; }, 5000);
+    },
+    async test() {
+      this.busy = { ...this.busy, test: true };
+      const d = await ddPost(`/arr/${kind}/test/`, { url: this.form.url, api_key: this.form.api_key });
+      this.busy = { ...this.busy, test: false };
+      this.flash(d.ok ? `Connected to ${d.app || kind} v${d.version}` : d.error, d.ok);
+    },
+    async saveConfig() {
+      this.busy = { ...this.busy, save: true };
+      const d = await ddPost(`/arr/${kind}/config/`, this.form);
+      this.busy = { ...this.busy, save: false };
+      if (!d.ok) return this.flash(d.error || 'Save failed', false);
+      this.flash(d.connected ? `Saved — connected (v${d.version})` : `Saved, but can't connect: ${d.error}`, d.connected);
+      await this.load();
+    },
+    async connect(what, extra) {
+      this.busy = { ...this.busy, [what]: true };
+      const d = await ddPost(`/arr/${kind}/${what}/`, extra || {});
+      this.busy = { ...this.busy, [what]: false };
+      ddToast(d.ok ? 'Connected' : (d.error || 'Failed'), d.ok ? 'ok' : 'error');
+      if (d.ok) await this.load();
+    },
+    qbt() { return (this.data.download_clients || []).find(c => c.implementation === 'QBittorrent'); },
+  };
+}
+
+function mediaArrTab(kind) {
+  const label = kind === 'sonarr' ? 'Sonarr' : 'Radarr';
+  return {
+    ...arrConnection(kind),
+    naming: {}, mm: {}, newRoot: '', legacyMsg: '',
+    dl: { category: '', save_path: '' }, dlWarning: '', mappingRows: [], mappingsOpen: false,
+    plex: { loaded: false, refresh: {}, watchlist: {} },
+    quality: { loaded: false, loading: false, profiles: [], definitions: {}, limits: { max: 1000 }, dirty: {} },
+    profile: null,
+    afterLoad() {
+      this.loadPlex();
+      this.naming = { ...(this.data.naming || {}) };
+      this.mm = { ...(this.data.media_management || {}) };
+      const d = this.data.downloads || {};
+      this.dl = { category: d.category || this.qbt()?.category || this.data.default_qbt_category || '', save_path: d.save_path || '' };
+      this.dlWarning = this._downloadsWarning(d);
+      this.mappingRows = (this.form.path_mappings || '').split('\n')
+        .map(line => line.split(/=>|=/))
+        .filter(parts => parts.length === 2)
+        .map(([remote, local]) => ({ remote: remote.trim(), local: local.trim() }));
+      // Open the mappings section when something can't be found through them
+      this.mappingsOpen = (this.data.root_folders || []).some(f => !f.local_ok);
+    },
+    _downloadsWarning(d) {
+      if (!d.effective) return '';
+      if (d.visible === false) return `${label} can't see ${d.effective} — finished downloads won't import. Pick a folder ${label} also has (the stock setup shares /downloads).`;
+      return '';
+    },
+
+    // ── Plex ──
+    async loadPlex(d) {
+      d = d || await (await fetch(`/arr/${kind}/plex/`)).json().catch(() => ({ ok: false, error: 'Could not reach Daredevil' }));
+      this.plex = d.ok ? { ...d, loaded: true, error: '' } : { ...this.plex, loaded: true, error: d.error };
+    },
+    async plexSave(what, enabled = true) {
+      const body = { what, enabled };
+      if (what === 'refresh') Object.assign(body, { map_from: this.plex.refresh.map_from, map_to: this.plex.refresh.map_to });
+      else Object.assign(body, { monitor: this.plex.watchlist.monitor, search: this.plex.watchlist.search });
+      this.busy = { ...this.busy, ['plex' + what]: true };
+      const d = await ddPost(`/arr/${kind}/plex/`, body);
+      this.busy = { ...this.busy, ['plex' + what]: false };
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      await this.loadPlex(d);
+      ddToast(enabled ? 'Saved' : 'Turned off');
+    },
+    plexToggle(what) { return this.plexSave(what, !this.plex[what]?.connected); },
+    async plexTest() {
+      this.busy = { ...this.busy, plextest: true };
+      const d = await ddPost(`/arr/${kind}/plex/test/`, {});
+      this.busy = { ...this.busy, plextest: false };
+      ddToast(d.ok ? `${label} reached Plex` : (d.error || 'Test failed'), d.ok ? 'ok' : 'error');
+    },
+
+    // ── Quality ──
+    async loadQuality() {
+      this.quality = { ...this.quality, loading: true };
+      const d = await (await fetch(`/arr/${kind}/quality/`)).json().catch(() => ({ ok: false, error: 'Could not reach Daredevil' }));
+      if (!d.ok) { this.quality = { ...this.quality, loading: false }; return ddToast(d.error || 'Failed', 'error'); }
+      // Inputs bind to strings; null means "no limit"
+      const defs = Object.fromEntries(Object.entries(d.definitions).map(([k, v]) =>
+        [k, { ...v, min: v.min ?? '', preferred: v.preferred ?? '', max: v.max ?? '' }]));
+      this.quality = { loaded: true, loading: false, profiles: d.profiles, definitions: defs, limits: d.limits, dirty: {} };
+      this.selectProfile(this.profile?.id ?? d.profiles[0]?.id);
+    },
+    selectProfile(id) {
+      const p = this.quality.profiles.find(x => x.id === id) || this.quality.profiles[0];
+      this.profile = p ? JSON.parse(JSON.stringify(p)) : null;
+    },
+    sizeHint(qid) {
+      const d = this.quality.definitions[qid];
+      if (!d) return '';
+      const gb = v => (Number(v) * 60 / 1024).toFixed(1);
+      return `${gb(d.min || 0)}–${d.max === '' ? '∞' : gb(d.max)} GB an hour`;
+    },
+    async saveProfile() {
+      const p = this.profile;
+      this.busy = { ...this.busy, quality: true };
+      const definitions = Object.keys(this.quality.dirty).map(qid => ({ quality_id: qid, ...this.quality.definitions[qid] }));
+      const d = await ddPost(`/arr/${kind}/quality/profiles/${p.id}/`, {
+        upgrade_allowed: p.upgrade_allowed, cutoff: p.cutoff,
+        allowed: Object.fromEntries(p.items.map(it => [String(it.id), it.allowed])), definitions,
+      });
+      this.busy = { ...this.busy, quality: false };
+      if (!d.ok) return ddToast(d.error || 'Save failed', 'error');
+      ddToast(`Saved ${p.name}`);
+      await this.loadQuality();
+    },
+
+    // ── Folders ──
+    pickDownloads() {
+      openFolderPicker({
+        source: 'qbittorrent', path: this.dl.save_path || this.data.downloads?.effective || this.data.downloads?.default || '/',
+        title: `Where qBittorrent saves ${label}'s downloads`, onPick: p => { this.dl.save_path = p; },
+      });
+    },
+    async saveDownloads() {
+      this.busy = { ...this.busy, downloads: true };
+      const d = await ddPost(`/arr/${kind}/downloads/`, this.dl);
+      this.busy = { ...this.busy, downloads: false };
+      if (!d.ok) return ddToast(d.error || 'Save failed', 'error');
+      this.data.downloads = { ...(this.data.downloads || {}), ...d.downloads };
+      this.dlWarning = this._downloadsWarning(d.downloads);
+      ddToast(d.category_paths_switched_on
+        ? "Saved — also turned on qBittorrent's \"use category folders\" so the folder is used"
+        : 'Saved', this.dlWarning ? 'error' : 'ok');
+      await this.load();
+      this.dlWarning = this._downloadsWarning(d.downloads);
+    },
+    pickRoot() {
+      openFolderPicker({ source: kind, path: this.newRoot || '/', title: `Library folder for ${label}`, onPick: p => { this.newRoot = p; this.addRoot(); } });
+    },
+    pickMapping(m, side) {
+      openFolderPicker({
+        source: side === 'remote' ? kind : 'daredevil', path: m[side] || (side === 'remote' ? '/' : '/media'),
+        title: side === 'remote' ? `Folder as ${label} sees it` : 'Same folder as Daredevil sees it',
+        onPick: p => { m[side] = p; },
+      });
+    },
+    async saveMappings() {
+      this.form.path_mappings = this.mappingRows
+        .filter(m => m.remote.trim() && m.local.trim())
+        .map(m => `${m.remote.trim()} => ${m.local.trim()}`).join('\n');
+      await this.saveConfig();
+    },
+    async testWebhook() {
+      this.busy = { ...this.busy, webhookTest: true };
+      const d = await ddPost(`/arr/${kind}/webhook/test/`, {});
+      this.busy = { ...this.busy, webhookTest: false };
+      ddToast(d.ok ? 'Test sent — check the Activity log' : (d.error || 'Test failed'), d.ok ? 'ok' : 'error');
+    },
+    async addRoot() {
+      if (!this.newRoot.trim()) return;
+      const d = await ddPost(`/arr/${kind}/rootfolders/`, { path: this.newRoot.trim() });
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      ddToast(`Added ${this.newRoot.trim()}`);
+      this.newRoot = '';
+      await this.load();
+    },
+    async deleteRoot(f) {
+      if (!confirm(`Remove root folder ${f.path} from ${kind}? Nothing is deleted from disk.`)) return;
+      const d = await ddPost(`/arr/${kind}/rootfolders/${f.id}/delete/`, {});
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      await this.load();
+    },
+    async saveNaming() {
+      this.busy = { ...this.busy, naming: true };
+      const d = await ddPost(`/arr/${kind}/naming/`, { naming: this.naming, media_management: this.mm });
+      this.busy = { ...this.busy, naming: false };
+      ddToast(d.ok ? 'Saved' : (d.error || 'Save failed'), d.ok ? 'ok' : 'error');
+    },
+    async importLegacy() {
+      if (!confirm('Add the shows and movies from the old Daredevil library to Sonarr/Radarr? Nothing will be downloaded.')) return;
+      this.busy = { ...this.busy, legacy: true };
+      this.legacyMsg = '';
+      const d = await ddPost('/arr/import-library/', {});
+      if (!d.ok) { this.busy = { ...this.busy, legacy: false }; return ddToast(d.error || 'Failed', 'error'); }
+      // Runs in Celery — poll the result
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const p = await (await fetch(`/tasks/poll/${d.task_id}/`)).json();
+        if (p.status === 'SUCCESS' || p.status === 'FAILURE') {
+          let result = p.result;
+          try { result = JSON.parse(result); } catch (e) { /* plain string */ }
+          this.legacyMsg = p.status === 'SUCCESS' ? result : `Failed: ${p.traceback.split('\n').slice(-2).join(' ')}`;
+          break;
+        }
+      }
+      this.busy = { ...this.busy, legacy: false };
+      await this.load();
+    },
+  };
+}
+
+function prowlarrTab() {
+  return {
+    ...arrConnection('prowlarr'),
+    testResults: {},
+    dialog: null, def: null, defForm: {}, values: {}, showAdvanced: false, defMsg: '', defMsgOk: true, canForce: false,
+    catalogue: [], catalogueLoading: false, catalogueError: '', catalogueQuery: '', catalogueProtocol: '', cataloguePrivacy: '',
+    catalogueCategory: 'tvmovies', catalogueLanguage: '',
+    app(kind) { return (this.data.applications || []).find(a => a.implementation.toLowerCase() === kind); },
+    async connectApps() {
+      this.busy = { ...this.busy, apps: true };
+      const d = await ddPost('/arr/prowlarr/apps/connect/', {});
+      this.busy = { ...this.busy, apps: false };
+      const summary = Object.entries(d.results || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
+      ddToast(summary || d.error || 'Done', d.ok ? 'ok' : 'error');
+      await this.load();
+    },
+    async syncApps() {
+      this.busy = { ...this.busy, sync: true };
+      const d = await ddPost('/arr/prowlarr/apps/sync/', {});
+      this.busy = { ...this.busy, sync: false };
+      ddToast(d.ok ? 'Syncing indexers to Sonarr and Radarr' : (d.error || 'Failed'), d.ok ? 'ok' : 'error');
+    },
+    async toggle(ix) {
+      const d = await ddPost(`/arr/prowlarr/indexers/${ix.id}/toggle/`, {});
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      ix.enable = d.enable;
+    },
+    async testOne(ix) {
+      this.busy = { ...this.busy, ['test' + ix.id]: true };
+      const d = await ddPost(`/arr/prowlarr/indexers/${ix.id}/test/`, {});
+      this.busy = { ...this.busy, ['test' + ix.id]: false };
+      this.testResults = { ...this.testResults, [ix.id]: d.ok ? '' : d.error };
+      ddToast(d.ok ? `${ix.name} OK` : `${ix.name}: ${d.error}`, d.ok ? 'ok' : 'error');
+    },
+    async testAll() {
+      this.busy = { ...this.busy, testAll: true };
+      const d = await ddPost('/arr/prowlarr/indexers/testall/', {});
+      this.busy = { ...this.busy, testAll: false };
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      this.testResults = d.failures || {};
+      ddToast(d.failed ? `${d.failed} of ${d.tested} failed` : `All ${d.tested} indexers OK`, d.failed ? 'error' : 'ok');
+    },
+    async remove(ix) {
+      if (!confirm(`Delete ${ix.name} from Prowlarr? It's removed from Sonarr and Radarr on the next sync.`)) return;
+      const d = await ddPost(`/arr/prowlarr/indexers/${ix.id}/delete/`, {});
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      await this.load();
+    },
+
+    // ── Add / edit ──
+    async openAdd() {
+      this.dialog = 'pick';
+      this.catalogueQuery = '';
+      if (!this.catalogue.length) {
+        this.catalogueLoading = true;
+        this.catalogueError = '';
+        try {
+          const d = await (await fetch('/arr/prowlarr/catalogue/')).json();
+          if (!d.ok) throw new Error(d.error);
+          this.catalogue = d.items;
+        } catch (e) {
+          this.catalogueError = e.message || 'Could not load the indexer list';
+        }
+        this.catalogueLoading = false;
+      }
+      this.$nextTick(() => this.$refs.catq && this.$refs.catq.focus());
+    },
+    catalogueFiltered() {
+      const q = this.catalogueQuery.trim().toLowerCase();
+      const cat = this.catalogueCategory;
+      const hasCat = d => !cat || (cat === 'tvmovies' ? d.categories.some(c => c === 2000 || c === 5000) : d.categories.includes(Number(cat)));
+      return this.catalogue.filter(d =>
+        (!this.catalogueProtocol || d.protocol === this.catalogueProtocol) &&
+        (!this.cataloguePrivacy || d.privacy === this.cataloguePrivacy) &&
+        (!this.catalogueLanguage || d.language === this.catalogueLanguage) && hasCat(d) &&
+        (!q || d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q))
+      ).slice(0, 200);
+    },
+    languageName(code) {
+      try { return new Intl.DisplayNames([navigator.language], { type: 'language' }).of(code) || code; } catch (e) { return code; }
+    },
+    catalogueLanguages() {
+      // Most common first, with the browser's own language at the top
+      const counts = {};
+      this.catalogue.forEach(d => { if (d.language) counts[d.language] = (counts[d.language] || 0) + 1; });
+      const mine = navigator.language;
+      return Object.entries(counts)
+        .map(([code, count]) => ({ code, count, name: this.languageName(code) }))
+        .sort((a, b) => (b.code === mine) - (a.code === mine) || b.count - a.count);
+    },
+    _openForm(def) {
+      this.def = def;
+      this.defForm = { name: def.name, enable: def.enable !== false, priority: def.priority || 25, app_profile_id: def.app_profile_id };
+      const values = {};
+      def.fields.forEach(f => { if (f.type !== 'info') values[f.name] = f.value ?? (f.type === 'checkbox' ? false : ''); });
+      this.values = values;
+      this.showAdvanced = false;
+      this.defMsg = '';
+      this.canForce = false;
+      this.dialog = 'form';
+    },
+    async pickDefinition(d) {
+      const r = await (await fetch(`/arr/prowlarr/catalogue/form/?key=${encodeURIComponent(d.key)}`)).json();
+      if (!r.ok) return ddToast(r.error || 'Failed', 'error');
+      this._openForm(r);
+    },
+    async openEdit(ix) {
+      const r = await (await fetch(`/arr/prowlarr/indexers/${ix.id}/form/`)).json();
+      if (!r.ok) return ddToast(r.error || 'Failed', 'error');
+      this._openForm(r);
+    },
+    _payload(saveDisabled) {
+      return { id: this.def.id, key: this.def.key, ...this.defForm, values: this.values, save_disabled: saveDisabled };
+    },
+    async testDefinition() {
+      this.busy = { ...this.busy, def: true };
+      const d = await ddPost('/arr/prowlarr/indexers/test/', this._payload(false));
+      this.busy = { ...this.busy, def: false };
+      this.defMsgOk = d.ok;
+      this.defMsg = d.ok ? 'Test passed' : d.error;
+    },
+    async saveDefinition(saveDisabled) {
+      this.busy = { ...this.busy, def: true };
+      const d = await ddPost('/arr/prowlarr/indexers/save/', this._payload(saveDisabled));
+      this.busy = { ...this.busy, def: false };
+      if (!d.ok) {
+        this.defMsgOk = false;
+        this.defMsg = d.error;
+        this.canForce = !!d.can_save_disabled;
+        return;
+      }
+      this.dialog = null;
+      ddToast(d.disabled ? 'Saved switched off — enable it once the site is reachable' : 'Indexer saved — syncing to Sonarr and Radarr');
+      await this.load();
+    },
+    // DOMParser documents never run scripts or load images, unlike innerHTML on
+    // a detached element — indexer definitions are third-party HTML.
+    stripHtml(html) { return new DOMParser().parseFromString(html || '', 'text/html').body.textContent; },
+  };
+}
+
+// qBittorrent tab — connection, folders, categories, preferences.
+const QBT_PREF_KEYS = ['dl_limit', 'up_limit', 'alt_dl_limit', 'alt_up_limit', 'scheduler_enabled',
+  'schedule_from_hour', 'schedule_from_min', 'schedule_to_hour', 'schedule_to_min', 'listen_port', 'upnp',
+  'max_connec', 'max_connec_per_torrent', 'max_uploads', 'max_uploads_per_torrent', 'dht', 'pex', 'lsd',
+  'anonymous_mode', 'encryption', 'max_ratio_enabled', 'max_ratio', 'max_seeding_time_enabled', 'max_seeding_time',
+  'max_ratio_act', 'queueing_enabled', 'max_active_downloads', 'max_active_uploads', 'max_active_torrents',
+  'dont_count_slow_torrents'];
+const QBT_KIB_KEYS = ['dl_limit', 'up_limit', 'alt_dl_limit', 'alt_up_limit'];
+const QBT_APP_NAME = k => ({ sonarr: 'Sonarr', radarr: 'Radarr', prowlarr: 'Prowlarr' }[k] || k);
+
+function qbtTab() {
+  return {
+    loaded: false, loading: false, data: {}, conn: {}, prefs: {}, kib: {}, categories: [],
+    newCat: { name: '', save_path: '' }, busy: {}, msg: '', msgOk: true, showPw: false,
+    ensureLoaded() { if (!this.loaded && !this.loading) this.load(); },
+    async load() {
+      this.loading = true;
+      try {
+        const d = await (await fetch('/qbt/settings/data/')).json();
+        this.data = d;
+        this.conn = { ...d.conn };
+        this.prefs = { ...d.prefs };
+        this.kib = Object.fromEntries(QBT_KIB_KEYS.map(k => [k, Math.round((d.prefs[k] || 0) / 1024)]));
+        this.categories = (d.categories || []).map(c => ({ ...c, _key: c.name }));
+      } catch (e) {
+        this.data = { error: 'Could not load qBittorrent settings' };
+      }
+      this.loaded = true;
+      this.loading = false;
+    },
+    flash(msg, ok = true) { this.msg = msg; this.msgOk = ok; clearTimeout(this._t); this._t = setTimeout(() => { this.msg = ''; }, 5000); },
+    async saveConnection() {
+      this.busy = { ...this.busy, conn: true };
+      const d = await ddPost('/qbt/settings/connection/', this.conn);
+      this.busy = { ...this.busy, conn: false };
+      this.flash(d.connected ? 'Saved — connected' : (d.error || 'Saved, but could not log in — check the details'), !!d.connected);
+      await this.load();
+    },
+    pickInto(key, title) {
+      openFolderPicker({ source: 'qbittorrent', path: this.prefs[key] || '/', title, onPick: p => { this.prefs[key] = p; } });
+    },
+    async savePrefs(keys) {
+      this.busy = { ...this.busy, prefs: true };
+      const merged = { ...this.prefs, ...Object.fromEntries(QBT_KIB_KEYS.map(k => [k, (Number(this.kib[k]) || 0) * 1024])) };
+      const body = Object.fromEntries((keys || QBT_PREF_KEYS).filter(k => k in merged).map(k => [k, merged[k]]));
+      const d = await ddPost('/qbt/settings/save/', body);
+      this.busy = { ...this.busy, prefs: false };
+      ddToast(d.ok ? 'Saved to qBittorrent' : (d.error || 'Save failed'), d.ok ? 'ok' : 'error');
+    },
+    async saveCategory(cat, isNew) {
+      if (!cat.name.trim()) return ddToast('Give the category a name', 'error');
+      const d = await ddPost('/qbt/categories/save/', { name: cat.name.trim(), save_path: cat.save_path || '' });
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      ddToast(d.category_paths_switched_on
+        ? "Saved — also turned on qBittorrent's \"use category folders\" so the folder is used"
+        : (isNew ? 'Category added' : 'Category saved'));
+      if (isNew) this.newCat = { name: '', save_path: '' };
+      await this.load();
+    },
+    async removeCategory(cat) {
+      const apps = cat.used_by.map(QBT_APP_NAME);
+      const warn = apps.length ? `\n\n${apps.join(' and ')} use${apps.length === 1 ? 's' : ''} this category — they'd recreate it on their next download.` : '';
+      if (!confirm(`Delete the "${cat.name}" category? Torrents in it are kept, just uncategorised.${warn}`)) return;
+      const d = await ddPost('/qbt/categories/remove/', { name: cat.name });
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      await this.load();
+    },
+  };
+}
+</script>

@@ -1,0 +1,515 @@
+<!--
+  Shared Sonarr/Radarr dialogs — included once in base.html.
+
+    openAddModal({ kind: 'sonarr'|'radarr', tmdbId | tvdbId, title?, year?, poster?,
+                   defaults?: {monitor, …}, tags?: ['for-you'],
+                   release?: {…}            // from Search: one button, "Add & download this release"
+                   onAdded?: (result) => {}, onCancel?: () => {} })
+        Three ways to add: Add to Library (unmonitored, nothing downloads),
+        Add & pick release, Add to Plex (monitored per the form + search).
+        Stays on the page and shows a banner linking to the new show/movie.
+    openReleaseModal({ kind, url | urlFor(season), seasons?, season?, title, onGrabbed?: () => {} })
+        url = GET endpoint returning {ok, releases} (interactive search)
+    ddAddedBanner({ kind, title, url, poster?, message? })
+
+  Plus two helpers every page can use: ddPost(url, data) and ddToast(msg, level).
+-->
+
+<!-- ── Add show / movie ──────────────────────────────────────────────────── -->
+<div x-data="arrAddModal()" @dd-add.window="open($event.detail)" x-show="visible" x-cloak
+     class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="close()"></div>
+  <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-xl p-6 animate-slide-in overflow-y-auto max-h-[92vh]"
+       style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))">
+    <button @click="close()" class="absolute top-4 right-4 w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center" title="Cancel">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <div class="flex items-start gap-4 mb-5 pr-10">
+      <template x-if="poster()">
+        <img :src="poster()" class="w-16 h-24 rounded-lg object-cover flex-shrink-0 bg-surface-700" alt="">
+      </template>
+      <div class="min-w-0">
+        <p class="text-[11px] font-semibold uppercase tracking-wider"
+           :class="cfg.kind === 'sonarr' ? 'text-blue-400' : 'text-purple-400'"
+           x-text="cfg.kind === 'sonarr' ? 'Add to Sonarr' : 'Add to Radarr'"></p>
+        <h3 class="text-lg font-bold text-white leading-tight" x-text="info?.title || cfg.title || 'Add'"></h3>
+        <div class="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-gray-500">
+          <span x-show="info?.year || cfg.year" x-text="info?.year || cfg.year"></span>
+          <span x-show="info?.network" x-text="`· ${info?.network}`"></span>
+          <span x-show="statusLabel()" class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                :class="statusClass()" x-text="statusLabel()"></span>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="loading" class="py-10 text-center text-gray-500 text-sm">
+      <i class="fa-solid fa-spinner fa-spin mr-2"></i>Looking it up…
+    </div>
+    <div x-show="error" x-cloak class="mb-4 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm" x-text="error"></div>
+
+    <!-- Already there -->
+    <div x-show="!loading && info?.in_library" x-cloak class="py-4 text-center">
+      <p class="text-sm text-gray-300 mb-4"><i class="fa-solid fa-circle-check text-green-400 mr-1.5"></i>Already in your library</p>
+      <a :href="info?.url" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold">
+        Open <i class="fa-solid fa-arrow-right"></i>
+      </a>
+    </div>
+
+    <div x-show="!loading && opts && !info?.in_library" class="space-y-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs text-gray-500">Quality profile</span>
+          <select x-model="form.quality_profile_id" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+            <template x-for="p in (opts?.quality_profiles || [])" :key="p.id">
+              <option :value="p.id" x-text="p.name" :selected="String(p.id) === String(form.quality_profile_id)"></option>
+            </template>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-xs text-gray-500">Root folder</span>
+          <select x-model="form.root_folder" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+            <template x-for="f in (opts?.root_folders || [])" :key="f.path">
+              <option :value="f.path" x-text="`${f.path} (${f.free} free)`" :selected="f.path === form.root_folder"></option>
+            </template>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-xs text-gray-500">Monitor</span>
+          <select x-model="form.monitor" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+            <template x-for="c in (opts?.monitor_choices || [])" :key="c[0]">
+              <option :value="c[0]" x-text="c[1]" :selected="c[0] === form.monitor"></option>
+            </template>
+          </select>
+        </label>
+        <template x-if="cfg.kind === 'sonarr'">
+          <label class="block">
+            <span class="text-xs text-gray-500">Series type</span>
+            <select x-model="form.series_type" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+              <template x-for="c in (opts?.series_type_choices || [])" :key="c[0]">
+                <option :value="c[0]" x-text="c[1]" :selected="c[0] === form.series_type"></option>
+              </template>
+            </select>
+          </label>
+        </template>
+        <template x-if="cfg.kind === 'radarr'">
+          <label class="block">
+            <span class="text-xs text-gray-500">Minimum availability</span>
+            <select x-model="form.minimum_availability" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+              <template x-for="c in (opts?.availability_choices || [])" :key="c[0]">
+                <option :value="c[0]" x-text="c[1]" :selected="c[0] === form.minimum_availability"></option>
+              </template>
+            </select>
+          </label>
+        </template>
+      </div>
+
+      <p class="text-[11px] text-gray-500" x-show="monitorHint()" x-text="monitorHint()"></p>
+
+      <label class="flex items-center gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5 cursor-pointer" x-show="cfg.kind === 'sonarr'">
+        <input type="checkbox" x-model="form.season_folder" class="accent-brand-500">
+        <span class="text-sm text-gray-300">Use season folders</span>
+      </label>
+
+      <div x-show="cfg.release" class="px-3 py-2 rounded-xl bg-brand-600/10 border border-brand-600/20">
+        <p class="text-[11px] text-gray-500">Then download</p>
+        <p class="text-xs text-brand-200 break-all" x-text="cfg.release?.title"></p>
+      </div>
+
+      <!-- Add from Search: one button -->
+      <div x-show="cfg.release" class="pt-2">
+        <button @click="submit('release')" :disabled="!!busy || loading || !opts"
+                class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid" :class="busy === 'release' ? 'fa-spinner fa-spin' : 'fa-download'"></i> Add &amp; download this release
+        </button>
+      </div>
+
+      <!-- Everywhere else: three ways to add -->
+      <div x-show="!cfg.release" class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+        <button @click="submit('library')" :disabled="!!busy || loading || !opts"
+                class="py-2.5 px-3 rounded-xl bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-gray-100 transition-colors flex flex-col items-center gap-0.5">
+          <span class="text-sm font-semibold"><i class="fa-solid mr-1.5" :class="busy === 'library' ? 'fa-spinner fa-spin' : 'fa-bookmark'"></i>Add to Library</span>
+          <span class="text-[10px] text-gray-400">Not monitored · nothing downloads</span>
+        </button>
+        <button @click="submit('pick')" :disabled="!!busy || loading || !opts"
+                class="py-2.5 px-3 rounded-xl bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-gray-100 transition-colors flex flex-col items-center gap-0.5">
+          <span class="text-sm font-semibold"><i class="fa-solid mr-1.5" :class="busy === 'pick' ? 'fa-spinner fa-spin' : 'fa-hand-pointer'"></i>Add &amp; pick release</span>
+          <span class="text-[10px] text-gray-400" x-text="cfg.kind === 'sonarr' ? 'Choose the files for a season' : 'Choose the exact file'"></span>
+        </button>
+        <button @click="submit('plex')" :disabled="!!busy || loading || !opts || form.monitor === 'none'"
+                class="py-2.5 px-3 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white transition-colors flex flex-col items-center gap-0.5">
+          <span class="text-sm font-semibold"><i class="fa-solid mr-1.5" :class="busy === 'plex' ? 'fa-spinner fa-spin' : 'fa-circle-play'"></i>Add to Plex</span>
+          <span class="text-[10px] text-white/70" x-text="plexHint()"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── "Added" banner — stays on the page, links to the new item ─────────── -->
+<div x-data="ddBannerHost()" @dd-banner.window="show($event.detail)" x-show="visible" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-3"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-3"
+     @mouseenter="hold()" @mouseleave="release()"
+     class="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-5 sm:w-[27rem] z-[75]"
+     style="margin-top: env(safe-area-inset-top, 0px)">
+  <div class="glass rounded-2xl p-3 flex items-center gap-3 shadow-2xl border border-white/10">
+    <template x-if="b.poster"><img :src="b.poster" class="w-10 h-14 rounded-md object-cover flex-shrink-0 bg-surface-700" alt=""></template>
+    <template x-if="!b.poster">
+      <div class="w-10 h-14 rounded-md bg-surface-700 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid" :class="b.kind === 'sonarr' ? 'fa-tv text-blue-400' : 'fa-film text-purple-400'"></i>
+      </div>
+    </template>
+    <div class="flex-1 min-w-0">
+      <p class="text-[10px] font-semibold uppercase tracking-wider" :class="b.kind === 'sonarr' ? 'text-blue-400' : 'text-purple-400'" x-text="b.heading"></p>
+      <p class="text-sm font-semibold text-white truncate" x-text="b.title"></p>
+      <p class="text-[11px] text-gray-400 leading-snug" x-text="b.message"></p>
+    </div>
+    <a x-show="b.url" :href="b.url" class="flex-shrink-0 px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold">
+      Open <i class="fa-solid fa-arrow-right ml-0.5"></i>
+    </a>
+    <button @click="visible = false" class="flex-shrink-0 w-7 h-7 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-surface-700" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+</div>
+
+<!-- ── Pick a release (interactive search) ───────────────────────────────── -->
+<div x-data="arrReleaseModal()" @dd-releases.window="open($event.detail)" x-show="visible" x-cloak
+     class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="close()"></div>
+  <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-4xl p-5 animate-slide-in flex flex-col max-h-[92vh]"
+       style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+    <div class="flex items-start gap-3 mb-3">
+      <div class="flex-1 min-w-0">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          Pick a release · <span x-text="cfg.kind === 'sonarr' ? 'Sonarr' : 'Radarr'"></span> grabs it and imports it when done
+        </p>
+        <h3 class="text-base font-bold text-white truncate" x-text="cfg.title"></h3>
+      </div>
+      <select x-show="cfg.seasons && cfg.seasons.length" x-model.number="season" @change="load()" :disabled="loading"
+              class="flex-shrink-0 bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-xs text-gray-200">
+        <template x-for="n in (cfg.seasons || [])" :key="n"><option :value="n" x-text="`Season ${n}`" :selected="n === season"></option></template>
+      </select>
+      <button @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 mb-3" x-show="!loading && releases.length">
+      <input type="text" x-model="filter" placeholder="Filter results…"
+             class="flex-1 min-w-[10rem] px-3 py-1.5 bg-surface-800 border border-surface-600 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+      <select x-model="sort" class="bg-surface-800 border border-surface-600 rounded-lg px-2 py-1.5 text-xs text-gray-300">
+        <option value="default">Best match first</option>
+        <option value="seeders">Most seeders</option>
+        <option value="size">Largest</option>
+        <option value="age">Newest</option>
+      </select>
+      <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+        <input type="checkbox" x-model="showRejected" class="accent-brand-500"> Show rejected
+      </label>
+      <span class="text-xs text-gray-600" x-text="`${visibleReleases().length} of ${releases.length}`"></span>
+    </div>
+
+    <div class="flex-1 overflow-y-auto scrollbar-thin -mx-1 px-1">
+      <div x-show="loading" class="py-16 text-center text-gray-500">
+        <i class="fa-solid fa-spinner fa-spin text-2xl mb-3 block"></i>
+        <p class="text-sm">Searching every indexer… this can take up to a minute.</p>
+      </div>
+      <div x-show="error" x-cloak class="py-10 text-center text-red-400 text-sm" x-text="error"></div>
+      <div x-show="!loading && !error && !releases.length" x-cloak class="py-10 text-center text-gray-500 text-sm">
+        No releases found. Add more indexers in Settings → Prowlarr.
+      </div>
+      <div class="space-y-1.5">
+        <template x-for="r in visibleReleases()" :key="r.guid + r.indexer_id">
+          <div class="px-3 py-2.5 rounded-xl border transition-colors"
+               :class="r.rejected ? 'bg-surface-900/60 border-red-900/30' : 'bg-surface-800 border-surface-600 hover:border-brand-600/50'">
+            <div class="flex items-start gap-3">
+              <div class="flex-1 min-w-0">
+                <p class="text-xs leading-snug break-all" :class="r.rejected ? 'text-gray-500' : 'text-gray-100'" x-text="r.title"></p>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-gray-500">
+                  <span class="px-1.5 py-0.5 rounded bg-brand-600/20 text-brand-300 font-medium" x-text="r.quality"></span>
+                  <span x-show="r.full_season" class="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-300">Season pack</span>
+                  <span x-text="r.size_fmt"></span>
+                  <span x-show="r.protocol === 'torrent'"><span class="text-green-400" x-text="r.seeders ?? '?'"></span>/<span x-text="r.leechers ?? '?'"></span> peers</span>
+                  <span x-text="ageLabel(r)"></span>
+                  <span x-text="r.indexer"></span>
+                  <span x-show="r.custom_format_score" x-text="`CF ${r.custom_format_score}`"></span>
+                  <a x-show="r.info_url" :href="r.info_url" target="_blank" rel="noreferrer" class="hover:text-brand-300"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                </div>
+                <template x-if="r.rejected">
+                  <ul class="mt-1 text-[11px] text-red-400/90 list-disc list-inside">
+                    <template x-for="reason in r.rejections" :key="reason"><li x-text="reason"></li></template>
+                  </ul>
+                </template>
+              </div>
+              <button @click="grab(r)" :disabled="grabbing === r.guid"
+                      class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
+                      :class="r.rejected ? 'bg-surface-700 hover:bg-surface-600 text-gray-300' : 'bg-brand-600 hover:bg-brand-500 text-white'">
+                <i class="fa-solid" :class="grabbing === r.guid ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                <span x-text="r.rejected ? 'Grab anyway' : 'Grab'"></span>
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const CSRF = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+  window.ddPost = async function (url, data) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data || {}),
+    });
+    let d = {};
+    try { d = await r.json(); } catch (e) { d = { ok: false, error: `HTTP ${r.status}` }; }
+    if (!r.ok && d.ok === undefined) d.ok = false;
+    return d;
+  };
+
+  window.ddToast = function (msg, level) {
+    const colors = {
+      ok: 'text-green-400 border-green-500/30', error: 'text-red-400 border-red-500/30', info: 'text-brand-300 border-brand-500/30',
+    };
+    const icons = { ok: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info' };
+    const lv = level || 'ok';
+    const el = document.createElement('div');
+    el.className = `fixed bottom-24 lg:bottom-6 right-4 left-4 sm:left-auto z-[70] flex items-center gap-2 px-4 py-3 glass rounded-xl text-sm border animate-slide-in shadow-lg ${colors[lv] || colors.ok}`;
+    el.innerHTML = `<i class="fa-solid ${icons[lv] || icons.ok}"></i><span></span>`;
+    el.querySelector('span').textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, lv === 'error' ? 6000 : 3000);
+  };
+
+  window.openAddModal = (cfg) => window.dispatchEvent(new CustomEvent('dd-add', { detail: cfg }));
+  window.openReleaseModal = (cfg) => window.dispatchEvent(new CustomEvent('dd-releases', { detail: cfg }));
+  window.ddAddedBanner = (b) => window.dispatchEvent(new CustomEvent('dd-banner', { detail: b }));
+
+  // For buttons that carry their item in (HTML-escaped) data-* attributes:
+  //   data-kind="sonarr|radarr" data-tmdb-id / data-tvdb-id data-title data-year
+  //   data-poster data-defaults='{"monitor":"existing"}'
+  // Once added the button turns into an "In library" link, and a dd-added
+  // event bubbles up from it.
+  window.addFromCard = function (el) {
+    const ds = el.dataset;
+    const num = v => (v && /^\d+$/.test(v) ? Number(v) : null);
+    let defaults;
+    try { defaults = ds.defaults ? JSON.parse(ds.defaults) : undefined; } catch (e) { defaults = undefined; }
+    window.openAddModal({
+      kind: ds.kind, tmdbId: num(ds.tmdbId), tvdbId: num(ds.tvdbId),
+      title: ds.title, year: ds.year, poster: ds.poster, defaults,
+      onAdded: (d) => {
+        el.classList.add('opacity-60');
+        el.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i>In library';
+        el.onclick = () => { window.location.href = d.url; };
+        el.dispatchEvent(new CustomEvent('dd-added', { detail: d, bubbles: true }));
+      },
+    });
+  };
+
+  const optionsCache = {};
+
+  window.arrAddModal = function () {
+    return {
+      visible: false, loading: false, busy: null, error: '', cfg: {}, opts: null, info: null, form: {}, done: false,
+      async open(cfg) {
+        this.cfg = cfg || {};
+        this.visible = true;
+        this.error = '';
+        this.busy = null;
+        this.info = null;
+        this.done = false;
+        this.loading = true;
+        const kind = this.cfg.kind;
+        const q = new URLSearchParams();
+        if (this.cfg.tvdbId) q.set('tvdb_id', this.cfg.tvdbId);
+        if (this.cfg.tmdbId) q.set('tmdb_id', this.cfg.tmdbId);
+        const options = optionsCache[kind] ? Promise.resolve(optionsCache[kind])
+          : fetch(`/arr/${kind}/options/`).then(r => r.json());
+        const lookup = fetch(`/arr/${kind}/lookup/?${q}`).then(r => r.json());
+        const [opts, info] = await Promise.all([
+          options.catch(() => ({ ok: false, error: 'Could not load options' })),
+          lookup.catch(() => ({ ok: false, error: 'Could not look it up' })),
+        ]);
+        if (opts.ok) this.opts = optionsCache[kind] = opts;
+        else this.error = opts.error || 'Could not load options';
+        if (info.ok) this.info = info;
+        else this.error = this.error || info.error;
+
+        const def = { ...(this.opts?.defaults || {}), ...(this.cfg.defaults || {}) };
+        let monitor = def.monitor;
+        // Sonarr's automatic default: future episodes while a show is still airing, none once it's ended
+        if (kind === 'sonarr' && (!monitor || monitor === 'auto')) monitor = this.info?.suggested_monitor || 'future';
+        this.form = {
+          quality_profile_id: def.quality_profile_id, root_folder: def.root_folder, monitor,
+          series_type: def.series_type || 'standard', season_folder: def.season_folder !== false,
+          minimum_availability: def.minimum_availability || 'released',
+        };
+        this.loading = false;
+        if (this.info?.in_library) {
+          this.done = true;
+          if (this.cfg.onAdded) this.cfg.onAdded({ status: 'exists', id: this.info.id, url: this.info.url, title: this.info.title, kind });
+          if (this.cfg.release) this.visible = false;  // nothing to add — the caller just downloads it
+        }
+      },
+      close() {
+        this.visible = false;
+        if (!this.done && this.cfg.onCancel) this.cfg.onCancel();
+      },
+      poster() { return this.info?.poster || this.cfg.poster || ''; },
+      released() {
+        // Radarr only — is it out (digitally / on disc) yet?
+        const i = this.info || {};
+        const now = Date.now();
+        return i.status === 'released' || [i.digital_release, i.physical_release].some(d => d && Date.parse(d) <= now);
+      },
+      statusLabel() {
+        const st = this.info?.status;
+        if (!st) return '';
+        if (this.cfg.kind === 'sonarr') return { continuing: 'Still airing', ended: 'Ended', upcoming: 'Not aired yet' }[st] || st;
+        return this.released() ? 'Released' : ({ announced: 'Announced', inCinemas: 'In cinemas' }[st] || st);
+      },
+      statusClass() {
+        const good = this.cfg.kind === 'sonarr' ? this.info?.status !== 'ended' : this.released();
+        return good ? 'bg-green-500/15 text-green-300' : 'bg-surface-600 text-gray-300';
+      },
+      monitorHint() {
+        const m = this.form.monitor;
+        if (this.cfg.kind === 'sonarr') {
+          if (m === 'future') return 'Only episodes that air from now on will download.';
+          if (m === 'none') return this.info?.status === 'ended'
+            ? 'This show has ended — pick what to monitor to download it with "Add to Plex", or choose the files yourself.'
+            : 'Nothing is monitored — pick what to monitor to download it with "Add to Plex".';
+          return '';
+        }
+        if (m === 'none') return 'Not monitored — pick "Movie Only" to download it with "Add to Plex".';
+        if (!this.released()) return "Not out yet — Radarr keeps watching and grabs it once it's available.";
+        return '';
+      },
+      plexHint() {
+        if (this.form.monitor === 'none') return 'Pick what to monitor first';
+        if (this.cfg.kind === 'radarr') return this.released() ? 'Downloads it now' : 'Grabs it on release';
+        return this.form.monitor === 'future' ? 'Downloads new episodes' : 'Downloads monitored episodes';
+      },
+      async submit(mode) {
+        // library: unmonitored, no search · pick: as set, then choose a release
+        // plex: as set + search now · release: as set, then download cfg.release
+        this.busy = mode;
+        this.error = '';
+        const kind = this.cfg.kind;
+        const payload = { ...this.form, search: mode === 'plex' && this.form.monitor !== 'none' };
+        if (mode === 'library') payload.monitor = 'none';
+        if (this.cfg.tags) payload.tags = this.cfg.tags;
+        if (this.cfg.tvdbId) payload.tvdb_id = this.cfg.tvdbId;
+        if (this.cfg.tmdbId) payload.tmdb_id = this.cfg.tmdbId;
+        const d = await ddPost(kind === 'sonarr' ? '/shows/add/' : '/movies/add/', payload);
+        this.busy = null;
+        if (d.status === 'error' || d.ok === false) { this.error = d.message || d.error || 'Failed'; return; }
+        this.done = true;
+        this.visible = false;
+        const added = { ...d, kind, mode, poster: this.poster() };
+        if (this.cfg.onAdded) this.cfg.onAdded(added);
+        if (mode === 'release') return;  // the caller downloads the release
+        if (mode === 'pick') return this.pickRelease(added);
+        ddAddedBanner({ ...added, message: this.addedMessage(added) });
+      },
+      addedMessage(d) {
+        if (d.status === 'exists') return 'Already in your library';
+        if (d.mode === 'library') return 'In your library — not monitored, nothing will download';
+        if (this.cfg.kind === 'radarr') return this.released() ? 'Searching for it now — it appears in Plex once downloaded' : "Radarr will grab it once it's released";
+        return this.form.monitor === 'future' ? 'New episodes will download as they air' : 'Searching for monitored episodes now';
+      },
+      pickRelease(d) {
+        const banner = () => ddAddedBanner({ ...d, message: 'Release grabbed — follow it in the queue' });
+        if (this.cfg.kind === 'radarr') {
+          return openReleaseModal({ kind: 'radarr', url: `/movies/${d.id}/releases/`, title: d.title, onGrabbed: banner });
+        }
+        // Sonarr searches by season: start with the newest one of a running
+        // show, or the first of one that's ended
+        const seasons = (d.seasons && d.seasons.length) ? d.seasons : (this.info?.seasons || []);
+        const season = this.info?.status === 'ended' ? seasons[0] : seasons[seasons.length - 1];
+        openReleaseModal({
+          kind: 'sonarr', title: d.title, seasons, season: season ?? 1,
+          urlFor: n => `/shows/${d.id}/releases/?season=${n}&wait=1`, onGrabbed: banner,
+        });
+      },
+    };
+  };
+
+  window.ddBannerHost = function () {
+    return {
+      visible: false, b: {}, _t: null,
+      show(b) {
+        this.b = {
+          ...b, heading: b.heading || (b.status === 'exists' ? 'Already in library'
+            : `Added to ${b.kind === 'sonarr' ? 'Sonarr' : 'Radarr'}`),
+        };
+        this.visible = true;
+        this.release();
+      },
+      hold() { clearTimeout(this._t); },
+      release() { clearTimeout(this._t); this._t = setTimeout(() => { this.visible = false; }, 10000); },
+    };
+  };
+
+  window.arrReleaseModal = function () {
+    return {
+      visible: false, loading: false, error: '', cfg: {}, releases: [], filter: '', sort: 'default',
+      showRejected: true, grabbing: null,
+      season: null,
+      async open(cfg) {
+        this.cfg = cfg || {};
+        this.visible = true;
+        this.filter = '';
+        this.season = this.cfg.season ?? null;
+        await this.load();
+      },
+      async load() {
+        this.loading = true;
+        this.error = '';
+        this.releases = [];
+        try {
+          const r = await fetch(this.cfg.urlFor ? this.cfg.urlFor(this.season) : this.cfg.url);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error || 'Search failed');
+          this.releases = d.releases.map((x, i) => ({ ...x, _rank: i }));
+        } catch (e) {
+          this.error = e.message;
+        }
+        this.loading = false;
+      },
+      close() { this.visible = false; },
+      ageLabel(r) {
+        if (r.age_hours == null) return '';
+        if (r.age_hours < 1) return 'just now';
+        if (r.age_hours < 48) return `${Math.round(r.age_hours)}h old`;
+        return `${r.age}d old`;
+      },
+      visibleReleases() {
+        const q = this.filter.trim().toLowerCase();
+        let list = this.releases.filter(r => (this.showRejected || !r.rejected) && (!q || r.title.toLowerCase().includes(q) || (r.indexer || '').toLowerCase().includes(q)));
+        const by = {
+          default: (a, b) => (a.rejected - b.rejected) || (a._rank - b._rank),
+          seeders: (a, b) => (b.seeders || 0) - (a.seeders || 0),
+          size: (a, b) => (b.size || 0) - (a.size || 0),
+          age: (a, b) => (a.age_hours ?? 1e9) - (b.age_hours ?? 1e9),
+        }[this.sort];
+        return list.sort(by);
+      },
+      async grab(r) {
+        this.grabbing = r.guid;
+        const url = this.cfg.kind === 'sonarr' ? '/shows/releases/grab/' : '/movies/releases/grab/';
+        const d = await ddPost(url, { guid: r.guid, indexer_id: r.indexer_id });
+        this.grabbing = null;
+        if (!d.ok) { ddToast(d.error || 'Grab failed', 'error'); return; }
+        this.visible = false;
+        ddToast(`Grabbed — sent to qBittorrent by ${this.cfg.kind === 'sonarr' ? 'Sonarr' : 'Radarr'}`);
+        if (this.cfg.onGrabbed) this.cfg.onGrabbed();
+      },
+    };
+  };
+})();
+</script>

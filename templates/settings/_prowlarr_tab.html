@@ -1,0 +1,288 @@
+{# Prowlarr settings tab — connection, app sync, indexers #}
+<div class="max-w-5xl mx-auto space-y-6" x-data="prowlarrTab()" x-effect="tab === 'prowlarr' && ensureLoaded()">
+
+  <!-- ── Connection ── -->
+  <div class="glass rounded-2xl p-6 max-w-3xl mx-auto">
+    <div class="flex items-start justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-200 flex items-center gap-2"><i class="fa-solid fa-magnifying-glass text-orange-400"></i> Prowlarr</h2>
+        <p class="text-xs text-gray-500 mt-1">Manages your indexers in one place and pushes them to Sonarr and Radarr. Daredevil's Search page queries it directly.</p>
+      </div>
+      <a :href="data.open_url" target="_blank" rel="noreferrer" x-show="data.open_url"
+         class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Prowlarr
+      </a>
+    </div>
+    <div class="flex items-center gap-2 mb-4 text-xs" x-show="loaded">
+      <template x-if="data.status">
+        <span class="px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400"><i class="fa-solid fa-circle-check mr-1"></i>Connected · v<span x-text="data.status.version"></span></span>
+      </template>
+      <template x-if="!data.status && data.error">
+        <span class="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400" x-text="data.error"></span>
+      </template>
+    </div>
+    <div x-show="!loaded" class="text-xs text-gray-500 mb-4"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Checking connection…</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs text-gray-500">URL (as Daredevil reaches it)</span>
+        <input type="text" x-model="form.url" placeholder="http://prowlarr:9696"
+               class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-500">API key <span class="text-gray-600">(Prowlarr → Settings → General)</span></span>
+        <div class="relative mt-1">
+          <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+                 class="w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 pr-9 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+          <button type="button" @click="showKey = !showKey" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"><i class="fa-solid" :class="showKey ? 'fa-eye-slash' : 'fa-eye'"></i></button>
+        </div>
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="text-xs text-gray-500">Public URL for "Open Prowlarr" <span class="text-gray-600">(optional — defaults to this host on port 9696)</span></span>
+        <input type="text" x-model="form.public_url" placeholder="http://192.168.1.10:9696"
+               class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:outline-none focus:border-brand-500">
+      </label>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-4">
+      <button @click="test()" :disabled="busy.test" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+        <i class="fa-solid mr-1.5" :class="busy.test ? 'fa-spinner fa-spin' : 'fa-plug'"></i>Test
+      </button>
+      <button @click="saveConfig()" :disabled="busy.save" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <i class="fa-solid mr-1.5" :class="busy.save ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+      </button>
+      <span class="text-xs" :class="msgOk ? 'text-green-400' : 'text-red-400'" x-text="msg"></span>
+    </div>
+  </div>
+
+  <template x-if="data.status">
+    <div class="space-y-6">
+      <template x-if="data.health && data.health.length">
+        <div class="glass rounded-2xl p-5 border border-yellow-500/20 max-w-3xl mx-auto">
+          <h2 class="text-sm font-semibold text-gray-200 mb-3"><i class="fa-solid fa-heart-pulse text-yellow-400 mr-2"></i>Prowlarr health</h2>
+          <ul class="space-y-1.5 text-xs">
+            <template x-for="h in data.health" :key="h.message">
+              <li class="flex items-start gap-2" :class="h.type === 'error' ? 'text-red-300' : 'text-yellow-300'">
+                <i class="fa-solid mt-0.5" :class="h.type === 'error' ? 'fa-circle-xmark' : 'fa-triangle-exclamation'"></i>
+                <span class="flex-1" x-text="h.message"></span>
+                <a x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+
+      <!-- ── Apps ── -->
+      <div class="glass rounded-2xl p-6 max-w-3xl mx-auto">
+        <h2 class="text-sm font-semibold text-gray-200 mb-1">Connections</h2>
+        <p class="text-xs text-gray-500 mb-4">Prowlarr pushes every indexer to the apps below (full sync), so you only ever add indexers here.</p>
+        <div class="space-y-3">
+          <template x-for="kind in ['sonarr', 'radarr']" :key="kind">
+            <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-surface-800/60 border border-white/5">
+              <i class="fa-solid w-5 text-center" :class="kind === 'sonarr' ? 'fa-tv text-blue-400' : 'fa-film text-purple-400'"></i>
+              <div class="flex-1 min-w-[12rem]">
+                <p class="text-sm text-gray-200" x-text="kind === 'sonarr' ? 'Sonarr' : 'Radarr'"></p>
+                <p class="text-xs text-gray-500" x-show="app(kind)">Syncing indexers (<span x-text="app(kind)?.sync_level"></span>) → <span class="font-mono" x-text="app(kind)?.base_url"></span></p>
+                <p class="text-xs text-yellow-400/80" x-show="!app(kind) && data.media_configured?.[kind]">Not connected — its indexers won't come from Prowlarr.</p>
+                <p class="text-xs text-gray-600" x-show="!app(kind) && !data.media_configured?.[kind]">Set up the <span x-text="kind === 'sonarr' ? 'Sonarr' : 'Radarr'"></span> tab first.</p>
+              </div>
+            </div>
+          </template>
+          <div class="flex flex-wrap gap-2">
+            <button @click="connectApps()" :disabled="busy.apps" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600/30 hover:bg-brand-600/60 text-brand-200 border border-brand-600/30 disabled:opacity-50">
+              <i class="fa-solid mr-1" :class="busy.apps ? 'fa-spinner fa-spin' : 'fa-link'"></i>Connect Sonarr &amp; Radarr
+            </button>
+            <button @click="syncApps()" :disabled="busy.sync" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+              <i class="fa-solid mr-1" :class="busy.sync ? 'fa-spinner fa-spin' : 'fa-arrows-rotate'"></i>Sync indexers now
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Indexers ── -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <div class="flex-1 min-w-[12rem]">
+            <h2 class="text-sm font-semibold text-gray-200">Indexers <span class="text-gray-500 font-normal" x-text="`(${data.indexers?.length || 0})`"></span></h2>
+            <p class="text-xs text-gray-500">Add, test, enable/disable and edit indexers. Changes sync to Sonarr and Radarr.</p>
+          </div>
+          <button @click="testAll()" :disabled="busy.testAll" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+            <i class="fa-solid mr-1" :class="busy.testAll ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i>Test all
+          </button>
+          <button @click="openAdd()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white">
+            <i class="fa-solid fa-plus mr-1"></i>Add indexer
+          </button>
+        </div>
+
+        <div x-show="!data.indexers?.length" class="py-10 text-center text-sm text-gray-500">
+          No indexers yet — add one to start searching.
+        </div>
+        <div class="overflow-x-auto" x-show="data.indexers?.length">
+          <table class="w-full text-sm">
+            <thead class="text-[11px] uppercase tracking-wider text-gray-500 border-b border-white/5">
+              <tr>
+                <th class="px-2 py-2 text-left">On</th>
+                <th class="px-2 py-2 text-left">Indexer</th>
+                <th class="px-2 py-2 text-left">Type</th>
+                <th class="px-2 py-2 text-right">Priority</th>
+                <th class="px-2 py-2 text-right">Queries / grabs</th>
+                <th class="px-2 py-2 text-right">Avg</th>
+                <th class="px-2 py-2 text-right"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-700/30">
+              <template x-for="ix in data.indexers" :key="ix.id">
+                <tr class="hover:bg-surface-700/20">
+                  <td class="px-2 py-2">
+                    <button @click="toggle(ix)" :title="ix.enable ? 'Enabled — click to disable' : 'Disabled — click to enable'"
+                            class="w-9 h-5 rounded-full relative transition-colors" :class="ix.enable ? 'bg-brand-600' : 'bg-surface-600'">
+                      <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" :class="ix.enable ? 'left-4' : 'left-0.5'"></span>
+                    </button>
+                  </td>
+                  <td class="px-2 py-2">
+                    <p class="text-gray-100 font-medium" x-text="ix.name"></p>
+                    <p class="text-[11px] text-red-400" x-show="ix.disabled_till" x-text="`Failing — paused until ${new Date(ix.disabled_till).toLocaleString()}`"></p>
+                    <p class="text-[11px] text-red-300/80" x-show="testResults[ix.id]" x-text="testResults[ix.id]"></p>
+                  </td>
+                  <td class="px-2 py-2 whitespace-nowrap">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded" :class="ix.protocol === 'torrent' ? 'bg-green-600/20 text-green-300' : 'bg-blue-600/20 text-blue-300'" x-text="ix.protocol"></span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-700 text-gray-400" x-text="ix.privacy"></span>
+                  </td>
+                  <td class="px-2 py-2 text-right text-gray-400" x-text="ix.priority"></td>
+                  <td class="px-2 py-2 text-right text-gray-400 whitespace-nowrap" x-text="`${ix.queries} / ${ix.grabs}${ix.failed ? ' · ' + ix.failed + ' failed' : ''}`"></td>
+                  <td class="px-2 py-2 text-right text-gray-500 whitespace-nowrap" x-text="ix.avg_ms ? `${ix.avg_ms} ms` : '—'"></td>
+                  <td class="px-2 py-2 text-right whitespace-nowrap">
+                    <button @click="testOne(ix)" title="Test" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid text-xs" :class="busy['test' + ix.id] ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i></button>
+                    <button @click="openEdit(ix)" title="Edit" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-pen text-xs"></i></button>
+                    <button @click="remove(ix)" title="Delete" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/50 text-gray-300 hover:text-red-400"><i class="fa-solid fa-trash text-xs"></i></button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ── Add / edit indexer dialog ── -->
+  <div x-show="dialog" x-cloak class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="dialog = null"></div>
+    <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-2xl p-5 flex flex-col max-h-[92vh]">
+      <!-- Step 1: pick an indexer type -->
+      <template x-if="dialog === 'pick'">
+        <div class="flex flex-col min-h-0">
+          <div class="flex items-center gap-2 mb-3">
+            <h3 class="text-base font-bold text-white flex-1">Add an indexer</h3>
+            <button @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="flex flex-wrap gap-2 mb-3">
+            <input type="text" x-model="catalogueQuery" placeholder="Search 600+ indexers…" x-ref="catq"
+                   class="flex-1 min-w-[10rem] px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+            <select x-model="catalogueProtocol" class="bg-surface-800 border border-surface-600 rounded-xl px-2 py-2 text-xs text-gray-300">
+              <option value="">Any protocol</option><option value="torrent">Torrent</option><option value="usenet">Usenet</option>
+            </select>
+            <select x-model="cataloguePrivacy" class="bg-surface-800 border border-surface-600 rounded-xl px-2 py-2 text-xs text-gray-300">
+              <option value="">Any privacy</option><option value="public">Public</option><option value="semiPrivate">Semi-private</option><option value="private">Private</option>
+            </select>
+            <select x-model="catalogueCategory" class="bg-surface-800 border border-surface-600 rounded-xl px-2 py-2 text-xs text-gray-300" title="What the indexer has">
+              <option value="">Any category</option>
+              <option value="tvmovies">TV &amp; Movies</option>
+              <option value="5000">TV</option>
+              <option value="2000">Movies</option>
+            </select>
+            <select x-model="catalogueLanguage" class="bg-surface-800 border border-surface-600 rounded-xl px-2 py-2 text-xs text-gray-300 max-w-[11rem]" title="Main language of the indexer">
+              <option value="">Any language</option>
+              <template x-for="l in catalogueLanguages()" :key="l.code"><option :value="l.code" x-text="`${l.name} (${l.count})`"></option></template>
+            </select>
+          </div>
+          <p class="text-[11px] text-gray-500 -mt-1 mb-2" x-show="catalogue.length" x-text="`${catalogueFiltered().length} of ${catalogue.length} indexers${catalogueFiltered().length === 200 ? ' (first 200 shown)' : ''}`"></p>
+          <div class="flex-1 overflow-y-auto scrollbar-thin min-h-[12rem]">
+            <div x-show="catalogueLoading" class="py-10 text-center text-sm text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading Prowlarr's indexer list…</div>
+            <div x-show="catalogueError" class="py-6 text-center text-sm text-red-400" x-text="catalogueError"></div>
+            <template x-for="d in catalogueFiltered()" :key="d.key">
+              <button @click="pickDefinition(d)" class="w-full text-left px-3 py-2 rounded-xl hover:bg-surface-700 flex items-start gap-3">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-gray-100 font-medium" x-text="d.name"></p>
+                  <p class="text-[11px] text-gray-500 line-clamp-1" x-text="d.description"></p>
+                </div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" :class="d.privacy === 'public' ? 'bg-green-600/20 text-green-300' : d.privacy === 'private' ? 'bg-red-600/20 text-red-300' : 'bg-yellow-600/20 text-yellow-300'" x-text="d.privacy"></span>
+                <span class="text-[10px] text-gray-500 flex-shrink-0 w-16 text-right truncate" :title="d.language" x-text="languageName(d.language)"></span>
+              </button>
+            </template>
+            <p x-show="!catalogueLoading && !catalogueFiltered().length && !catalogueError" class="py-6 text-center text-sm text-gray-500">No matches</p>
+          </div>
+        </div>
+      </template>
+
+      <!-- Step 2: configure -->
+      <template x-if="dialog === 'form' && def">
+        <div class="flex flex-col min-h-0">
+          <div class="flex items-center gap-2 mb-1">
+            <button x-show="!def.id" @click="dialog = 'pick'" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-arrow-left"></i></button>
+            <h3 class="text-base font-bold text-white flex-1 truncate" x-text="def.id ? `Edit ${def.name}` : `Add ${def.name}`"></h3>
+            <button @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <p class="text-xs text-gray-500 mb-3" x-text="def.description"></p>
+          <div x-show="def.needs_captcha" class="mb-3 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-300">
+            This indexer needs a captcha to log in — add it from Prowlarr's own UI instead.
+          </div>
+          <div class="flex-1 overflow-y-auto scrollbar-thin space-y-3 pr-1">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label class="block sm:col-span-2"><span class="text-xs text-gray-500">Name</span>
+                <input type="text" x-model="defForm.name" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200"></label>
+              <label class="block"><span class="text-xs text-gray-500">Priority (1 = highest)</span>
+                <input type="number" min="1" max="50" x-model="defForm.priority" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200"></label>
+              <label class="block sm:col-span-2"><span class="text-xs text-gray-500">Sync profile</span>
+                <select x-model="defForm.app_profile_id" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+                  <template x-for="p in def.app_profiles" :key="p.id"><option :value="p.id" x-text="p.name" :selected="String(p.id) === String(defForm.app_profile_id)"></option></template>
+                </select></label>
+              <label class="flex items-center gap-2 text-sm text-gray-300 mt-5"><input type="checkbox" x-model="defForm.enable" class="accent-brand-500"> Enabled</label>
+            </div>
+            <template x-for="f in def.fields.filter(f => showAdvanced || !f.advanced)" :key="f.name">
+              <div>
+                <template x-if="f.type === 'info'">
+                  <p class="text-[11px] text-gray-400 bg-surface-800/60 rounded-lg px-3 py-2" x-text="stripHtml(f.value)"></p>
+                </template>
+                <template x-if="f.type === 'checkbox'">
+                  <label class="flex items-start gap-2 text-sm text-gray-300">
+                    <input type="checkbox" x-model="values[f.name]" class="accent-brand-500 mt-1">
+                    <span><span x-text="f.label"></span><span x-show="f.help" class="block text-[11px] text-gray-500" x-text="f.help"></span></span>
+                  </label>
+                </template>
+                <template x-if="f.type === 'select'">
+                  <label class="block"><span class="text-xs text-gray-500" x-text="f.label"></span>
+                    <select x-model="values[f.name]" class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200">
+                      <template x-for="o in f.options" :key="String(o.value)"><option :value="o.value" x-text="o.name" :selected="String(o.value) === String(values[f.name])"></option></template>
+                    </select>
+                    <span x-show="f.help" class="block text-[11px] text-gray-500 mt-0.5" x-text="f.help"></span></label>
+                </template>
+                <template x-if="!['info', 'checkbox', 'select'].includes(f.type)">
+                  <label class="block"><span class="text-xs text-gray-500" x-text="f.label"></span>
+                    <input :type="f.type === 'number' ? 'number' : (f.secret || f.type === 'password' ? 'password' : 'text')" x-model="values[f.name]"
+                           class="mt-1 w-full bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
+                    <span x-show="f.help" class="block text-[11px] text-gray-500 mt-0.5" x-text="f.help"></span></label>
+                </template>
+              </div>
+            </template>
+            <label class="flex items-center gap-2 text-xs text-gray-400 pt-1" x-show="def.fields.some(f => f.advanced)">
+              <input type="checkbox" x-model="showAdvanced" class="accent-brand-500"> Show advanced settings
+            </label>
+          </div>
+          <p class="text-xs mt-3" :class="defMsgOk ? 'text-green-400' : 'text-red-400'" x-text="defMsg"></p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <button @click="testDefinition()" :disabled="busy.def" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
+              <i class="fa-solid fa-plug-circle-check mr-1.5"></i>Test
+            </button>
+            <button x-show="canForce" @click="saveDefinition(true)" :disabled="busy.def" title="Prowlarr won't enable an indexer that fails its test — save it switched off and enable it once the site is reachable"
+                    class="px-4 py-2 rounded-xl text-sm font-medium bg-yellow-600/80 hover:bg-yellow-600 text-white disabled:opacity-50">
+              Save disabled
+            </button>
+            <button @click="saveDefinition(false)" :disabled="busy.def" class="ml-auto px-5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+              <i class="fa-solid mr-1.5" :class="busy.def ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>

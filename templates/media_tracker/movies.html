@@ -6,38 +6,45 @@
 <a id="addMovieBtn" href="{% url 'tmdb_search_movie' %}{% if q %}?q={{ q|urlencode }}{% endif %}"
    class="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-sm font-medium transition-colors">
   <i class="fa-solid fa-plus"></i>
-  <span class="hidden sm:inline" id="addMovieLabel">{% if q %}Search TMDB{% else %}Add Movie{% endif %}</span>
+  <span class="hidden sm:inline" id="addMovieLabel">{% if q %}Search to add{% else %}Add Movie{% endif %}</span>
 </a>
 {% endblock %}
 
 {% block content %}
-<!-- Filters -->
+{% if error %}
+<div class="glass rounded-2xl p-5 border border-red-500/30 mb-6 flex items-center gap-3 text-sm text-red-300">
+  <i class="fa-solid fa-circle-exclamation text-red-400"></i> Radarr: {{ error }}
+</div>
+{% endif %}
+
+<!-- Tabs + filters -->
+{% include "media_tracker/_library_tabs.html" with noun="movies" %}
 <div class="flex flex-wrap gap-3 mb-6">
   <form method="get" id="filterForm" class="flex flex-col sm:flex-row gap-2 flex-1 min-w-0">
     <div class="relative flex-1 min-w-0">
       <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
-      <input type="text" name="q" id="filterInput" value="{{ q }}" placeholder="Search movies…" autocomplete="off"
+      <input type="text" name="q" id="filterInput" value="{{ q }}" placeholder="Search your movies…" autocomplete="off"
              class="w-full pl-9 pr-4 py-2.5 sm:py-2 bg-surface-800 border border-surface-600 rounded-xl text-base sm:text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors">
     </div>
-    <div class="flex gap-2">
-      <select name="status" id="filterStatus" class="flex-1 sm:flex-none bg-surface-800 border border-surface-600 text-sm text-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500">
-        <option value="">All Status</option>
-        {% for val, label in status_choices %}
-        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
+    <select name="status" id="filterStatus" class="sm:w-52 bg-surface-800 border border-surface-600 text-sm text-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500">
+      <option value="">All movies ({{ movies|length }})</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
   </form>
 </div>
 
 {% if movies %}
 <div id="posterGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
   {% for movie in movies %}
-  <div class="group relative card-hover" data-name="{{ movie.title|lower }}" data-status="{{ movie.download_status }}" x-data="{ menuOpen: false }">
-    <a href="{% url 'movie_detail' movie.pk %}">
+  <div class="group relative card-hover" data-name="{{ movie.title|lower }}" data-state="{{ movie.state }}"
+       data-id="{{ movie.id }}" data-added="{{ movie.added|date:'U' }}" data-foryou="{% if movie.for_you %}1{% endif %}"
+       data-favourite="{% if movie.favourite %}1{% endif %}" x-data="{ menuOpen: false }">
+    <a href="{% url 'movie_detail' movie.id %}">
       <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow aspect-[2/3]">
-        {% if movie.poster_url %}
-        <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full h-full object-cover">
+        {% if movie.poster %}
+        <img src="{{ movie.poster }}" alt="{{ movie.title }}" loading="lazy" class="w-full h-full object-cover {% if not movie.monitored %}opacity-60{% endif %}">
         {% else %}
         <div class="w-full h-full flex flex-col items-center justify-center text-gray-600 gap-2">
           <i class="fa-solid fa-film text-4xl"></i>
@@ -45,64 +52,71 @@
         </div>
         {% endif %}
 
-        <!-- Download status overlay -->
-        <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent p-2">
-          {% if movie.download_status == 'downloaded' %}
-          <span class="flex items-center gap-1 text-xs text-green-400 font-medium">
-            <i class="fa-solid fa-circle-check"></i> Downloaded
-          </span>
-          {% elif movie.download_status == 'downloading' %}
-          <span class="flex items-center gap-1 text-xs text-blue-400 font-medium">
-            <i class="fa-solid fa-spinner fa-spin"></i> Downloading
-          </span>
-          {% elif movie.download_status == 'queued' %}
-          <span class="flex items-center gap-1 text-xs text-yellow-400 font-medium">
-            <i class="fa-solid fa-clock"></i> Queued
-          </span>
-          {% elif movie.download_status == 'waiting_release' %}
-          <span class="flex items-center gap-1 text-xs text-gray-400 font-medium">
-            <i class="fa-solid fa-calendar"></i>
-            {% if movie.digital_release_date %}{{ movie.digital_release_date|date:"M d, Y" }}{% else %}Awaiting release{% endif %}
-          </span>
-          {% endif %}
-        </div>
-
-        {% if movie.is_favourite %}
+        <span class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full flex items-center justify-center text-xs {% if movie.monitored %}bg-cyan-600/90 text-white{% else %}bg-black/70 text-gray-400{% endif %}"
+              title="{% if movie.monitored %}Monitored{% else %}Not monitored{% endif %}">
+          <i class="fa-{% if movie.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
+        </span>
+        {% if movie.favourite %}
         <div class="absolute top-1.5 right-1.5 w-6 h-6 bg-yellow-500/90 rounded-full flex items-center justify-center">
           <i class="fa-solid fa-star text-black text-xs"></i>
         </div>
         {% endif %}
-        {% if movie.vote_average > 0 %}
-        <div class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 flex items-center gap-1">
-          <i class="fa-solid fa-star text-xs"></i>{{ movie.vote_average|floatformat:1 }}
+
+        <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 to-transparent p-2 pt-6">
+          {% if movie.state == 'downloaded' %}
+          <span class="flex items-center gap-1 text-xs text-green-400 font-medium"><i class="fa-solid fa-circle-check"></i> {{ movie.quality|default:"Downloaded" }}</span>
+          {% elif movie.state == 'downloading' %}
+          <span class="flex items-center gap-1 text-xs text-blue-400 font-medium"><i class="fa-solid fa-arrow-down animate-pulse"></i> {{ movie.queue.label }} {{ movie.queue.progress }}%</span>
+          <div class="h-1 bg-white/10 rounded-full overflow-hidden mt-1"><div class="h-full progress-bar" style="width: {{ movie.queue.progress }}%"></div></div>
+          {% elif movie.state == 'missing' %}
+          <span class="flex items-center gap-1 text-xs text-orange-400 font-medium"><i class="fa-solid fa-circle-exclamation"></i> Missing</span>
+          {% elif movie.state == 'waiting' %}
+          <span class="flex items-center gap-1 text-xs text-gray-300 font-medium">
+            <i class="fa-solid fa-calendar"></i>
+            {% if movie.expected %}{{ movie.expected|date:"M j, Y" }}{% else %}Waiting for release{% endif %}
+          </span>
+          {% else %}
+          <span class="flex items-center gap-1 text-xs text-gray-500 font-medium"><i class="fa-regular fa-bookmark"></i> Unmonitored</span>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
     </a>
 
     <p class="mt-2 text-xs text-gray-300 truncate font-medium">{{ movie.title }}</p>
-    <p class="text-xs text-gray-600">{% if movie.release_date %}{{ movie.release_date|date:"Y" }}{% endif %}{% if movie.runtime %} · {{ movie.runtime }}m{% endif %}</p>
+    <p class="text-xs text-gray-600">{{ movie.year }}{% if movie.has_file %} · {{ movie.size }}{% endif %}</p>
+    <p class="lib-note hidden text-[10px] text-brand-300/80 truncate"></p>
 
     <button @click.stop="menuOpen = !menuOpen"
-            class="absolute top-2 right-7 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            class="absolute top-2 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition-opacity"
+            style="right: {% if movie.favourite %}2.25rem{% else %}0.5rem{% endif %}">
       <i class="fa-solid fa-ellipsis text-white text-xs"></i>
     </button>
-
-    <div x-show="menuOpen" @click.away="menuOpen = false"
-         class="absolute top-8 right-0 z-20 w-40 glass rounded-xl shadow-2xl py-1 text-sm">
-      <button onclick="toggleFav({{ movie.pk }}, this)"
+    <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+         class="absolute top-9 right-0 z-20 w-48 glass rounded-xl shadow-2xl py-1 text-sm">
+      <button onclick="setMonitored({{ movie.id }}, {{ movie.monitored|yesno:'false,true' }})"
               class="w-full text-left px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
-        <i class="fa-{% if movie.is_favourite %}solid fa-star text-yellow-400{% else %}regular fa-star{% endif %} w-4"></i>
-        {% if movie.is_favourite %}Unfavourite{% else %}Favourite{% endif %}
+        <i class="fa-{% if movie.monitored %}regular{% else %}solid{% endif %} fa-bookmark text-cyan-400 w-4"></i>
+        {% if movie.monitored %}Stop monitoring{% else %}Monitor{% endif %}
       </button>
-      <a href="{% url 'movie_detail' movie.pk %}"
+      {% if not movie.has_file and movie.state != 'downloading' %}
+      <button onclick="searchMovie({{ movie.id }})"
+              class="w-full text-left px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
+        <i class="fa-solid fa-magnifying-glass text-gray-400 w-4"></i> Search now
+      </button>
+      {% endif %}
+      <button onclick="toggleFav({{ movie.id }})"
+              class="w-full text-left px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
+        <i class="fa-{% if movie.favourite %}solid{% else %}regular{% endif %} fa-star text-yellow-400 w-4"></i>
+        {% if movie.favourite %}Unfavourite{% else %}Favourite{% endif %}
+      </button>
+      <a href="{% url 'movie_detail' movie.id %}"
          class="block px-3 py-2 hover:bg-surface-700 text-gray-300 flex items-center gap-2 transition-colors">
         <i class="fa-solid fa-info-circle text-gray-400 w-4"></i>Details
       </a>
       <div class="border-t border-surface-600 my-1"></div>
-      <button onclick="deleteMovie({{ movie.pk }}, '{{ movie.title|escapejs }}')"
+      <button onclick="deleteMovie({{ movie.id }}, '{{ movie.title|escapejs }}')"
               class="w-full text-left px-3 py-2 hover:bg-red-900/30 text-red-400 flex items-center gap-2 transition-colors">
-        <i class="fa-solid fa-trash w-4"></i>Remove
+        <i class="fa-solid fa-trash w-4"></i>Remove from Radarr
       </button>
     </div>
   </div>
@@ -110,17 +124,17 @@
 </div>
 <div id="noMatches" class="hidden text-center py-24">
   <i class="fa-solid fa-magnifying-glass text-5xl text-gray-700 mb-4"></i>
-  <p class="text-lg font-semibold text-gray-400 mb-1">No movies match your filter</p>
-  <p class="text-gray-600 text-sm">Try a different search term or status.</p>
+  <p class="nm-title text-lg font-semibold text-gray-400 mb-1"></p>
+  <p class="nm-sub text-gray-600 text-sm"></p>
 </div>
 
-{% else %}
+{% elif not error %}
 <div class="flex flex-col items-center justify-center py-24 text-center">
   <i class="fa-solid fa-film text-6xl text-gray-700 mb-4"></i>
-  <p class="text-xl font-semibold text-gray-400 mb-2">No movies yet</p>
-  <p class="text-gray-600 mb-6">Search TMDB to add your first movie</p>
+  <p class="text-xl font-semibold text-gray-400 mb-2">No movies in Radarr yet</p>
+  <p class="text-gray-600 mb-6">Search for a movie to add it</p>
   <a href="{% url 'tmdb_search_movie' %}{% if q %}?q={{ q|urlencode }}{% endif %}" class="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-medium transition-colors">
-    <i class="fa-solid fa-plus mr-2"></i>{% if q %}Search TMDB for "{{ q }}"{% else %}Add Movie{% endif %}
+    <i class="fa-solid fa-plus mr-2"></i>{% if q %}Search for "{{ q }}"{% else %}Add Movie{% endif %}
   </a>
 </div>
 {% endif %}
@@ -128,11 +142,8 @@
 
 {% block extra_js %}
 <script>
-const csrfToken = '{{ csrf_token }}';
-
-// Keep header "Add Movie" button in sync with the search input
 (function() {
-  const input = document.querySelector('input[name="q"]');
+  const input = document.getElementById('filterInput');
   const btn   = document.getElementById('addMovieBtn');
   const lbl   = document.getElementById('addMovieLabel');
   if (!input || !btn) return;
@@ -140,56 +151,40 @@ const csrfToken = '{{ csrf_token }}';
     const q = input.value.trim();
     const base = '{% url "tmdb_search_movie" %}';
     btn.href = q ? base + '?q=' + encodeURIComponent(q) : base;
-    if (lbl) lbl.textContent = q ? 'Search TMDB' : 'Add Movie';
+    if (lbl) lbl.textContent = q ? 'Search to add' : 'Add Movie';
   }
   input.addEventListener('input', sync);
   sync();
 })();
 
-// Instant client-side filtering — every movie is already rendered in the DOM,
-// so there's no round-trip: typing (or picking a status) just shows/hides
-// cards immediately.
-(function() {
-  const form   = document.getElementById('filterForm');
-  const input  = document.getElementById('filterInput');
-  const status = document.getElementById('filterStatus');
-  const grid   = document.getElementById('posterGrid');
-  const noMatches = document.getElementById('noMatches');
-  if (!form || !input || !status || !grid) return;
+initLibraryFilter({
+  noun: 'movies',
+  matches(card, s) {
+    if (!s) return true;
+    if (s === 'favourite') return card.dataset.favourite === '1';
+    return card.dataset.state === s;
+  },
+});
 
-  form.addEventListener('submit', e => e.preventDefault());
-
-  function applyFilter() {
-    const q = input.value.trim().toLowerCase();
-    const s = status.value;
-    let visible = 0;
-    grid.querySelectorAll('[data-name]').forEach(card => {
-      const match = (!q || card.dataset.name.includes(q)) && (!s || card.dataset.status === s);
-      card.classList.toggle('hidden', !match);
-      if (match) visible++;
-    });
-    grid.classList.toggle('hidden', visible === 0);
-    if (noMatches) noMatches.classList.toggle('hidden', visible !== 0);
-
-    const params = new URLSearchParams();
-    if (q) params.set('q', q);
-    if (s) params.set('status', s);
-    const qs = params.toString();
-    history.replaceState({}, '', qs ? `?${qs}` : location.pathname);
-  }
-
-  input.addEventListener('input', applyFilter);
-  status.addEventListener('change', applyFilter);
-  applyFilter();
-})();
-
-async function toggleFav(pk) {
-  await fetch(`/movies/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+async function toggleFav(id) {
+  const d = await ddPost(`/movies/${id}/favourite/`);
+  if (!d.ok) return ddToast(d.error || 'Failed', 'error');
   location.reload();
 }
-async function deleteMovie(pk, name) {
-  if (!confirm(`Remove "${name}"?`)) return;
-  await fetch(`/movies/${pk}/delete/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
+async function setMonitored(id, monitored) {
+  const d = await ddPost(`/movies/${id}/monitor/`, { monitored });
+  if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+  location.reload();
+}
+async function searchMovie(id) {
+  const d = await ddPost(`/movies/${id}/download/`);
+  ddToast(d.ok ? d.message : (d.error || 'Failed'), d.ok ? 'ok' : 'error');
+}
+async function deleteMovie(id, name) {
+  if (!confirm(`Remove "${name}" from Radarr?`)) return;
+  const deleteFiles = confirm(`Also delete "${name}"'s files from disk?\n\nOK = delete files, Cancel = keep files`);
+  const d = await ddPost(`/movies/${id}/delete/`, { delete_files: deleteFiles });
+  if (!d.ok) return ddToast(d.error || 'Failed', 'error');
   location.reload();
 }
 </script>

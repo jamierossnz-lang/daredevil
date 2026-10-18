@@ -182,11 +182,8 @@
       {% url 'download_queue' as url_queue %}
       {% url 'moves_page' as url_moves %}
       {% url 'qbt_dashboard' as url_qbt %}
-      {% url 'qbt_search' as url_qbt_search %}
-      {% url 'qbt_settings' as url_qbt_settings %}
-      {% url 'qbt_categories' as url_qbt_categories %}
+      {% url 'search' as url_qbt_search %}
       {% url 'qbt_files' as url_qbt_files %}
-      {% url 'tasks_dashboard' as url_tasks %}
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
       {% url 'activity_log' as url_activity %}
@@ -237,7 +234,7 @@
       <a href="{{ url_moves }}"
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_moves in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
-        <i class="fa-solid fa-file-export w-4 text-center"></i> File Moves
+        <i class="fa-solid fa-file-import w-4 text-center"></i> Imports
       </a>
 
       <!-- Torrents -->
@@ -257,24 +254,9 @@
                 {% if url_qbt_files in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
         <i class="fa-solid fa-folder-open w-4 text-center"></i> File Browser
       </a>
-      <a href="{{ url_qbt_categories }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                {% if url_qbt_categories in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
-        <i class="fa-solid fa-folder-tree w-4 text-center"></i> Categories
-      </a>
-      <a href="{{ url_qbt_settings }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                {% if url_qbt_settings in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
-        <i class="fa-solid fa-sliders w-4 text-center"></i> Settings
-      </a>
 
       <!-- System -->
       <p class="nav-section mt-2">System</p>
-      <a href="{{ url_tasks }}"
-         class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                {% if url_tasks in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
-        <i class="fa-solid fa-gears w-4 text-center"></i> Background Tasks
-      </a>
       <a href="{{ url_activity }}"
          class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 {% if url_activity in p %}bg-brand-600/30 text-brand-300 border border-brand-600/40{% else %}text-gray-400 hover:bg-surface-700 hover:text-gray-100{% endif %}">
@@ -381,11 +363,8 @@
       {% url 'download_queue' as url_queue %}
       {% url 'moves_page' as url_moves %}
       {% url 'qbt_dashboard' as url_qbt %}
-      {% url 'qbt_search' as url_qbt_search %}
-      {% url 'qbt_settings' as url_qbt_settings %}
-      {% url 'qbt_categories' as url_qbt_categories %}
+      {% url 'search' as url_qbt_search %}
       {% url 'qbt_files' as url_qbt_files %}
-      {% url 'tasks_dashboard' as url_tasks %}
       {% url 'app_settings' as url_app_settings %}
       {% url 'plex:library' as url_plex %}
       {% url 'activity_log' as url_activity %}
@@ -444,8 +423,8 @@
         <a href="{{ url_moves }}" @click="sidebarOpen = false"
            class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
                   {% if url_moves in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
-          <i class="fa-solid fa-file-export text-2xl"></i>
-          <span class="text-xs font-semibold text-center leading-tight">File Moves</span>
+          <i class="fa-solid fa-file-import text-2xl"></i>
+          <span class="text-xs font-semibold text-center leading-tight">Imports</span>
         </a>
       </div>
 
@@ -470,29 +449,11 @@
           <i class="fa-solid fa-folder-open text-2xl"></i>
           <span class="text-xs font-semibold text-center leading-tight">File Browser</span>
         </a>
-        <a href="{{ url_qbt_categories }}" @click="sidebarOpen = false"
-           class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
-                  {% if url_qbt_categories in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
-          <i class="fa-solid fa-folder-tree text-2xl"></i>
-          <span class="text-xs font-semibold text-center leading-tight">Categories</span>
-        </a>
-        <a href="{{ url_qbt_settings }}" @click="sidebarOpen = false"
-           class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
-                  {% if url_qbt_settings in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
-          <i class="fa-solid fa-sliders text-2xl"></i>
-          <span class="text-xs font-semibold text-center leading-tight">Settings</span>
-        </a>
       </div>
 
       <!-- System -->
       <p class="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">System</p>
       <div class="grid grid-cols-3 gap-3 mb-4">
-        <a href="{{ url_tasks }}" @click="sidebarOpen = false"
-           class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
-                  {% if url_tasks in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
-          <i class="fa-solid fa-gears text-2xl"></i>
-          <span class="text-xs font-semibold text-center leading-tight">Background Tasks</span>
-        </a>
         <a href="{{ url_activity }}" @click="sidebarOpen = false"
            class="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all min-h-[86px]
                   {% if url_activity in p %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 active:bg-surface-700{% endif %}">
@@ -631,10 +592,10 @@
       { key: 'movies',    href: '{{ url_movies }}',    icon: 'fa-film',            label: 'Movies'    },
       { key: 'queue',     href: '{{ url_queue }}',     icon: 'fa-download',        label: 'Queue'     },
       { key: 'streaming', href: '{{ url_streaming }}', icon: 'fa-satellite-dish',  label: 'Stream'    },
-      { key: 'moves',     href: '{{ url_moves }}',     icon: 'fa-file-export',     label: 'Moves'     },
+      { key: 'moves',     href: '{{ url_moves }}',     icon: 'fa-file-import',     label: 'Imports'   },
       { key: 'torrents',  href: '{{ url_qbt }}',       icon: 'fa-seedling',        label: 'Torrents'  },
       { key: 'search',    href: '{{ url_qbt_search }}',icon: 'fa-magnifying-glass',label: 'Search'    },
-      { key: 'tasks',     href: '{{ url_tasks }}',     icon: 'fa-gears',           label: 'Tasks'     },
+      { key: 'tasks',     href: '{{ url_app_settings }}#tasks', icon: 'fa-gears',  label: 'Tasks'     },
       { key: 'settings',  href: '{{ url_app_settings }}', icon: 'fa-gear',         label: 'Settings'  },
       { key: 'plex',      href: '{{ url_plex }}',      icon: 'fa-server',          label: 'Plex'      },
     ];
@@ -663,7 +624,8 @@
   })();
   </script>
 
-  {% include "_movie_add_modal.html" %}
+  {% include "_arr_modals.html" %}
+  {% include "_folder_picker.html" %}
   {% block extra_js %}{% endblock %}
 
   <script>

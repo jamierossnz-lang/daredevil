@@ -5,84 +5,124 @@
 {% block content %}
 <!-- Hero -->
 <div class="relative rounded-2xl overflow-hidden mb-6" style="min-height: 280px;">
-  {% if movie.backdrop_url %}
-  <img src="{{ movie.backdrop_url }}" alt="{{ movie.title }}" class="absolute inset-0 w-full h-full object-cover opacity-25">
+  {% if movie.fanart %}
+  <img src="{{ movie.fanart }}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-25">
   {% endif %}
   <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/80 to-transparent"></div>
   <div class="relative flex gap-6 p-6 lg:p-10">
-    {% if movie.poster_url %}
-    <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="hidden sm:block w-36 lg:w-48 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-cyan-600/30">
+    {% if movie.poster %}
+    <img src="{{ movie.poster }}" alt="{{ movie.title }}" class="hidden sm:block w-36 lg:w-48 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-cyan-600/30 self-start">
     {% endif %}
     <div class="flex-1 min-w-0">
       <h1 class="text-2xl lg:text-4xl font-bold text-white mb-2">{{ movie.title }}</h1>
 
       <div class="flex flex-wrap items-center gap-3 mb-3 text-sm">
-        {% if movie.release_date %}<span class="text-gray-400">{{ movie.release_date|date:"Y" }}</span>{% endif %}
+        {% if movie.year %}<span class="text-gray-400">{{ movie.year }}</span>{% endif %}
         {% if movie.runtime %}<span class="text-gray-500">·</span><span class="text-gray-400">{{ movie.runtime }}m</span>{% endif %}
-        {% if movie.vote_average > 0 %}
-        <span class="text-gray-500">·</span>
-        <span class="text-yellow-400"><i class="fa-solid fa-star mr-1"></i>{{ movie.vote_average|floatformat:1 }}</span>
-        {% endif %}
+        {% if movie.certification %}<span class="text-gray-500">·</span><span class="text-gray-400">{{ movie.certification }}</span>{% endif %}
+        {% if movie.rating %}<span class="text-gray-500">·</span><span class="text-yellow-400"><i class="fa-solid fa-star mr-1"></i>{{ movie.rating|floatformat:1 }}</span>{% endif %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium
-          {% if movie.status == 'released' %}bg-green-500/20 text-green-400{% elif movie.status == 'upcoming' %}bg-yellow-500/20 text-yellow-400{% else %}bg-blue-500/20 text-blue-400{% endif %}">
-          {{ movie.get_status_display }}
+          {% if movie.status == 'released' %}bg-green-500/20 text-green-400{% elif movie.status == 'inCinemas' %}bg-blue-500/20 text-blue-400{% else %}bg-yellow-500/20 text-yellow-400{% endif %}">
+          {% if movie.status == 'inCinemas' %}In cinemas{% elif movie.status == 'tba' %}TBA{% else %}{{ movie.status|title }}{% endif %}
         </span>
       </div>
 
-      {% if movie.genres or directors %}
-      <p class="text-sm text-cyan-400 mb-1">{{ movie.genres }}</p>
-      {% if directors %}
-      <p class="text-xs text-gray-500 mb-3">Directed by <span class="text-gray-300">{{ directors|join:", " }}</span></p>
-      {% endif %}
-      {% endif %}
+      {% if movie.genres %}<p class="text-sm text-cyan-400 mb-1">{{ movie.genres }}</p>{% endif %}
+      {% if directors %}<p class="text-xs text-gray-500 mb-3">Directed by <span class="text-gray-300">{{ directors|join:", " }}</span></p>{% endif %}
 
       <p class="text-sm text-gray-300 leading-relaxed max-w-2xl mb-5">{{ movie.overview }}</p>
 
-      <!-- Download status -->
+      <!-- Status card -->
       <div class="flex flex-wrap items-center gap-4 glass rounded-xl px-4 py-3 mb-4 w-fit max-w-full">
         <div>
-          <p class="text-xs text-gray-500 mb-0.5">Download Status</p>
+          <p class="text-xs text-gray-500 mb-0.5">Status</p>
           <p class="text-sm font-semibold
-            {% if movie.download_status == 'downloaded' %}text-green-400
-            {% elif movie.download_status == 'downloading' %}text-blue-400
-            {% elif movie.download_status == 'queued' %}text-yellow-400
-            {% elif movie.download_status == 'waiting_release' %}text-gray-400
-            {% else %}text-gray-500{% endif %}">
-            {% if movie.download_status == 'none' %}Not queued
-            {% elif movie.download_status == 'waiting_release' %}Waiting for Digital Release
-            {% else %}{{ movie.get_download_status_display }}{% endif %}
+            {% if movie.state == 'downloaded' %}text-green-400{% elif movie.state == 'downloading' %}text-blue-400{% elif movie.state == 'missing' %}text-orange-400{% else %}text-gray-400{% endif %}" id="movieState">
+            {% if movie.state == 'downloaded' %}On disk · {{ movie.quality }}
+            {% elif movie.state == 'downloading' %}{{ movie.queue.label }} · {{ movie.queue.progress }}%
+            {% elif movie.state == 'missing' %}Missing — Radarr will grab it when it finds a release
+            {% elif movie.state == 'waiting' %}Waiting for release
+            {% else %}Not monitored{% endif %}
           </p>
         </div>
-        {% if movie.digital_release_date %}
+        {% if movie.expected and not movie.has_file %}
         <div class="border-l border-surface-600 pl-4">
-          <p class="text-xs text-gray-500 mb-0.5">Digital Release</p>
-          <p class="text-sm font-medium text-gray-300">{{ movie.digital_release_date|date:"M d, Y" }}</p>
+          <p class="text-xs text-gray-500 mb-0.5">{% if movie.availability == 'released' %}Home release{% else %}In cinemas{% endif %}</p>
+          <p class="text-sm font-medium text-gray-300">{{ movie.expected|date:"M j, Y" }}</p>
+        </div>
+        {% endif %}
+        {% if movie.has_file %}
+        <div class="border-l border-surface-600 pl-4 min-w-0">
+          <p class="text-xs text-gray-500 mb-0.5">File · {{ movie.file_size }}</p>
+          <p class="text-xs font-mono text-gray-400 truncate max-w-xs" title="{{ movie.file_path }}">{{ movie.file_path }}</p>
         </div>
         {% endif %}
       </div>
+      {% if movie.queue %}
+      <div class="max-w-md mb-4" id="movieProgress">
+        <div class="h-1.5 bg-surface-700 rounded-full overflow-hidden"><div class="h-full {% if movie.queue.warning %}bg-orange-500{% else %}progress-bar{% endif %}" data-bar style="width: {{ movie.queue.progress }}%"></div></div>
+        <p class="text-[11px] text-gray-500 mt-1 truncate">{{ movie.queue.release }}</p>
+        {% for m in movie.queue.messages %}<p class="text-[11px] text-orange-400">{{ m }}</p>{% endfor %}
+      </div>
+      {% endif %}
 
       <!-- Actions -->
       <div class="flex flex-wrap items-center gap-2">
-        <button onclick="toggleFav({{ movie.pk }})"
-                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                       {% if movie.is_favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
-          <i class="fa-{% if movie.is_favourite %}solid{% else %}regular{% endif %} fa-star"></i>
-          Favourite
+        <button onclick="setMonitored({{ movie.monitored|yesno:'false,true' }})"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                       {% if movie.monitored %}bg-cyan-500/20 text-cyan-300 border border-cyan-500/30{% else %}bg-surface-700 text-gray-400 hover:text-cyan-300{% endif %}">
+          <i class="fa-{% if movie.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
+          {% if movie.monitored %}Monitored{% else %}Not monitored{% endif %}
         </button>
-        {% if movie.download_status == 'none' or movie.download_status == 'failed' %}
-        <button onclick="openMovieAddModal({ mode: 'queue', moviePk: {{ movie.pk }}, title: '{{ movie.title|escapejs }}', onSuccess: () => location.reload() })"
+        {% if not movie.has_file and movie.state != 'downloading' %}
+        <button onclick="searchNow(this)"
                 class="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
-          <i class="fa-solid fa-download"></i>
-          Queue Download
-        </button>
-        {% elif movie.download_status != 'none' %}
-        <button onclick="resetDownload({{ movie.pk }})"
-                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
-          <i class="fa-solid fa-rotate-left"></i>
-          Reset &amp; Redownload
+          <i class="fa-solid fa-magnifying-glass"></i> Search now
         </button>
         {% endif %}
+        <button onclick="openReleaseModal({kind:'radarr', url:'/movies/{{ movie.id }}/releases/', title:'{{ movie.title|escapejs }}{% if movie.year %} ({{ movie.year }}){% endif %}', onGrabbed: () => setTimeout(() => location.reload(), 1500)})"
+                class="flex items-center gap-2 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-hand-pointer"></i> Pick release
+        </button>
+        {% if movie.has_file and movie.file_id %}
+        <button onclick="resetMovie()"
+                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-800/30 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-rotate-left"></i> Reset &amp; redownload
+        </button>
+        {% endif %}
+
+        <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
+          <i class="fa-solid fa-sliders text-gray-500 text-xs"></i>
+          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Quality profile">
+            {% for p in quality_profiles %}<option value="{{ p.id }}" {% if p.id == movie.quality_profile_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
+          <i class="fa-solid fa-calendar-check text-gray-500 text-xs"></i>
+          <select id="availability" class="bg-transparent text-xs text-gray-300 py-1.5 pr-1 focus:outline-none" title="Minimum availability — when Radarr starts looking">
+            {% for val, label in availability_choices %}<option value="{{ val }}" {% if val == movie.availability %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <button onclick="toggleFav()"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                       {% if movie.favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
+          <i class="fa-{% if movie.favourite %}solid{% else %}regular{% endif %} fa-star"></i> Favourite
+        </button>
+        <button onclick="refreshMovie()" title="Refresh metadata and rescan the folder"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+          <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">Refresh &amp; scan</span>
+        </button>
+        <a href="{{ radarr_link }}" target="_blank" rel="noreferrer"
+           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="hidden sm:inline">Radarr</span>
+        </a>
+        <button onclick="removeMovie()"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
+          <i class="fa-solid fa-trash"></i><span class="hidden sm:inline">Remove</span>
+        </button>
       </div>
+      {% if movie.path %}<p class="text-[11px] text-gray-600 font-mono mt-3 truncate" title="Path inside Radarr">{{ movie.path }}</p>{% endif %}
     </div>
   </div>
 </div>
@@ -96,11 +136,9 @@
     <div class="flex-shrink-0 w-20 text-center">
       <div class="w-16 h-16 mx-auto rounded-full overflow-hidden bg-surface-700 mb-2 ring-1 ring-white/5">
         {% if person.photo %}
-        <img src="{{ person.photo }}" alt="{{ person.name }}" class="w-full h-full object-cover">
+        <img src="{{ person.photo }}" alt="{{ person.name }}" loading="lazy" class="w-full h-full object-cover">
         {% else %}
-        <div class="w-full h-full flex items-center justify-center">
-          <i class="fa-solid fa-user text-gray-600 text-xl"></i>
-        </div>
+        <div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-user text-gray-600 text-xl"></i></div>
         {% endif %}
       </div>
       <p class="text-xs text-gray-200 font-medium leading-tight truncate" title="{{ person.name }}">{{ person.name }}</p>
@@ -118,23 +156,20 @@
   <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
     {% for m in similar %}
     <div class="group relative">
-      <div class="rounded-xl overflow-hidden bg-surface-800 aspect-[2/3] mb-2 ring-1 ring-white/5">
+      <div class="relative rounded-xl overflow-hidden bg-surface-800 aspect-[2/3] mb-2 ring-1 ring-white/5">
         {% if m.poster %}
-        <img src="{{ m.poster }}" alt="{{ m.title }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity">
+        <img src="{{ m.poster }}" alt="{{ m.title }}" loading="lazy" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity">
         {% else %}
-        <div class="w-full h-full flex items-center justify-center">
-          <i class="fa-solid fa-film text-gray-700 text-2xl"></i>
-        </div>
+        <div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-film text-gray-700 text-2xl"></i></div>
         {% endif %}
-        <!-- Hover overlay -->
         <div class="absolute inset-0 bg-surface-950/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-          {% if m.already_added %}
-          <a href="{% url 'movies' %}?q={{ m.title|urlencode }}"
-             class="px-2 py-1.5 bg-surface-700 text-gray-300 rounded-lg text-xs font-medium">
-            <i class="fa-solid fa-circle-check text-green-400 mr-1"></i>In Library
+          {% if m.movie_id %}
+          <a href="{% url 'movie_detail' m.movie_id %}" class="px-2 py-1.5 bg-surface-700 text-gray-300 rounded-lg text-xs font-medium">
+            <i class="fa-solid fa-circle-check text-green-400 mr-1"></i>In library
           </a>
           {% else %}
-          <button onclick="openMovieAddModal({ mode: 'add', tmdbId: {{ m.tmdb_id }}, title: '{{ m.title|escapejs }}' })"
+          <button onclick="addFromCard(this)" data-kind="radarr" data-tmdb-id="{{ m.tmdb_id }}" data-title="{{ m.title }}"
+                  data-year="{{ m.year }}" data-poster="{{ m.poster|default:'' }}"
                   class="px-2 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
             <i class="fa-solid fa-plus mr-1"></i>Add
           </button>
@@ -142,33 +177,63 @@
         </div>
       </div>
       <p class="text-xs text-gray-300 font-medium truncate leading-tight" title="{{ m.title }}">{{ m.title }}</p>
-      {% if m.year or m.rating %}
-      <p class="text-xs text-gray-600">
-        {% if m.year %}{{ m.year }}{% endif %}
-        {% if m.rating > 0 %}<span class="text-yellow-600 ml-1"><i class="fa-solid fa-star text-xs"></i> {{ m.rating }}</span>{% endif %}
-      </p>
-      {% endif %}
+      <p class="text-xs text-gray-600">{{ m.year }}{% if m.rating > 0 %}<span class="text-yellow-600 ml-1"><i class="fa-solid fa-star text-xs"></i> {{ m.rating }}</span>{% endif %}</p>
     </div>
     {% endfor %}
   </div>
 </div>
 {% endif %}
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const csrfToken = '{{ csrf_token }}';
+const MOVIE_ID = {{ movie.id }};
 
-async function toggleFav(pk) {
-  await fetch(`/movies/${pk}/favourite/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  location.reload();
+async function act(url, data, okMsg, reload = true) {
+  const d = await ddPost(url, data);
+  if (!d.ok) { ddToast(d.error || 'Failed', 'error'); return d; }
+  if (okMsg || d.message) ddToast(d.message || okMsg);
+  if (reload) setTimeout(() => location.reload(), 700);
+  return d;
 }
 
-async function resetDownload(pk) {
-  if (!confirm('Reset download status? This will remove all download records for this movie so you can queue it again.')) return;
-  await fetch(`/movies/${pk}/reset/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken} });
-  location.reload();
+function setMonitored(monitored) { act(`/movies/${MOVIE_ID}/monitor/`, { monitored }); }
+function searchNow(btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching…'; }
+  act(`/movies/${MOVIE_ID}/download/`, {}, null, false).then(() => setTimeout(() => location.reload(), 6000));
 }
+function toggleFav() { act(`/movies/${MOVIE_ID}/favourite/`, {}); }
+function refreshMovie() { act(`/movies/${MOVIE_ID}/refresh/`, {}, 'Radarr is refreshing and rescanning', false); }
+async function resetMovie() {
+  if (!confirm('Delete this movie file and download it again?')) return;
+  await act(`/movies/moviefiles/{{ movie.file_id|default:0 }}/delete/`, { movie_id: MOVIE_ID, search: true }, 'File deleted — Radarr is searching again');
+}
+async function removeMovie() {
+  if (!confirm('Remove this movie from Radarr?')) return;
+  const deleteFiles = confirm('Also delete its files from disk?\n\nOK = delete files, Cancel = keep files');
+  const d = await ddPost(`/movies/${MOVIE_ID}/delete/`, { delete_files: deleteFiles });
+  if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+  window.location.href = '{% url "movies" %}';
+}
+document.getElementById('qualityProfile').addEventListener('change', e => act(`/movies/${MOVIE_ID}/edit/`, { quality_profile_id: e.target.value }, 'Quality profile updated', false));
+document.getElementById('availability').addEventListener('change', e => act(`/movies/${MOVIE_ID}/edit/`, { minimum_availability: e.target.value }, 'Minimum availability updated'));
+
+// Live progress while downloading; reload once it lands in the library
+{% if movie.queue %}
+(function poll() {
+  setTimeout(async () => {
+    try {
+      const d = await (await fetch(`/movies/${MOVIE_ID}/status/`)).json();
+      if (d.ok) {
+        if (d.has_file || !d.queue) return location.reload();
+        const bar = document.querySelector('#movieProgress [data-bar]');
+        if (bar) bar.style.width = `${d.queue.progress}%`;
+        document.getElementById('movieState').textContent = `${d.queue.label} · ${d.queue.progress}%`;
+      }
+    } catch (e) { /* transient */ }
+    poll();
+  }, 5000);
+})();
+{% endif %}
 </script>
 {% endblock %}

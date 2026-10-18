@@ -1,38 +1,29 @@
 from django.core.management.base import BaseCommand
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 
+# Download automation that Sonarr/Radarr now do themselves. Their schedule
+# rows are deleted on every deploy so an upgraded install stops running them.
+RETIRED_TASKS = (
+    'sync_all_shows', 'update_episode_statuses', 'queue_waiting_episodes',
+    'check_movie_releases', 'refresh_movie_release_dates', 'cleanup_non_video_files',
+    'remove_empty_folders', 'poll_download_progress', 'auto_search_queue',
+    'sync_download_progress', 'search_and_download', 'sync_tvmaze_show', 'execute_file_move',
+)
+
 
 class Command(BaseCommand):
-    help = 'Create default Celery Beat periodic tasks'
+    help = 'Create default Celery Beat periodic tasks (and remove retired ones)'
 
     def handle(self, *args, **options):
-        hourly,   _ = IntervalSchedule.objects.get_or_create(every=1,  period=IntervalSchedule.HOURS)
-        every6h,  _ = IntervalSchedule.objects.get_or_create(every=6,  period=IntervalSchedule.HOURS)
-        daily,    _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
-        every30m, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.MINUTES)
-        every5m,  _ = IntervalSchedule.objects.get_or_create(every=5,  period=IntervalSchedule.MINUTES)
-        every30s, _ = IntervalSchedule.objects.get_or_create(every=30, period=IntervalSchedule.SECONDS)
-        every15s, _ = IntervalSchedule.objects.get_or_create(every=15, period=IntervalSchedule.SECONDS)
+        every10m, _ = IntervalSchedule.objects.get_or_create(every=10, period=IntervalSchedule.MINUTES)
+        every6h, _ = IntervalSchedule.objects.get_or_create(every=6,  period=IntervalSchedule.HOURS)
+        daily,   _ = IntervalSchedule.objects.get_or_create(every=24, period=IntervalSchedule.HOURS)
 
         tasks = [
-            ('Sync all TV shows (TMDB + TVMaze)',       'sync_all_shows',              daily),
-            ('Update episode air statuses',             'update_episode_statuses',     every5m),
-            ('Queue waiting episodes for download',     'queue_waiting_episodes',      every30m),
-            ('Check movie watch providers',             'check_movie_releases',        hourly),
-            ('Refresh movie digital release dates',     'refresh_movie_release_dates', daily),
-            ('Clean up non-video files',                'cleanup_non_video_files',     daily),
-            ('Remove empty folders',                    'remove_empty_folders',        daily),
-            # These two are the "no browser tab open" backstops for live
-            # progress and stuck-item search — kept tight so background
-            # automation feels close to real-time. Safe at this frequency
-            # only because DownloadItems get search_started_at stamped at
-            # creation (see auto_search_queue's docstring) — that's what
-            # actually prevents racing a browser tab, not the interval here.
-            ('Poll download progress',                  'poll_download_progress',      every15s),
-            ('Auto-search queue',                       'auto_search_queue',           every30s),
+            ('Keep pages fast',                         'warm_caches',                 every10m),
             ('Check storage usage',                     'check_storage',               every6h),
-            # For You swipe deck — regenerated nightly (interval, matching
-            # the other 'daily' tasks above rather than a fixed clock time).
+            # For You swipe deck — regenerated nightly (interval rather than a
+            # fixed clock time).
             ('Generate recommendations (For You)',      'generate_recommendations',    daily),
             ('Generate anticipated titles (For You)',   'generate_anticipated',        daily),
         ]
@@ -46,5 +37,10 @@ class Command(BaseCommand):
                 obj.interval = schedule
                 obj.save(update_fields=['interval'])
             self.stdout.write(f'  {"Created" if created else "Updated"}: {name}')
+
+        removed = PeriodicTask.objects.filter(task__in=RETIRED_TASKS)
+        for obj in removed:
+            self.stdout.write(f'  Removed retired: {obj.name}')
+        removed.delete()
 
         self.stdout.write(self.style.SUCCESS('Schedules ready.'))

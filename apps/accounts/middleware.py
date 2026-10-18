@@ -3,12 +3,13 @@ from django.contrib.auth.views import redirect_to_login
 
 # Daredevil has no other access control — anyone who can reach it over the
 # network otherwise has full unauthenticated control (queue/delete media,
-# touch qBittorrent/Jackett settings, etc.), which matters once it's exposed
-# beyond the LAN. Everything requires a login except: allauth's own
-# login/logout/password-reset views, Django admin (has its own auth), and
+# touch qBittorrent/Prowlarr/Sonarr/Radarr settings, etc.), which matters once
+# it's exposed beyond the LAN. Everything requires a login except: allauth's
+# own login/logout/password-reset views, Django admin (has its own auth),
 # static/media (defensive — WhiteNoise already serves these before this
-# middleware runs in the normal case).
-EXEMPT_PREFIXES = ('/accounts/', '/admin/', '/static/', '/media/')
+# middleware runs in the normal case), and the Sonarr/Radarr webhook
+# receiver, which authenticates with its own per-app secret in the URL.
+EXEMPT_PREFIXES = ('/accounts/', '/admin/', '/static/', '/media/', '/arr/webhook/')
 
 
 class LoginRequiredMiddleware:

@@ -1,0 +1,43 @@
+{% include "downloads/_tab_errors.html" %}
+<div class="flex flex-wrap items-center gap-2 mb-3">
+  <p class="text-xs text-gray-500 flex-1 min-w-[12rem]">Monitored, already out, not downloaded yet. Sonarr/Radarr keep checking RSS for these — search now to look through older releases too.</p>
+  {% if sonarr_ready %}
+  <button onclick="searchAgain({app: 'sonarr', all_missing: true}, this)"
+          class="px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/50 text-brand-300 border border-brand-600/30 rounded-lg text-xs font-medium">
+    <i class="fa-solid fa-magnifying-glass mr-1"></i>Search all missing episodes
+  </button>
+  {% endif %}
+  {% if radarr_ready %}
+  <button onclick="searchAgain({app: 'radarr', all_missing: true}, this)"
+          class="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-600/30 rounded-lg text-xs font-medium">
+    <i class="fa-solid fa-magnifying-glass mr-1"></i>Search all missing movies
+  </button>
+  {% endif %}
+</div>
+{% if rows %}
+<div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
+  {% for r in rows %}
+  <div class="flex items-center gap-3 px-4 py-3 hover:bg-surface-700/20 transition-colors">
+    <a href="{{ r.link }}" class="flex items-center gap-3 flex-1 min-w-0">
+      {% if r.poster %}<img src="{{ r.poster }}" alt="" loading="lazy" class="w-9 h-12 rounded object-cover flex-shrink-0 bg-surface-800">
+      {% else %}<div class="w-9 h-12 rounded bg-surface-800 flex-shrink-0"></div>{% endif %}
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-gray-200 truncate">{{ r.title }}</p>
+        <p class="text-xs text-gray-500 truncate">{{ r.subtitle }}{% if r.when %} · {% if r.app == 'sonarr' %}aired{% else %}out since{% endif %} {{ r.when|date:"M j, Y" }}{% endif %}</p>
+        <p class="text-[11px] text-gray-600">{% if r.last_search %}Last searched {{ r.last_search|timesince }} ago{% else %}Not searched yet{% endif %}</p>
+      </div>
+    </a>
+    <button onclick='searchAgain({{ r.target_json|safe }}, this)' title="Search now"
+            class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-brand-600/40 text-gray-300 hover:text-brand-300 flex items-center justify-center flex-shrink-0">
+      <i class="fa-solid fa-magnifying-glass text-xs"></i>
+    </button>
+  </div>
+  {% endfor %}
+</div>
+{% elif not errors %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-circle-check text-4xl text-green-600 mb-3 block"></i>
+  <p class="text-gray-400 text-sm font-medium">Nothing missing</p>
+  <p class="text-gray-600 text-xs mt-1">Everything monitored that's already out is in your library.</p>
+</div>
+{% endif %}

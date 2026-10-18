@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Imports{% endblock %}
+{% block page_title %}Imports{% endblock %}
+
+{% block content %}
+<div class="glass rounded-2xl p-4 mb-5 flex items-start gap-3">
+  <div class="w-9 h-9 rounded-xl bg-green-600/15 flex items-center justify-center flex-shrink-0">
+    <i class="fa-solid fa-file-import text-green-400"></i>
+  </div>
+  <div class="text-xs text-gray-400 leading-relaxed">
+    <p class="text-sm font-semibold text-gray-200 mb-0.5">Sonarr and Radarr move the files — Daredevil confirms they landed</p>
+    When a download finishes, Sonarr/Radarr import it into the library (renaming and foldering it themselves) and tell Daredevil.
+    Daredevil then checks the file is really there. A file that's since been upgraded or renamed shows as <span class="text-blue-300">replaced</span>.
+  </div>
+</div>
+
+{% for e in errors %}
+<div class="glass rounded-xl px-4 py-2.5 mb-3 border border-red-500/30 text-xs text-red-300"><i class="fa-solid fa-circle-exclamation mr-1.5"></i>{{ e }}</div>
+{% endfor %}
+
+{% if not any_configured %}
+<div class="glass rounded-2xl p-12 text-center">
+  <p class="text-gray-400 text-sm">Connect Sonarr or Radarr in <a href="{% url 'app_settings' %}#sonarr" class="text-brand-400 hover:underline">Settings</a> to see imports.</p>
+</div>
+{% else %}
+<div class="flex flex-wrap gap-1.5 mb-4">
+  {% with base=request.path %}
+  <a href="{{ base }}" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if not status_filter %}bg-brand-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">All</a>
+  <a href="{{ base }}?status=confirmed" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'confirmed' %}bg-green-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">
+    <i class="fa-solid fa-circle-check mr-1"></i>Confirmed on disk ({{ counts.confirmed }})</a>
+  {% if counts.in_library %}<a href="{{ base }}?status=in_library" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'in_library' %}bg-green-700 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">In library ({{ counts.in_library }})</a>{% endif %}
+  <a href="{{ base }}?status=replaced" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'replaced' %}bg-blue-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Replaced ({{ counts.replaced }})</a>
+  <a href="{{ base }}?status=missing" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'missing' %}bg-red-600 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Missing ({{ counts.missing }})</a>
+  {% if counts.unknown %}<a href="{{ base }}?status=unknown" class="px-3 py-1.5 rounded-lg text-xs font-medium {% if status_filter == 'unknown' %}bg-surface-500 text-white{% else %}bg-surface-800 text-gray-400 hover:bg-surface-700{% endif %}">Can't check ({{ counts.unknown }})</a>{% endif %}
+  {% endwith %}
+</div>
+
+{% if rows %}
+<div class="glass rounded-2xl overflow-hidden divide-y divide-surface-700/30">
+  {% for r in rows %}
+  <div class="flex items-start gap-3 px-4 py-3">
+    {% if r.poster %}<img src="{{ r.poster }}" alt="" loading="lazy" class="w-9 h-12 rounded object-cover flex-shrink-0 bg-surface-800">
+    {% else %}<div class="w-9 h-12 rounded bg-surface-800 flex-shrink-0"></div>{% endif %}
+    <div class="flex-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-x-2">
+        {% if r.link %}<a href="{{ r.link }}" class="text-sm font-medium text-gray-200 hover:text-brand-300 truncate">{{ r.title }}</a>
+        {% else %}<span class="text-sm font-medium text-gray-200 truncate">{{ r.title }}</span>{% endif %}
+        {% if r.quality %}<span class="px-1.5 py-0.5 rounded bg-brand-600/15 text-brand-300 text-[10px]">{{ r.quality }}</span>{% endif %}
+        <span class="uppercase tracking-wider text-[10px] {% if r.app == 'sonarr' %}text-blue-400/80{% else %}text-purple-400/80{% endif %}">{{ r.app }}</span>
+      </div>
+      <p class="text-[11px] text-gray-600 font-mono truncate mt-0.5" title="{{ r.dropped }}"><span class="text-gray-500 font-sans">from</span> {{ r.dropped }}</p>
+      <p class="text-[11px] text-gray-400 font-mono truncate" title="{{ r.imported }}"><span class="text-gray-500 font-sans">to</span> {{ r.imported }}</p>
+    </div>
+    <div class="flex-shrink-0 text-right">
+      {% if r.confirm == 'confirmed' %}
+      <span class="text-xs text-green-400 font-medium" title="Found at {{ r.local }}"><i class="fa-solid fa-circle-check mr-1"></i>Confirmed</span>
+      {% elif r.confirm == 'in_library' %}
+      <span class="text-xs text-green-400/80 font-medium" title="Sonarr/Radarr report it as present"><i class="fa-solid fa-check mr-1"></i>In library</span>
+      {% elif r.confirm == 'replaced' %}
+      <span class="text-xs text-blue-300 font-medium" title="This exact file is gone, but the item still has a file — upgraded or renamed"><i class="fa-solid fa-arrows-rotate mr-1"></i>Replaced</span>
+      {% elif r.confirm == 'missing' %}
+      <span class="text-xs text-red-400 font-medium" title="Not found at {{ r.local }}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Missing</span>
+      {% else %}
+      <span class="text-xs text-gray-500" title="No path mapping for this folder — set one in Settings"><i class="fa-solid fa-question mr-1"></i>Can't check</span>
+      {% endif %}
+      <p class="text-[11px] text-gray-600 whitespace-nowrap mt-0.5">{{ r.when|date:"M j, g:i A" }}</p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="glass rounded-2xl p-12 text-center">
+  <i class="fa-solid fa-file-import text-4xl text-gray-700 mb-3 block"></i>
+  <p class="text-gray-400 text-sm font-medium">No imports{% if status_filter %} with this status{% endif %}</p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

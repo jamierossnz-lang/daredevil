@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
@@ -12,80 +12,79 @@ log = logging.getLogger('daredevil.qbt.views')
 
 
 def dashboard(request):
-    connected = client.is_connected()
-    torrents = []
-    transfer = {}
-    stats = {}
-    version = 'Not connected'
+    """The torrent list itself loads from torrents.json — this only checks
+    the connection, so the page opens instantly."""
+    try:
+        version = client.get_client().app_version()
+        connected = True
+    except Exception:
+        client.reset_client()
+        version, connected = 'Not connected', False
+    return render(request, 'qbt/dashboard.html', {'connected': connected, 'version': version})
 
-    if connected:
-        torrents = client.get_torrents()
-        transfer = client.get_transfer_info()
-        stats = client.get_torrents_stats()
-        version = client.get_app_version()
 
-    context = {
-        'connected': connected,
-        'torrents': torrents,
-        'transfer': transfer,
-        'stats': stats,
-        'version': version,
-    }
-    return render(request, 'qbt/dashboard.html', context)
+# qBittorrent states → the Torrent Manager's filter groups (v5 renamed paused* to stopped*)
+_STATE_GROUPS = {
+    'downloading': 'downloading', 'forcedDL': 'downloading', 'metaDL': 'downloading', 'forcedMetaDL': 'downloading',
+    'stalledDL': 'stalled', 'queuedDL': 'queued', 'checkingDL': 'checking', 'allocating': 'checking',
+    'uploading': 'seeding', 'forcedUP': 'seeding', 'stalledUP': 'seeding', 'queuedUP': 'queued', 'checkingUP': 'checking',
+    'pausedDL': 'paused', 'stoppedDL': 'paused', 'pausedUP': 'paused', 'stoppedUP': 'paused',
+    'checkingResumeData': 'checking', 'moving': 'checking',
+    'error': 'error', 'missingFiles': 'error', 'unknown': 'error',
+}
 
 
 def torrents_json(request):
-    """HTMX polling — returns fresh torrent list."""
-    filter_status = request.GET.get('filter', None)
+    """Polled by the Torrent Manager every few seconds."""
     try:
-        torrents = client.get_torrents(filter_status=filter_status)
-        data = [
-            {
-                'hash': t.hash,
-                'name': t.name,
-                'state': t.state,
-                'progress': round(t.progress * 100, 1),
-                'dlspeed': _fmt_speed(t.dlspeed),
-                'upspeed': _fmt_speed(t.upspeed),
-                'size': _fmt_size(t.size),
-                'eta': _fmt_eta(t.eta),
-                'category': t.category,
-                'seeds': t.num_seeds,
-                'peers': t.num_leechs,
-            }
-            for t in torrents
-        ]
-        return JsonResponse({'torrents': data})
+        torrents = client.get_client().torrents_info()
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=503)
+        client.reset_client()
+        return JsonResponse({'error': str(e) or type(e).__name__}, status=503)
+    data = [{
+        'hash': t.hash,
+        'name': t.name,
+        'state': t.state,
+        'group': _STATE_GROUPS.get(t.state, 'other'),
+        'progress': round(t.progress * 100, 1),
+        'dl': t.dlspeed, 'up': t.upspeed,
+        'dlspeed': _fmt_speed(t.dlspeed),
+        'upspeed': _fmt_speed(t.upspeed),
+        'size_bytes': t.size,
+        'size': _fmt_size(t.size),
+        'eta': _fmt_eta(t.eta),
+        'category': t.category,
+        'seeds': t.num_seeds,
+        'peers': t.num_leechs,
+        'ratio': round(t.ratio or 0, 2),
+        'added_on': t.added_on,
+        'save_path': t.save_path,
+    } for t in torrents]
+    return JsonResponse({'torrents': data})
 
 
 @require_POST
-def torrent_pause(request, torrent_hash):
+def torrents_action(request):
+    """start / stop / delete / recheck / reannounce — one or many torrents."""
+    data = json.loads(request.body or b'{}')
+    action = data.get('action')
+    hashes = [h for h in data.get('hashes') or [] if isinstance(h, str) and h.isalnum()]
+    if not hashes:
+        return JsonResponse({'ok': False, 'error': 'Nothing selected'}, status=400)
+    actions = {
+        'start': client.start_torrents, 'stop': client.stop_torrents,
+        'recheck': client.recheck_torrents, 'reannounce': client.reannounce_torrents,
+        'delete': lambda h: client.delete_torrents(h, delete_files=bool(data.get('delete_files'))),
+    }
+    if action not in actions:
+        return JsonResponse({'ok': False, 'error': 'Unknown action'}, status=400)
     try:
-        client.pause_torrent(torrent_hash)
+        actions[action](hashes)
+        log.info('torrents_action: %s %d torrent(s)%s', action, len(hashes),
+                 ' + files' if action == 'delete' and data.get('delete_files') else '')
         return JsonResponse({'ok': True})
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-@require_POST
-def torrent_resume(request, torrent_hash):
-    try:
-        client.resume_torrent(torrent_hash)
-        return JsonResponse({'ok': True})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-@require_POST
-def torrent_delete(request, torrent_hash):
-    delete_files = request.POST.get('delete_files', 'false') == 'true'
-    try:
-        client.delete_torrent(torrent_hash, delete_files=delete_files)
-        return JsonResponse({'ok': True})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
 
 @require_POST
@@ -103,22 +102,48 @@ def torrent_add_magnet(request):
 
 
 def settings_view(request):
+    """Moved to App Settings → qBittorrent."""
+    return redirect('/settings/#qbittorrent')
+
+
+def _web_url(request):
+    """qBittorrent's own Web UI on the host the user reached Daredevil on."""
     from django.conf import settings as django_settings
-    connected = client.is_connected()
-    prefs = {}
-    if connected:
-        prefs = client.get_preferences()
-    context = {
-        'connected': connected,
-        'prefs': prefs,
+    host = request.get_host().split(':')[0]
+    return f'{request.scheme}://{host}:{django_settings.QBT_WEBUI_PORT}'
+
+
+def settings_data(request):
+    """Everything the App Settings → qBittorrent tab shows, in one call."""
+    from django.conf import settings as django_settings
+    data = {
         'conn': {
-            'host':     django_settings.QBITTORRENT_HOST,
-            'port':     django_settings.QBITTORRENT_PORT,
+            'host': django_settings.QBITTORRENT_HOST,
+            'port': django_settings.QBITTORRENT_PORT,
             'username': django_settings.QBITTORRENT_USERNAME,
             'password': django_settings.QBITTORRENT_PASSWORD,
         },
+        'web_url': _web_url(request),
+        'connected': False, 'version': None, 'prefs': {}, 'categories': [], 'error': None,
     }
-    return render(request, 'qbt/settings.html', context)
+    try:
+        c = client.get_client()
+        data['version'] = c.app_version()
+        data['connected'] = True
+        data['prefs'] = prefs = dict(c.app_preferences())
+        used = {}
+        for app in _arr_categories():
+            if app['category']:
+                used.setdefault(app['category'], []).append(app['kind'])
+        cats = dict(c.torrents_categories())
+        data['categories'] = [
+            {'name': name, 'save_path': (cat.get('savePath') or cat.get('save_path') or ''),
+             'effective': client.category_folder(name, cats, prefs), 'used_by': used.get(name, [])}
+            for name, cat in sorted(cats.items())
+        ]
+    except Exception as e:
+        data['error'] = str(e) or type(e).__name__
+    return JsonResponse(data)
 
 
 @require_POST
@@ -168,6 +193,11 @@ def connection_save(request):
         'QBITTORRENT_PASSWORD': password,
     })
 
+    # The live download queue backs off after failed logins (see
+    # apps.arr.queue._qbt_torrents) — retry straight away with the new details.
+    from django.core.cache import cache
+    cache.delete('arr_queue_qbt_backoff')
+
     # Test the new connection
     ok = client.is_connected()
     log.info('connection_save: %s:%s ok=%s', host, port, ok)
@@ -198,188 +228,61 @@ def _update_env(updates: dict):
     log.info('_update_env: wrote %s', list(updates.keys()))
 
 
+def _arr_categories():
+    """[{kind, name, category|error}] — the qBittorrent category each *arr app adds torrents under."""
+    from apps.arr.clients import ArrError
+    from apps.arr.services import client, is_configured, _field
+    meta = [
+        ('sonarr', 'Sonarr', 'fa-tv', 'text-blue-400', 'tvCategory'),
+        ('radarr', 'Radarr', 'fa-film', 'text-purple-400', 'movieCategory'),
+        ('prowlarr', 'Prowlarr', 'fa-magnifying-glass', 'text-orange-400', 'category'),
+    ]
+    apps = []
+    for kind, name, icon, color, field in meta:
+        app = {'kind': kind, 'name': name, 'icon': icon, 'color': color, 'category': None, 'error': None}
+        if not is_configured(kind):
+            app['error'] = 'Not connected'
+        else:
+            try:
+                qbt = next((d for d in client(kind).download_clients() if d.get('implementation') == 'QBittorrent'), None)
+                app['category'] = _field(qbt, field) if qbt else None
+            except ArrError as e:
+                app['error'] = str(e)
+        apps.append(app)
+    return apps
+
+
 def categories_page(request):
-    from .models import CategoryConfig, CategoryPath
-    connected = client.is_connected()
-    raw = client.get_categories() if connected else {}
-    # Normalise to plain dicts so Django templates can access fields reliably
-    # and merge in our locally stored download/completed paths
-    path_rows = {p.category_name: p for p in CategoryPath.objects.all()}
-    categories = {}
-    for name, cat in raw.items():
-        try:
-            qbt_save_path = cat.get('savePath') or cat.get('save_path') or ''
-        except (AttributeError, TypeError):
-            qbt_save_path = getattr(cat, 'savePath', '') or getattr(cat, 'save_path', '') or ''
-        row = path_rows.get(name)
-        categories[name] = {
-            'name': name,
-            'qbt_save_path': qbt_save_path,
-            'daredevil_qbt_save_path': row.qbt_save_path if row else '',
-            'download_path': row.download_path if row else '',
-            'completed_path': row.completed_path if row else '',
-        }
-    config = CategoryConfig.get()
-    try:
-        from apps.media_tracker.models import QualityProfile
-        quality_profiles = {
-            f'{p.media_type}_{p.quality}': {
-                'min_size_gb': round((p.min_size_mb or 0) / 1000, 1),
-                'max_size_gb': round((p.max_size_mb or 0) / 1000, 1),
-            }
-            for p in QualityProfile.objects.all()
-        }
-    except Exception:
-        quality_profiles = {}
-    return render(request, 'qbt/categories.html', {
-        'connected': connected,
-        'categories': categories,
-        'config': config,
-        'quality_profiles_json': json.dumps(quality_profiles),
-    })
+    """Moved: categories and their folders live on App Settings → qBittorrent
+    (and each app's category on its own tab)."""
+    return redirect('/settings/#qbittorrent')
 
 
 @require_POST
-def category_paths_save(request, name):
-    """Save the download + completed paths for a category in Daredevil's DB."""
-    from .models import CategoryPath
-    qbt_save_path  = request.POST.get('qbt_save_path', '').strip()
-    download_path  = request.POST.get('download_path', '').strip()
-    completed_path = request.POST.get('completed_path', '').strip()
-    row, _ = CategoryPath.objects.get_or_create(category_name=name)
-    row.qbt_save_path  = qbt_save_path
-    row.download_path  = download_path
-    row.completed_path = completed_path
-    row.save()
-    log.info('category_paths_save: %r qbt=%r download=%r completed=%r', name, qbt_save_path, download_path, completed_path)
-    if qbt_save_path:
-        try:
-            client.edit_category(name, save_path=qbt_save_path)
-        except Exception as e:
-            log.warning('category_paths_save: could not update qBT save_path — %s', e)
-    return JsonResponse({'ok': True})
-
-
-@require_POST
-def category_create(request):
-    name = request.POST.get('name', '').strip()
-    save_path = request.POST.get('save_path', '').strip()
+def category_save(request):
+    """Create a category, or change an existing one's save path."""
+    data = json.loads(request.body or b'{}')
+    name = (data.get('name') or '').strip()
+    save_path = (data.get('save_path') or '').strip()
     if not name:
-        return JsonResponse({'error': 'Name is required'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Name is required'}, status=400)
     try:
-        client.create_category(name, save_path=save_path)
-        log.info('category_create: created %r (path=%r)', name, save_path)
-        return JsonResponse({'ok': True})
+        switched_on = client.set_category_folder(name, save_path)
+        log.info('category_save: %r save_path=%r', name, save_path)
+        return JsonResponse({'ok': True, 'category_paths_switched_on': switched_on})
     except Exception as e:
-        log.error('category_create: failed — %s', e)
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
 
 @require_POST
-def category_edit(request, name):
-    save_path = request.POST.get('save_path', '').strip()
-    try:
-        client.edit_category(name, save_path=save_path)
-        log.info('category_edit: updated %r save_path=%r', name, save_path)
-        return JsonResponse({'ok': True})
-    except Exception as e:
-        log.error('category_edit: failed — %s', e)
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-@require_POST
-def category_delete(request, name):
+def category_remove(request):
+    data = json.loads(request.body or b'{}')
+    name = (data.get('name') or '').strip()
     try:
         client.delete_category(name)
-        log.info('category_delete: deleted %r', name)
         return JsonResponse({'ok': True})
     except Exception as e:
-        log.error('category_delete: failed — %s', e)
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-@require_POST
-def category_defaults_save(request):
-    from .models import CategoryConfig, CategoryPath
-    tv = request.POST.get('tv_category', '').strip()
-    movie = request.POST.get('movie_category', '').strip()
-    config = CategoryConfig.get()
-    old_tv    = config.tv_category
-    old_movie = config.movie_category
-    if tv:
-        config.tv_category = tv
-    if movie:
-        config.movie_category = movie
-    config.save()
-    log.info('category_defaults_save: tv=%r movie=%r', config.tv_category, config.movie_category)
-
-    # Migrate stored paths to the new category name so the file browser stays clean
-    def _migrate(old_name, new_name):
-        if not old_name or old_name == new_name:
-            return
-        old_path = CategoryPath.objects.filter(category_name=old_name).first()
-        if not old_path:
-            return
-        new_path, _ = CategoryPath.objects.get_or_create(category_name=new_name)
-        if not new_path.download_path:
-            new_path.download_path = old_path.download_path
-        if not new_path.completed_path:
-            new_path.completed_path = old_path.completed_path
-        new_path.save()
-        old_path.delete()
-        log.info('category_defaults_save: migrated paths %r → %r', old_name, new_name)
-
-    _migrate(old_tv, config.tv_category)
-    _migrate(old_movie, config.movie_category)
-
-    return JsonResponse({'ok': True, 'tv_category': config.tv_category, 'movie_category': config.movie_category})
-
-
-def search_page(request):
-    connected = client.is_connected()
-    categories = sorted(client.get_categories().keys()) if connected else []
-    return render(request, 'qbt/search.html', {'connected': connected, 'categories': categories})
-
-
-@require_POST
-def search_run(request):
-    """Single synchronous endpoint — blocks until qBT search completes (~5–30s)."""
-    query = request.POST.get('q', '').strip()
-    category = request.POST.get('category', 'all').strip() or 'all'
-    if not query:
-        return JsonResponse({'error': 'No query provided'}, status=400)
-    log.info('search_run: query=%r category=%r', query, category)
-    try:
-        raw = client.search_torrents(query, category=category)
-    except Exception as e:
-        log.error('search_run: search_torrents raised %s: %s', type(e).__name__, e)
-        return JsonResponse({'error': str(e)}, status=503)
-    log.info('search_run: %d raw results for %r', len(raw), query)
-
-    data = []
-    for r in raw:
-        try:
-            # qbittorrentapi models support both dict-style and attribute access
-            name  = r.get('fileName',  '') or ''
-            url   = r.get('fileUrl',   '') or ''
-            size  = r.get('fileSize',   0) or 0
-            seeds = r.get('nbSeeders', 0) or 0
-            peers = r.get('nbLeechers', 0) or 0
-            engine = r.get('siteUrl',  '') or ''
-            data.append({
-                'name':   name,
-                'url':    url,
-                'size':   _fmt_size(size) if size > 0 else '?',
-                'size_bytes': size,
-                'seeds':  seeds,
-                'peers':  peers,
-                'engine': engine,
-            })
-        except Exception:
-            continue
-
-    data.sort(key=lambda x: x['seeds'], reverse=True)
-    return JsonResponse({'results': data, 'total': len(data)})
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
 
 def transfer_info_json(request):
@@ -397,23 +300,81 @@ def transfer_info_json(request):
 
 # ── Formatters ───────────────────────────────────────────────────────────────
 
-def _all_allowed_roots():
-    """Return a list of realpath-resolved allowed root directories for the file browser."""
-    from .models import CategoryPath, ExtraTab
-    roots = []
-    for cp in CategoryPath.objects.all():
-        for p in (cp.download_path, cp.completed_path):
-            if p:
-                try:
-                    roots.append(os.path.realpath(p))
-                except Exception:
-                    pass
+def _downloads_local_path():
+    """qBittorrent's download folder as Daredevil sees it (via the Sonarr/Radarr
+    path mappings — qBittorrent and the apps share the same /downloads mount)."""
+    from django.conf import settings as django_settings
+    from apps.arr.models import ArrService
+    try:
+        save_path = (client.get_preferences().get('save_path') or '/downloads').rstrip('/') or '/'
+    except Exception:
+        save_path = '/downloads'
+    for kind in ('sonarr', 'radarr'):
+        local = ArrService.get(kind).to_local(save_path)
+        if local != save_path:
+            return local
+    local = getattr(django_settings, 'DOWNLOAD_PATH', '')
+    return local or None
+
+
+def _browser_tabs():
+    """
+    Tabs for the File Browser, built automatically: the download folder,
+    every Sonarr/Radarr root folder (translated to Daredevil's own paths),
+    plus any folders added by hand. Cached briefly — every directory listing
+    checks its path against these.
+    """
+    from django.core.cache import cache
+    tabs = cache.get('file_browser_tabs')
+    if tabs is not None:
+        return tabs
+
+    from apps.arr.clients import ArrError
+    from apps.arr.models import ArrService
+    from apps.arr.services import client as arr_client, is_configured
+    from .models import ExtraTab
+
+    tabs = []
+    downloads = _downloads_local_path()
+    if downloads:
+        tabs.append({'label': 'Downloads', 'path': downloads, 'kind': 'download', 'icon': 'fa-arrow-down text-blue-300'})
+    for kind, label, icon in (('sonarr', 'TV Shows', 'fa-tv text-purple-300'), ('radarr', 'Movies', 'fa-film text-cyan-300')):
+        if not is_configured(kind):
+            continue
+        svc = ArrService.get(kind)
+        try:
+            folders = arr_client(kind).root_folders()
+        except ArrError:
+            continue
+        for f in folders:
+            remote = f['path'].rstrip('/') or '/'
+            local = svc.to_local(remote)
+            # Only folders a path mapping translates — an unmapped path is the
+            # app's own container path and may mean something else entirely here.
+            if local == remote:
+                continue
+            tabs.append({'label': label if len(folders) == 1 else f'{label} ({remote})', 'path': local,
+                         'kind': 'library', 'icon': icon})
     for et in ExtraTab.objects.all():
-        if et.path:
-            try:
-                roots.append(os.path.realpath(et.path))
-            except Exception:
-                pass
+        tabs.append({'label': et.label, 'path': et.path, 'kind': 'custom', 'pk': et.pk, 'icon': 'fa-folder text-yellow-300'})
+
+    seen, unique = set(), []
+    for t in tabs:
+        if t['path'] not in seen:
+            seen.add(t['path'])
+            unique.append(t)
+    cache.set('file_browser_tabs', unique, 60)
+    return unique
+
+
+def _all_allowed_roots():
+    """Realpath-resolved roots the File Browser may list, delete in, or import from."""
+    roots = []
+    for t in _browser_tabs():
+        try:
+            roots.append(os.path.realpath(t['path']))
+        except Exception:
+            pass
     return roots
 
 
@@ -429,6 +390,8 @@ def file_tabs_add(request):
     if not os.path.isdir(path):
         return JsonResponse({'error': f'Directory not found: {path}'}, status=400)
     tab = ExtraTab.objects.create(label=label, path=path)
+    from django.core.cache import cache
+    cache.delete('file_browser_tabs')
     log.info('file_tabs_add: created pk=%d label=%r path=%r', tab.pk, label, path)
     return JsonResponse({'ok': True, 'pk': tab.pk})
 
@@ -437,35 +400,14 @@ def file_tabs_add(request):
 def file_tabs_delete(request, pk):
     from .models import ExtraTab
     ExtraTab.objects.filter(pk=pk).delete()
+    from django.core.cache import cache
+    cache.delete('file_browser_tabs')
     log.info('file_tabs_delete: deleted pk=%d', pk)
     return JsonResponse({'ok': True})
 
 
 def file_browser_page(request):
-    from .models import CategoryPath, ExtraTab
-    all_paths = CategoryPath.objects.all()
-    if client.is_connected():
-        try:
-            live_names = set(client.get_categories().keys())
-            categories = [cp for cp in all_paths if cp.category_name in live_names]
-        except Exception:
-            categories = list(all_paths)
-    else:
-        categories = list(all_paths)
-
-    # Build flat list of named tabs: {label, path, kind}
-    tabs = []
-    for cp in categories:
-        if cp.download_path:
-            tabs.append({'label': cp.category_name, 'path': cp.download_path, 'kind': 'download'})
-        if cp.completed_path:
-            tabs.append({'label': cp.category_name, 'path': cp.completed_path, 'kind': 'completed'})
-
-    extra_tabs = list(ExtraTab.objects.all())
-    for et in extra_tabs:
-        tabs.append({'label': et.label, 'path': et.path, 'kind': 'custom', 'pk': et.pk})
-
-    return render(request, 'qbt/files.html', {'categories': categories, 'tabs': tabs})
+    return render(request, 'qbt/files.html', {'tabs': _browser_tabs()})
 
 
 def file_browser_list(request):
@@ -609,17 +551,35 @@ def file_delete(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def _detect_type(path):
+    """TV if any file name in it carries an SxxExx code, otherwise movie."""
+    import re
+    pattern = re.compile(r'[Ss]\d+[Ee]\d+')
+    if os.path.isfile(path):
+        return 'tv' if pattern.search(os.path.basename(path)) else 'movie'
+    for _root, _dirs, files in os.walk(path):
+        if any(pattern.search(f) for f in files):
+            return 'tv'
+    return 'movie'
+
+
 @require_POST
-def file_move_completed(request):
+def file_import(request):
     """
-    Move selected files/folders to their completed_path with Plex-standard naming.
-    Auto-detects movie vs TV from filenames; falls back to user-supplied media_type.
+    Hand selected files/folders to Sonarr (TV) or Radarr (movies) to import —
+    they match them to the library, move/rename them and record the import.
+    Daredevil doesn't move files itself any more. Paths are translated from
+    Daredevil's mounts to the app's own via its path mappings (Settings).
     """
-    from .models import CategoryPath
+    from apps.arr.clients import ArrError
+    from apps.arr.models import ArrService
+    from apps.arr.services import client as arr_client, is_configured
 
     paths = request.POST.getlist('paths')
     media_type = request.POST.get('media_type', 'auto')
-
+    import_mode = request.POST.get('import_mode', 'Auto')
+    if import_mode not in ('Auto', 'Move', 'Copy'):
+        import_mode = 'Auto'
     if not paths:
         return JsonResponse({'error': 'No paths provided'}, status=400)
 
@@ -627,21 +587,6 @@ def file_move_completed(request):
 
     def _permitted(p):
         return any(p == a or p.startswith(a + os.sep) for a in allowed)
-
-    from apps.qbt.file_naming import detect_type, raw_dest as _raw_dest
-
-    # Find completed_paths for each category
-    movie_completed = None
-    tv_completed = None
-    try:
-        from apps.qbt.models import CategoryConfig
-        cfg = CategoryConfig.get()
-        movie_cp = CategoryPath.objects.filter(category_name=cfg.movie_category).first()
-        tv_cp = CategoryPath.objects.filter(category_name=cfg.tv_category).first()
-        movie_completed = movie_cp.completed_path if movie_cp else None
-        tv_completed = tv_cp.completed_path if tv_cp else None
-    except Exception:
-        pass
 
     results = []
     for raw in paths:
@@ -652,27 +597,19 @@ def file_move_completed(request):
         if not os.path.exists(src):
             results.append({'path': raw, 'error': 'Path not found'})
             continue
-
-        detected = media_type if media_type in ('movie', 'tv') else detect_type(src)
-        completed_path = movie_completed if detected == 'movie' else tv_completed
-        if not completed_path:
-            results.append({'path': raw, 'error': f'No completed path configured for {detected}'})
+        detected = media_type if media_type in ('movie', 'tv') else _detect_type(src)
+        kind = 'sonarr' if detected == 'tv' else 'radarr'
+        if not is_configured(kind):
+            results.append({'path': raw, 'error': f'{kind.title()} is not connected (Settings → {kind.title()})'})
             continue
-
-        basename = os.path.basename(src.rstrip('/\\'))
-        dest, *_ = _raw_dest(src, completed_path, detected)
-
-        from apps.downloads.models import FileMove
-        from apps.downloads.tasks import execute_file_move
-        move = FileMove.objects.create(
-            title=basename,
-            source_path=src,
-            dest_path=dest,
-            status=FileMove.Status.PENDING,
-        )
-        execute_file_move.delay(move.id, detected_type=detected, completed_path=completed_path)
-        log.info('file_move_completed: queued FileMove id=%d  %r (type=%s)', move.id, src, detected)
-        results.append({'path': raw, 'move_id': move.id, 'dest': dest, 'type': detected})
+        remote = ArrService.get(kind).to_remote(src)
+        command = 'DownloadedEpisodesScan' if kind == 'sonarr' else 'DownloadedMoviesScan'
+        try:
+            arr_client(kind).command(command, path=remote, importMode=import_mode)
+            log.info('file_import: %s %r (as %r) mode=%s', command, src, remote, import_mode)
+            results.append({'path': raw, 'app': kind, 'remote_path': remote})
+        except ArrError as e:
+            results.append({'path': raw, 'error': str(e)})
 
     return JsonResponse({'results': results})
 

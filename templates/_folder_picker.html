@@ -1,0 +1,95 @@
+<!--
+  Shared folder picker — included once in base.html.
+
+    openFolderPicker({ source: 'sonarr'|'radarr'|'qbittorrent'|'daredevil', path, title, onPick: (path) => {} })
+
+  Browses the filesystem of the app the path is for (each app sees its own
+  container paths); the path box can always be typed into directly instead.
+-->
+<div x-data="folderPicker()" @dd-folder.window="open($event.detail)" x-show="visible" x-cloak
+     class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="close()"></div>
+  <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-xl p-5 flex flex-col max-h-[85vh]"
+       style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+    <div class="flex items-start gap-3 mb-3">
+      <div class="flex-1 min-w-0">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500" x-text="`Folders as ${label()} sees them`"></p>
+        <h3 class="text-base font-bold text-white truncate" x-text="cfg.title || 'Choose a folder'"></h3>
+      </div>
+      <button @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form @submit.prevent="go(path)" class="flex gap-2 mb-3">
+      <button type="button" @click="parent !== null && go(parent)" :disabled="parent === null" title="Up one folder"
+              class="w-10 flex-shrink-0 rounded-xl bg-surface-700 hover:bg-surface-600 disabled:opacity-40 text-gray-300"><i class="fa-solid fa-arrow-up"></i></button>
+      <input type="text" x-model="path" spellcheck="false" placeholder="/path/to/folder"
+             class="flex-1 min-w-0 px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-sm text-gray-100 font-mono focus:outline-none focus:border-brand-500">
+      <button type="submit" class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm" title="Open this path"><i class="fa-solid fa-arrow-right"></i></button>
+    </form>
+
+    <div class="flex-1 overflow-y-auto scrollbar-thin min-h-[14rem] rounded-xl bg-surface-900/50 border border-white/5">
+      <div x-show="loading" class="py-10 text-center text-sm text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</div>
+      <div x-show="!loading && error" class="px-4 py-6 text-center text-sm text-yellow-300/90">
+        <p x-text="error"></p>
+        <p class="text-xs text-gray-500 mt-1">You can still use the path as typed.</p>
+      </div>
+      <div x-show="!loading && !error && !dirs.length" class="py-10 text-center text-sm text-gray-500">No sub-folders here</div>
+      <template x-for="d in dirs" :key="d.path">
+        <button type="button" @click="go(d.path)" @dblclick="pick(d.path)"
+                class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-surface-700/60 border-b border-white/5 last:border-0">
+          <i class="fa-solid fa-folder text-yellow-500/70"></i>
+          <span class="text-sm text-gray-200 truncate" x-text="d.name"></span>
+        </button>
+      </template>
+    </div>
+
+    <div class="flex gap-2 mt-4">
+      <button @click="close()" class="flex-1 py-2.5 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300 text-sm font-medium">Cancel</button>
+      <button @click="pick(path)" :disabled="!path.trim()"
+              class="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-sm font-semibold">
+        <i class="fa-solid fa-check mr-1"></i> Use this folder
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.openFolderPicker = (cfg) => window.dispatchEvent(new CustomEvent('dd-folder', { detail: cfg }));
+window.folderPicker = function () {
+  return {
+    visible: false, loading: false, error: '', cfg: {}, path: '', parent: null, dirs: [],
+    label() {
+      return { sonarr: 'Sonarr', radarr: 'Radarr', qbittorrent: 'qBittorrent', daredevil: 'Daredevil' }[this.cfg.source] || 'Daredevil';
+    },
+    open(cfg) {
+      this.cfg = cfg || {};
+      this.visible = true;
+      this.go(this.cfg.path || '');
+    },
+    close() { this.visible = false; },
+    async go(path) {
+      this.loading = true;
+      this.error = '';
+      try {
+        const q = new URLSearchParams({ source: this.cfg.source || 'daredevil', path: path || '' });
+        const d = await (await fetch(`/arr/browse/?${q}`)).json();
+        if (!d.ok) throw new Error(d.error || 'Could not open that folder');
+        this.path = d.path;
+        this.parent = d.parent;
+        this.dirs = d.dirs;
+      } catch (e) {
+        this.error = e.message;
+        this.path = path || this.path;
+        this.dirs = [];
+      }
+      this.loading = false;
+    },
+    pick(path) {
+      const p = (path || '').trim();
+      if (!p) return;
+      this.visible = false;
+      if (this.cfg.onPick) this.cfg.onPick(p);
+    },
+  };
+};
+</script>

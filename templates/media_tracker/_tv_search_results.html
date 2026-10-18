@@ -1,28 +1,39 @@
-{% if results %}
+{% if error %}
+<div class="glass rounded-2xl p-6 border border-red-500/30 text-red-300 text-sm">
+  <i class="fa-solid fa-circle-exclamation mr-2"></i>{{ error }}
+</div>
+{% elif results %}
 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
   {% for show in results %}
-  <div class="glass rounded-xl overflow-hidden card-hover animate-slide-in"
+  <div class="glass rounded-xl overflow-hidden card-hover animate-slide-in flex flex-col"
        style="animation-delay: {{ forloop.counter0 }}0ms">
-    {% if show.poster_path %}
-    <img src="https://image.tmdb.org/t/p/w342{{ show.poster_path }}" alt="{{ show.name }}" class="w-full aspect-[2/3] object-cover">
+    {% if show.poster %}
+    <img src="{{ show.poster }}" alt="{{ show.title }}" loading="lazy" class="w-full aspect-[2/3] object-cover bg-surface-800">
     {% else %}
     <div class="w-full aspect-[2/3] bg-surface-700 flex items-center justify-center">
       <i class="fa-solid fa-tv text-3xl text-gray-600"></i>
     </div>
     {% endif %}
-    <div class="p-3">
-      <p class="text-sm font-medium text-gray-200 truncate mb-1">{{ show.name }}</p>
-      <p class="text-xs text-gray-500 mb-3">{% if show.first_air_date %}{{ show.first_air_date|slice:":4" }}{% endif %}</p>
-      {% if show.already_added %}
-      <span class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
-        <i class="fa-solid fa-circle-check mr-1"></i>Already Added
-      </span>
-      {% else %}
-      <button onclick="addShow({{ show.id }}, '{{ show.name|escapejs }}', this)"
-              class="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors">
-        <i class="fa-solid fa-plus mr-1"></i>Add Show
-      </button>
-      {% endif %}
+    <div class="p-3 flex flex-col flex-1">
+      <p class="text-sm font-medium text-gray-200 truncate" title="{{ show.title }}">{{ show.title }}</p>
+      <p class="text-xs text-gray-500 mb-1 truncate">
+        {{ show.year }}{% if show.network %} · {{ show.network }}{% endif %}{% if show.seasons %} · {{ show.seasons }} season{{ show.seasons|pluralize }}{% endif %}
+      </p>
+      {% if show.overview %}<p class="text-[11px] text-gray-600 line-clamp-2 mb-3">{{ show.overview }}</p>{% endif %}
+      <div class="mt-auto">
+        {% if show.in_library %}
+        <a href="{% url 'tv_show_detail' show.series_id %}"
+           class="block text-center px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium border border-green-500/30">
+          <i class="fa-solid fa-circle-check mr-1"></i>In library
+        </a>
+        {% else %}
+        <button onclick="addFromCard(this)" data-kind="sonarr" data-tvdb-id="{{ show.tvdb_id|default:'' }}"
+                data-title="{{ show.title }}" data-year="{{ show.year }}" data-poster="{{ show.poster|default:'' }}"
+                class="w-full px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-plus mr-1"></i>Add Show
+        </button>
+        {% endif %}
+      </div>
     </div>
   </div>
   {% endfor %}
@@ -34,7 +45,7 @@
 </div>
 {% else %}
 <div class="text-center py-16 text-gray-500">
-  <i class="fa-brands fa-themeco text-5xl text-gray-700 mb-4 block"></i>
-  <p>Search TMDB to find a show to add</p>
+  <i class="fa-solid fa-tv text-5xl text-gray-700 mb-4 block"></i>
+  <p>Search for a show to add to Sonarr</p>
 </div>
 {% endif %}

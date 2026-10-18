@@ -12,7 +12,7 @@ services:
       -c effective_cache_size=4GB
       -c work_mem=16MB
       -c maintenance_work_mem=128MB
-      -c max_connections=50
+      -c max_connections=100
       -c checkpoint_completion_target=0.9
       -c wal_buffers=16MB
       -c synchronous_commit=off
@@ -27,6 +27,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # ── Databases for Sonarr / Radarr / Prowlarr ───────────────────────────────
+  # One-shot: creates each app's main and log database in the Postgres above
+  # if they don't exist yet, then exits. The apps start after it's done.
+  db-init:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - PGHOST=db
+      - PGUSER=daredevil
+      - PGPASSWORD=${DB_PASSWORD:-daredevil}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for name in sonarr-main sonarr-log radarr-main radarr-log prowlarr-main prowlarr-log; do
+          psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$$name'" | grep -q 1 \
+            || psql -d postgres -c "CREATE DATABASE \"$$name\"" || exit 1
+        done
 
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
@@ -56,25 +77,98 @@ services:
       - ${DATA_DIR:-./data}/qbt:/config
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
 
-  # ── Jackett ────────────────────────────────────────────────────────────────
-  # Web UI: http://<host>:${JACKETT_PORT:-9118}
-  jackett:
-    image: lscr.io/linuxserver/jackett:latest
+  # ── Prowlarr ───────────────────────────────────────────────────────────────
+  # Web UI: http://<host>:${PROWLARR_PORT:-9696}
+  # Indexer manager — replaces Jackett. Indexers are added once here (or from
+  # Daredevil's Settings → Prowlarr tab) and Prowlarr pushes them to Sonarr
+  # and Radarr automatically. Daredevil's Search page queries it directly.
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
     restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
-      - AUTO_UPDATE=true
+      # Settings live in Postgres (the db service) rather than a SQLite file in /config
+      - PROWLARR__POSTGRES__HOST=db
+      - PROWLARR__POSTGRES__PORT=5432
+      - PROWLARR__POSTGRES__USER=daredevil
+      - PROWLARR__POSTGRES__PASSWORD=${DB_PASSWORD:-daredevil}
+      - PROWLARR__POSTGRES__MAINDB=prowlarr-main
+      - PROWLARR__POSTGRES__LOGDB=prowlarr-log
     ports:
-      - "${JACKETT_PORT:-9118}:9117"
+      - "${PROWLARR_PORT:-9696}:9696"
     volumes:
-      - ${DATA_DIR:-./data}/jackett:/config
+      - ${DATA_DIR:-./data}/prowlarr:/config
+
+  # ── Sonarr ─────────────────────────────────────────────────────────────────
+  # Web UI: http://<host>:${SONARR_PORT:-8989}
+  # Owns the TV library: monitoring, searching, grabbing (via qBittorrent)
+  # and importing finished downloads into TV_DIR. Daredevil is the front end.
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    # Plex runs with network_mode: host — this lets the "Refresh Plex" connection
+    # reach it at host.docker.internal on Linux/Unraid too (built in on Docker Desktop)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      # Settings live in Postgres (the db service) rather than a SQLite file in /config
+      - SONARR__POSTGRES__HOST=db
+      - SONARR__POSTGRES__PORT=5432
+      - SONARR__POSTGRES__USER=daredevil
+      - SONARR__POSTGRES__PASSWORD=${DB_PASSWORD:-daredevil}
+      - SONARR__POSTGRES__MAINDB=sonarr-main
+      - SONARR__POSTGRES__LOGDB=sonarr-log
+    ports:
+      - "${SONARR_PORT:-8989}:8989"
+    volumes:
+      - ${DATA_DIR:-./data}/sonarr:/config
+      # /downloads matches qbittorrent's own container path, so the paths
+      # qBittorrent reports for finished torrents resolve inside this
+      # container as-is — no remote path mapping needed.
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
-      # Forces --ListenPublic — without it Jackett rejects any request whose
-      # Host header isn't localhost/127.0.0.1, so containers reaching it as
-      # "jackett:9117" over the compose network get a flat 400 Bad Request.
-      - ./jackett/jackett_launcher.sh:/app/Jackett/jackett_launcher.sh:ro
+      - ${TV_DIR:-./tv}:/tv
+
+  # ── Radarr ─────────────────────────────────────────────────────────────────
+  # Web UI: http://<host>:${RADARR_PORT:-7878}
+  # Same role as Sonarr, for movies — imports into MOVIES_DIR.
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    # Plex runs with network_mode: host — this lets the "Refresh Plex" connection
+    # reach it at host.docker.internal on Linux/Unraid too (built in on Docker Desktop)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      # Settings live in Postgres (the db service) rather than a SQLite file in /config
+      - RADARR__POSTGRES__HOST=db
+      - RADARR__POSTGRES__PORT=5432
+      - RADARR__POSTGRES__USER=daredevil
+      - RADARR__POSTGRES__PASSWORD=${DB_PASSWORD:-daredevil}
+      - RADARR__POSTGRES__MAINDB=radarr-main
+      - RADARR__POSTGRES__LOGDB=radarr-log
+    ports:
+      - "${RADARR_PORT:-7878}:7878"
+    volumes:
+      - ${DATA_DIR:-./data}/radarr:/config
+      - ${DOWNLOADS_DIR:-./downloads}:/downloads
+      - ${MOVIES_DIR:-./movies}:/movies
 
   # ── Plex Media Server ──────────────────────────────────────────────────────
   # Web UI: http://<host>:32400/web

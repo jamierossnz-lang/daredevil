@@ -105,58 +105,6 @@
     </button>
   </div>
 
-  <!-- Right-swipe choice sheet -->
-  <div x-show="showChoice" x-cloak
-       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="cancelChoice()"></div>
-    <div class="relative glass rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-6 animate-slide-in"
-         style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))">
-      <template x-if="choiceItem">
-        <div>
-          <div class="flex items-center gap-3 mb-5">
-            <img :src="choiceItem.poster_url" x-show="choiceItem.poster_url" class="w-14 h-20 rounded-lg object-cover flex-shrink-0 bg-surface-700">
-            <div class="min-w-0">
-              <h3 class="text-base font-bold text-white truncate" x-text="choiceItem.title"></h3>
-              <p class="text-xs text-gray-500" x-text="choiceItem.media_type === 'movie' ? 'Movie' : 'TV Show'"></p>
-            </div>
-          </div>
-          <div class="flex flex-col gap-2">
-            <!-- Movie: add-only vs add+download (or wait-for-release if unreleased) -->
-            <template x-if="choiceItem.media_type === 'movie'">
-              <button @click="confirmChoice(true)"
-                      class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                <i class="fa-solid" :class="choiceItem.is_released ? 'fa-download' : 'fa-clock'"></i>
-                <span x-text="choiceItem.is_released ? 'Add to Library + Download' : 'Add to Library + Wait for Release'"></span>
-              </button>
-            </template>
-
-            <!-- TV: pick episodes on the show page, or just monitor for new ones -->
-            <template x-if="choiceItem.media_type === 'tv'">
-              <button @click="goToLibrary()"
-                      class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                <i class="fa-solid fa-list-check"></i> Download Episodes…
-              </button>
-            </template>
-            <template x-if="choiceItem.media_type === 'tv'">
-              <button @click="confirmChoice(true)"
-                      class="w-full py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                <i class="fa-solid fa-rss"></i> Add + Monitor New Episodes
-              </button>
-            </template>
-
-            <button @click="confirmChoice(false)"
-                    class="w-full py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-200 text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-              <i class="fa-solid fa-bookmark"></i> Add to Library Only
-            </button>
-            <button @click="cancelChoice()" class="w-full py-2 text-gray-500 hover:text-gray-300 text-xs transition-colors">
-              Cancel — undo swipe
-            </button>
-          </div>
-        </div>
-      </template>
-    </div>
-  </div>
-
   <!-- Trailer -->
   <div x-show="showTrailer" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
     <div class="absolute inset-0" @click="closeTrailer()"></div>
@@ -190,15 +138,6 @@
     </div>
   </div>
 
-  <!-- Toast -->
-  <div x-show="toast" x-cloak x-transition
-       class="fixed bottom-24 lg:bottom-6 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
-    <div class="bg-surface-800 border border-surface-600 rounded-xl px-4 py-2.5 shadow-xl flex items-center gap-2 text-sm text-gray-100">
-      <i class="fa-solid fa-circle-check text-emerald-400"></i>
-      <span x-text="toast"></span>
-    </div>
-  </div>
-
 </div>
 {% endblock %}
 
@@ -215,13 +154,9 @@ function swipeDeck() {
     startX: 0, startY: 0,
     dragX: 0, dragY: 0,
     busy: false,
-    showChoice: false,
-    choiceItem: null,
     showTrailer: false,
     trailerLoading: false,
     trailerKey: null,
-    toast: '',
-    toastTimer: null,
 
     async init() {
       try {
@@ -274,12 +209,6 @@ function swipeDeck() {
       this.dragY = 0;
     },
 
-    showToast(msg) {
-      this.toast = msg;
-      clearTimeout(this.toastTimer);
-      this.toastTimer = setTimeout(() => { this.toast = ''; }, 2200);
-    },
-
     swipeLeft() {
       if (this.busy || !this.current) return;
       this.busy = true;
@@ -296,6 +225,7 @@ function swipeDeck() {
     },
 
     swipeRight() {
+      // Same Add dialog as everywhere else. Cancelling it undoes the swipe.
       if (this.busy || !this.current) return;
       this.busy = true;
       const item = this.current;
@@ -304,55 +234,20 @@ function swipeDeck() {
       setTimeout(() => {
         this.advance();
         this.busy = false;
-        this.choiceItem = item;
-        this.showChoice = true;
+        openAddModal({
+          kind: item.media_type === 'movie' ? 'radarr' : 'sonarr', tmdbId: item.tmdb_id,
+          title: item.title, year: (item.release_date || '').slice(0, 4), poster: item.poster_url,
+          tags: ['for-you'],
+          onAdded: () => this.keep(item),
+          onCancel: () => this.items.splice(this.index, 0, item),
+        });
       }, 280);
     },
 
-    cancelChoice() {
-      // No backend call was made yet — just put the card back on top of the stack.
-      if (this.choiceItem) {
-        this.items.splice(this.index, 0, this.choiceItem);
-      }
-      this.choiceItem = null;
-      this.showChoice = false;
-    },
-
-    async confirmChoice(withDownload) {
-      if (!this.choiceItem) return;
-      const item = this.choiceItem;
-      const url = withDownload ? `/foryou/${item.id}/add-download/` : `/foryou/${item.id}/add/`;
-      this.choiceItem = null;
-      this.showChoice = false;
+    async keep(item) {
       try {
-        await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
-        let msg;
-        if (!withDownload) msg = `${item.title} added to library`;
-        else if (item.media_type === 'movie') msg = `${item.title} added — download started`;
-        else msg = `${item.title} added — monitoring for new episodes`;
-        this.showToast(msg);
-      } catch (e) {
-        console.error(e);
-      }
-    },
-
-    async goToLibrary() {
-      // TV only — sync the show (no download/monitor side effect) and hand
-      // off to its library page, where the existing whole-show/seasons/
-      // episodes picker already lives, instead of reimplementing it here.
-      if (!this.choiceItem) return;
-      const item = this.choiceItem;
-      this.choiceItem = null;
-      this.showChoice = false;
-      try {
-        const r = await fetch(`/foryou/${item.id}/add/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
-        const d = await r.json();
-        if (d.pk) {
-          window.location.href = `/shows/${d.pk}/`;
-        }
-      } catch (e) {
-        console.error(e);
-      }
+        await fetch(`/foryou/${item.id}/right/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+      } catch (e) { console.error(e); }
     },
 
     async openTrailer() {

@@ -1,6 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}Plex Library{% endblock %}
 
+{% block header_actions %}
+{% if fetched_at %}
+<a href="?refresh=1" title="Fetch everything from Plex again"
+   class="hidden sm:flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-gray-200 rounded-xl text-xs transition-colors">
+  <i class="fa-solid fa-arrows-rotate"></i> Updated {{ fetched_at|timesince }} ago
+</a>
+{% endif %}
+<a href="{{ plex_web_url }}" target="_blank" rel="noreferrer"
+   class="flex items-center gap-2 px-3 py-2 bg-surface-700 hover:bg-surface-600 text-gray-200 rounded-xl text-sm font-medium transition-colors">
+  <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i> Open Plex
+</a>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6" x-data="{ tab: 'recent' }">
 
@@ -161,7 +174,7 @@
     <div class="glass rounded-2xl p-12 text-center">
       <i class="fa-solid fa-circle-check text-4xl text-green-500 mb-3 block"></i>
       <p class="text-gray-300 text-sm font-medium">Everything is in Plex</p>
-      <p class="text-gray-600 text-xs mt-1">All downloaded items were found in your Plex library</p>
+      <p class="text-gray-600 text-xs mt-1">Everything Sonarr and Radarr have on disk was found in your Plex library</p>
     </div>
     {% else %}
 
@@ -173,11 +186,11 @@
       <div class="glass rounded-2xl overflow-hidden" id="missing-movies-list">
         <div class="divide-y divide-surface-700/30">
           {% for movie in missing_movies %}
-          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-movie-{{ movie.pk }}"
+          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-movie-{{ movie.id }}"
                x-data="{ removing: false }">
-            <a href="{% url 'movie_detail' movie.pk %}" class="flex items-center gap-4 flex-1 min-w-0">
-              {% if movie.poster_path %}
-              <img src="https://image.tmdb.org/t/p/w92{{ movie.poster_path }}" alt="{{ movie.title }}"
+            <a href="{% url 'movie_detail' movie.id %}" class="flex items-center gap-4 flex-1 min-w-0">
+              {% if movie.poster %}
+              <img src="{{ movie.poster }}" alt="{{ movie.title }}"
                    class="w-10 h-14 object-cover rounded flex-shrink-0 bg-surface-700">
               {% else %}
               <div class="w-10 h-14 rounded bg-surface-700 flex items-center justify-center flex-shrink-0">
@@ -186,7 +199,7 @@
               {% endif %}
               <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-200">{{ movie.title }}</p>
-                {% if movie.release_date %}<p class="text-xs text-gray-500">{{ movie.release_date.year }}</p>{% endif %}
+                {% if movie.year %}<p class="text-xs text-gray-500">{{ movie.year }}</p>{% endif %}
               </div>
             </a>
             <div class="flex items-center gap-3 flex-shrink-0">
@@ -194,10 +207,10 @@
                 <i class="fa-solid fa-triangle-exclamation"></i> Not in Plex
               </span>
               <button @click="
-                if (!confirm('Remove {{ movie.title|escapejs }} from Daredevil library?')) return;
+                if (!confirm('Remove {{ movie.title|escapejs }} from Radarr? Files on disk are kept.')) return;
                 removing = true;
-                fetch('{% url "movie_delete" movie.pk %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
-                  .then(r => { if(r.ok || r.redirected) document.getElementById('missing-movie-{{ movie.pk }}').remove(); else removing = false; })
+                fetch('{% url "movie_delete" movie.id %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+                  .then(r => { if(r.ok) document.getElementById('missing-movie-{{ movie.id }}').remove(); else removing = false; })
                   .catch(() => { removing = false; });
               "
               :disabled="removing"
@@ -221,11 +234,11 @@
       <div class="glass rounded-2xl overflow-hidden">
         <div class="divide-y divide-surface-700/30">
           {% for show in missing_shows %}
-          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-show-{{ show.pk }}"
+          <div class="flex items-center gap-4 px-5 py-3 hover:bg-surface-700/20 transition-colors" id="missing-show-{{ show.id }}"
                x-data="{ removing: false }">
-            <a href="{% url 'tv_show_detail' show.pk %}" class="flex items-center gap-4 flex-1 min-w-0">
-              {% if show.poster_path %}
-              <img src="https://image.tmdb.org/t/p/w92{{ show.poster_path }}" alt="{{ show.name }}"
+            <a href="{% url 'tv_show_detail' show.id %}" class="flex items-center gap-4 flex-1 min-w-0">
+              {% if show.poster %}
+              <img src="{{ show.poster }}" alt="{{ show.title }}"
                    class="w-10 h-14 object-cover rounded flex-shrink-0 bg-surface-700">
               {% else %}
               <div class="w-10 h-14 rounded bg-surface-700 flex items-center justify-center flex-shrink-0">
@@ -233,8 +246,8 @@
               </div>
               {% endif %}
               <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-200">{{ show.name }}</p>
-                {% if show.first_air_date %}<p class="text-xs text-gray-500">{{ show.first_air_date.year }}</p>{% endif %}
+                <p class="text-sm font-medium text-gray-200">{{ show.title }}</p>
+                {% if show.year %}<p class="text-xs text-gray-500">{{ show.year }}</p>{% endif %}
               </div>
             </a>
             <div class="flex items-center gap-3 flex-shrink-0">
@@ -242,10 +255,10 @@
                 <i class="fa-solid fa-triangle-exclamation"></i> Not in Plex
               </span>
               <button @click="
-                if (!confirm('Remove {{ show.name|escapejs }} from Daredevil library?')) return;
+                if (!confirm('Remove {{ show.title|escapejs }} from Sonarr? Files on disk are kept.')) return;
                 removing = true;
-                fetch('{% url "tv_show_delete" show.pk %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
-                  .then(r => { if(r.ok || r.redirected) document.getElementById('missing-show-{{ show.pk }}').remove(); else removing = false; })
+                fetch('{% url "tv_show_delete" show.id %}', {method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+                  .then(r => { if(r.ok) document.getElementById('missing-show-{{ show.id }}').remove(); else removing = false; })
                   .catch(() => { removing = false; });
               "
               :disabled="removing"
@@ -772,32 +785,16 @@ function episodePicker() {
   };
 }
 
-async function plexAddShow(el) {
+function plexAddShow(el) {
   const tmdbId = el.dataset.tmdbId;
   const title  = el.dataset.title;
-
   if (!tmdbId) {
     window.location.href = `/shows/search/?q=${encodeURIComponent(title)}`;
     return;
   }
-
-  el.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white text-2xl"></i><span class="text-white text-xs font-semibold">Adding…</span>';
-  try {
-    const resp = await fetch('/shows/add/', {
-      method: 'POST',
-      headers: {'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '', 'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `tmdb_id=${tmdbId}`,
-    });
-    const data = await resp.json();
-    if (data.status === 'added' || data.status === 'exists') {
-      el.innerHTML = '<i class="fa-solid fa-check text-white text-2xl"></i><span class="text-white text-xs font-semibold">Added</span>';
-      setTimeout(() => { window.location.href = `/shows/${data.pk}/`; }, 800);
-    } else {
-      el.innerHTML = '<i class="fa-solid fa-xmark text-white text-2xl"></i><span class="text-white text-xs font-semibold">Failed</span>';
-    }
-  } catch (e) {
-    el.innerHTML = '<i class="fa-solid fa-xmark text-white text-2xl"></i><span class="text-white text-xs font-semibold">Error</span>';
-  }
+  // It's already in Plex, so default to tracking the files that exist plus
+  // anything new — not searching for the whole back catalogue again.
+  openAddModal({ kind: 'sonarr', tmdbId: Number(tmdbId), title, defaults: { monitor: 'existing' } });
 }
 </script>
 {% endblock %}
