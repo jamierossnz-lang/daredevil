@@ -2,7 +2,7 @@
 import re
 
 import pytest
-from conftest import api_get, expect, intercept, open_page
+from conftest import BASE, api_get, expect, intercept, open_page
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,31 @@ def test_streaming_providers_types_and_genres(page):
     expect(page.locator('#streamGrid > *').first).to_be_visible(timeout=30_000)
     page.goto(page.url.split('?')[0] + second.replace('type=movie', 'type=tv'))
     expect(page.locator('#streamGrid > *').first).to_be_visible(timeout=30_000)
+
+
+@pytest.mark.parametrize('sort,label', [('popular', 'Popular'), ('trending', 'Trending'), ('recent', 'Recently released')])
+def test_streaming_sorts(page, sort, label):
+    open_page(page, '/streaming/?provider=netflix&type=movie')
+    page.get_by_role('navigation', name='Sort').get_by_role('link', name=label).click()
+    page.wait_for_url(re.compile(f'sort={sort}'))
+    expect(page.get_by_role('link', name=label)).to_have_attribute('aria-current', 'page')
+    expect(page.locator('#streamGrid > *').first).to_be_visible(timeout=30_000)
+    # Switching service, type or genre keeps the sort, and so does the next page
+    for link in ('a[href^="?provider="]', 'a[href*="&type=tv"]', 'a[href*="&genre=27"], a[href*="&genre=18"]'):
+        assert f'sort={sort}' in page.locator(link).first.get_attribute('href')
+    with page.expect_request(re.compile(r'[?&]json=1')) as req:
+        page.locator('#streamSentinel').scroll_into_view_if_needed()
+    assert f'sort={sort}' in req.value.url
+
+
+def test_streaming_sorts_differ(page):
+    """Recently released really is newest first."""
+    first = {}
+    for sort in ('popular', 'recent'):
+        resp = page.request.get(f'{BASE}/streaming/?provider=netflix&type=movie&sort={sort}&page=1&json=1')
+        first[sort] = [i['year'] for i in resp.json()['items']]
+    assert first['recent'] == sorted(first['recent'], reverse=True)
+    assert first['popular'] != first['recent']
 
 
 def test_streaming_infinite_scroll(page):

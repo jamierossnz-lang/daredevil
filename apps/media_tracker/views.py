@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -420,9 +420,37 @@ TV_GENRES = [
 ]
 
 
-def streaming_params(provider, page=1, genre_id=''):
-    """TMDB discover parameters for one provider's page (also used by warm_caches)."""
+STREAMING_SORTS = [('popular', 'Popular'), ('trending', 'Trending'), ('recent', 'Recently released')]
+# Daily formats crowd out everything else in "airing now" — News, Reality, Soap, Talk
+DAILY_TV_GENRES = '10763,10764,10766,10767'
+
+
+def streaming_params(provider, page=1, genre_id='', sort='popular', media_type='movie'):
+    """
+    TMDB discover parameters for one provider's page (also used by warm_caches).
+
+    TMDB can't say what's trending *on a service*, so Trending is the most
+    popular of what's new there: movies out in the last four months, and
+    series from the last three years with an episode in the last month (or
+    long-running weekly shows would push out everything new). Recently
+    released is newest first, by first release — the nearest TMDB has to
+    "added to the service".
+    """
+    today = date.today()
+    tv = media_type == 'tv'
     params = {'with_watch_providers': provider['id'], 'watch_region': 'US', 'sort_by': 'popularity.desc', 'page': page}
+    if sort == 'trending':
+        if tv:
+            params.update({'air_date.gte': (today - timedelta(days=30)).isoformat(), 'air_date.lte': today.isoformat(),
+                           'first_air_date.gte': (today - timedelta(days=3 * 365)).isoformat(),
+                           'without_genres': DAILY_TV_GENRES})
+        else:
+            params.update({'primary_release_date.gte': (today - timedelta(days=120)).isoformat(),
+                           'primary_release_date.lte': today.isoformat()})
+    elif sort == 'recent':
+        released = 'first_air_date' if tv else 'primary_release_date'
+        # A few votes keeps out the stream of brand-new titles nobody has seen
+        params.update({'sort_by': f'{released}.desc', f'{released}.lte': today.isoformat(), 'vote_count.gte': 3})
     if genre_id:
         params['with_genres'] = genre_id
     return params
@@ -432,6 +460,7 @@ def streaming_browse(request):
     provider_key = request.GET.get('provider', 'netflix')
     media_type = request.GET.get('type', 'movie')
     genre_id = request.GET.get('genre', '')
+    sort = request.GET.get('sort') if request.GET.get('sort') in dict(STREAMING_SORTS) else 'popular'
     try:
         page = max(1, int(request.GET.get('page', 1)))
     except (ValueError, TypeError):
@@ -439,7 +468,7 @@ def streaming_browse(request):
 
     provider = next((p for p in STREAMING_PROVIDERS if p['key'] == provider_key), STREAMING_PROVIDERS[0])
     genres = MOVIE_GENRES if media_type == 'movie' else TV_GENRES
-    discover_kwargs = streaming_params(provider, page, genre_id)
+    discover_kwargs = streaming_params(provider, page, genre_id, sort, media_type)
 
     items = []
     total_pages = 1
@@ -491,6 +520,8 @@ def streaming_browse(request):
         'media_type': media_type,
         'genre_id': genre_id,
         'genres': genres,
+        'sort': sort,
+        'sorts': STREAMING_SORTS,
         'page': page,
         'total_pages': total_pages,
         'error': error,

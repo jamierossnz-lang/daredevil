@@ -7,7 +7,7 @@
 <!-- Service grid -->
 <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
   {% for p in providers %}
-  <a href="?provider={{ p.key }}&type={{ media_type }}&genre={{ genre_id }}"
+  <a href="?provider={{ p.key }}&type={{ media_type }}&genre={{ genre_id }}&sort={{ sort }}"
      style="background: {{ p.bg }};{% if p.key == provider_key %} box-shadow: 0 0 0 2px {{ p.ring_color }}, 0 0 0 4px #0d0d14;{% endif %}"
      class="relative flex flex-col items-center justify-center py-4 rounded-2xl font-bold text-white transition-all
             {% if p.key == provider_key %}scale-[1.03]{% else %}opacity-50 hover:opacity-80{% endif %}">
@@ -20,26 +20,40 @@
   {% endfor %}
 </div>
 
-<!-- Movie / TV toggle + genre row -->
+<!-- Movie / TV toggle, sort, genre row -->
 <div class="flex flex-col gap-3 mb-5">
+  <div class="flex flex-wrap items-center gap-2">
   <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit">
-    <a href="?provider={{ provider_key }}&type=movie&genre="
+    <a href="?provider={{ provider_key }}&type=movie&genre=&sort={{ sort }}"
        class="px-4 py-2 rounded-lg text-sm font-medium transition-all
               {% if media_type == 'movie' %}bg-cyan-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid fa-film mr-1.5"></i>Movies
     </a>
-    <a href="?provider={{ provider_key }}&type=tv&genre="
+    <a href="?provider={{ provider_key }}&type=tv&genre=&sort={{ sort }}"
        class="px-4 py-2 rounded-lg text-sm font-medium transition-all
               {% if media_type == 'tv' %}bg-brand-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid fa-tv mr-1.5"></i>TV Shows
     </a>
   </div>
 
+  <!-- Sort -->
+  <nav aria-label="Sort" class="flex w-full sm:w-auto gap-1 p-1 bg-surface-800 rounded-xl">
+    {% for key, label in sorts %}
+    <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ genre_id }}&sort={{ key }}"
+       {% if key == sort %}aria-current="page"{% endif %}
+       class="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2 rounded-lg text-[13px] sm:text-sm font-medium whitespace-nowrap transition-all
+              {% if key == sort %}bg-surface-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+      <i class="fa-solid {% if key == 'popular' %}fa-star{% elif key == 'trending' %}fa-arrow-trend-up{% else %}fa-clock{% endif %} text-xs"></i>{{ label }}
+    </a>
+    {% endfor %}
+  </nav>
+  </div>
+
   <!-- Genre chips -->
   <div class="overflow-x-auto -mx-4 px-4 pb-0.5">
     <div class="flex gap-1.5 w-max">
       {% for g in genres %}
-      <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ g.id }}"
+      <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ g.id }}&sort={{ sort }}"
          class="px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all
                 {% if genre_id|stringformat:'s' == g.id|stringformat:'s' %}bg-brand-600 text-white
                 {% else %}bg-surface-800 text-gray-400 hover:text-white hover:bg-surface-700{% endif %}">
@@ -74,7 +88,7 @@
 <div class="glass rounded-2xl p-12 text-center">
   <i class="fa-solid fa-satellite-dish text-4xl text-gray-700 mb-4 block"></i>
   <p class="text-gray-500">No results found</p>
-  <p class="text-sm text-gray-600 mt-1">Try a different service, type, or genre.</p>
+  <p class="text-sm text-gray-600 mt-1">Try a different service, type, genre or sort.</p>
 </div>
 {% endif %}
 

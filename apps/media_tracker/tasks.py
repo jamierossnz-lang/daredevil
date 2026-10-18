@@ -1,4 +1,6 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from celery import shared_task
 
 from apps.events.dispatch import emit
@@ -59,19 +61,27 @@ def warm_caches():
     and Plex. Every cached copy outlives the interval this runs at.
     """
     from apps.media_tracker.tmdb import tmdb
-    from apps.media_tracker.views import STREAMING_PROVIDERS, discover_lists, streaming_params
+    from apps.media_tracker.views import STREAMING_PROVIDERS, STREAMING_SORTS, discover_lists, streaming_params
     from apps.plex.client import get_plex
     from apps.plex.views import library_snapshot
 
     warmed = []
     discover_lists(refresh=True)
     warmed.append('dashboard')
-    for provider in STREAMING_PROVIDERS:
-        for fetch in (tmdb.discover_movie, tmdb.discover_tv):
-            try:
-                fetch(refresh=True, **streaming_params(provider))
-            except Exception as e:
-                log.info('warm_caches: streaming %s — %s', provider['key'], e)
+
+    def warm_streaming(provider, media_type, sort):
+        fetch = tmdb.discover_tv if media_type == 'tv' else tmdb.discover_movie
+        try:
+            fetch(refresh=True, **streaming_params(provider, sort=sort, media_type=media_type))
+        except Exception as e:
+            log.info('warm_caches: streaming %s %s %s — %s', provider['key'], media_type, sort, e)
+
+    # First page of every service × Movies/TV × sort
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for provider in STREAMING_PROVIDERS:
+            for media_type in ('movie', 'tv'):
+                for sort, _label in STREAMING_SORTS:
+                    pool.submit(warm_streaming, provider, media_type, sort)
     warmed.append('streaming')
     plex = get_plex()
     if plex:
