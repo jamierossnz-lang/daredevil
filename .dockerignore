@@ -1,5 +1,6 @@
 .git
 .gitignore
+.claude/
 venv/
 env/
 .venv/
@@ -14,10 +15,20 @@ staticfiles/
 .DS_Store
 README.md
 docker-compose.yml
+docker-compose.override.yml
+scripts/
+backups/
+.vscode/
+.idea/
+# Container data and media (see .gitignore)
 data/
 downloads/
 movies/
 tv/
-.vscode/
-.idea/
-backups/
+postgres/
+redis/
+qbt/
+plex/
+sonarr/
+radarr/
+prowlarr/

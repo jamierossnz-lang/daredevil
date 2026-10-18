@@ -285,6 +285,21 @@ docker-compose build web worker beat
 docker-compose up -d
 ```
 
+> **⚠ One-time — the first update to the Sonarr/Radarr version.** Older versions of the repo tracked `data/` (the live PostgreSQL, Redis, qBittorrent and Plex folders when `DATA_DIR` is left at `./data`) in git, and this version stops tracking it. A plain `git pull` would **delete every database file that hasn't changed since it was committed**, so step `data/` out of git's way for that one pull. `scripts/backup-db.sh` is in git now too, and git refuses to overwrite a hand-made copy:
+>
+> ```bash
+> cd /mnt/user/appdata/daredevil
+> bash scripts/backup-db.sh                          # back up while the old stack still runs
+> docker-compose stop                                # nothing may write to data/ while it's moved
+> mv data data.keep
+> mv scripts/backup-db.sh scripts/backup-db.sh.old   # only if it exists
+> git pull
+> mv data.keep data                                  # data/ is ignored by git from now on
+> docker-compose up -d --build --remove-orphans
+> ```
+>
+> Every later update is the normal one above. Never run `git stash`, `git checkout -- .` or `git reset --hard` on an older checkout that still tracks `data/` — they write the committed copies back over the live database.
+>
 > The first `up -d` after updating to the Sonarr/Radarr version creates the `db-init`, `prowlarr`, `sonarr` and `radarr` containers and restarts PostgreSQL once (it now allows 100 connections). `db-init` creates the apps' databases; their settings and libraries then live in PostgreSQL. Rebuilding only `web worker beat` won't start them.
 > If Sonarr, Radarr or Prowlarr already run as Community Apps, comment their blocks out of `docker-compose.yml` and point Daredevil at them from **App Settings** instead (use the Unraid IP, e.g. `http://192.168.1.10:8989`), then set the **path mappings** on each tab to match your shares.
 

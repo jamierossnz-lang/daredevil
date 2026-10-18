@@ -16,13 +16,29 @@ env/
 db.sqlite3
 *.log
 staticfiles/
-media/
 
-# Celery
-celery-worker.pid
-celery-beat.pid
-celery-worker.log
-celery-beat.log
+# Celery (bare-metal start.sh)
+*.pid
+
+# Container data and media, bind-mounted by docker-compose (DATA_DIR,
+# DOWNLOADS_DIR, MOVIES_DIR, TV_DIR in .env). Never commit these — they hold
+# live databases, API keys and multi-GB media files. Anchored with a leading
+# slash so apps/downloads/ and templates/downloads/ aren't caught.
+/data/
+/downloads/
+/movies/
+/tv/
+# The same folders when DATA_DIR is the repo itself (README's Unraid example)
+/postgres/
+/redis/
+/qbt/
+/plex/
+/sonarr/
+/radarr/
+/prowlarr/
+
+# Local-only compose tweaks (Docker Desktop)
+docker-compose.override.yml
 
 # Environment / secrets
 .env
