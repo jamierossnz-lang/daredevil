@@ -84,7 +84,7 @@
           <span class="text-gray-500">·</span>
           <span class="text-gray-400">{{ task.last_result.date_done|timesince }} ago</span>
           {% if task.last_result.status == 'FAILURE' and task.last_result.traceback %}
-          <button @click="showError = !showError" class="ml-auto text-red-400 hover:text-red-300 transition-transform duration-150" :class="showError ? 'rotate-180' : ''">
+          <button @click="showError = !showError" :aria-label="showError ? 'Hide the error' : 'Show the error'" class="ml-auto text-red-400 hover:text-red-300 transition-transform duration-150" :class="showError ? 'rotate-180' : ''">
             <i class="fa-solid fa-chevron-down text-xs"></i>
           </button>
           {% endif %}
@@ -213,7 +213,7 @@
         <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
           <i class="fa-solid fa-clock-rotate-left text-brand-400"></i> Recent Executions
         </h2>
-        <button onclick="refreshHistory()"
+        <button aria-label="Refresh" onclick="refreshHistory()"
                 class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-gray-400 hover:text-gray-200 transition-colors">
           <i class="fa-solid fa-rotate-right text-xs" id="refreshIcon"></i>
         </button>

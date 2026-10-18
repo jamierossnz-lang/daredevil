@@ -7,7 +7,6 @@ urlpatterns = [
     path('torrents.json', views.torrents_json, name='torrents_json'),
     path('transfer.json', views.transfer_info_json, name='transfer_info'),
     path('torrents/action/', views.torrents_action, name='torrents_action'),
-    path('add-magnet/', views.torrent_add_magnet, name='torrent_add_magnet'),
     # Search moved to Prowlarr (/search/)
     path('search/', RedirectView.as_view(pattern_name='search', query_string=True, permanent=False), name='qbt_search'),
     # Settings and categories moved to App Settings → qBittorrent

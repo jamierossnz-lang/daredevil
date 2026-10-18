@@ -10,7 +10,7 @@
 <a id="addShowBtn" href="{% url 'tmdb_search_tv' %}{% if q %}?q={{ q|urlencode }}{% endif %}"
    class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
   <i class="fa-solid fa-plus"></i>
-  <span class="hidden sm:inline" id="addShowLabel">{% if q %}Search to add{% else %}Add Show{% endif %}</span>
+  <span class="sr-only sm:not-sr-only" id="addShowLabel">{% if q %}Search to add{% else %}Add Show{% endif %}</span>
 </a>
 {% endblock %}
 

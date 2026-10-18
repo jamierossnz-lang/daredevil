@@ -188,7 +188,7 @@
               class="flex-shrink-0 bg-surface-800 border border-surface-600 rounded-lg px-2 py-2 sm:py-1.5 text-xs text-gray-200">
         <template x-for="n in (cfg.seasons || [])" :key="n"><option :value="n" x-text="`Season ${n}`" :selected="n === season"></option></template>
       </select>
-      <button @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center flex-shrink-0">
+      <button aria-label="Close" @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center flex-shrink-0">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -232,7 +232,7 @@
                   <span x-text="ageLabel(r)"></span>
                   <span x-text="r.indexer"></span>
                   <span x-show="r.custom_format_score" x-text="`CF ${r.custom_format_score}`"></span>
-                  <a x-show="r.info_url" :href="r.info_url" target="_blank" rel="noreferrer" class="hover:text-brand-300"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                  <a aria-label="Open on the indexer's site" x-show="r.info_url" :href="r.info_url" target="_blank" rel="noreferrer" class="hover:text-brand-300"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 </div>
                 <template x-if="r.rejected">
                   <ul class="mt-1 text-[11px] text-red-400/90 list-disc list-inside">

@@ -26,10 +26,10 @@
 {% endblock %}
 
 {% block header_actions %}
-<button onclick="openDownloadModal()"
+<button onclick="openDownloadModal()" aria-label="Download"
         class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
   <i class="fa-solid fa-download"></i>
-  <span class="hidden sm:inline">Download</span>
+  <span class="sr-only sm:not-sr-only">Download</span>
 </button>
 {% endblock %}
 
@@ -101,24 +101,24 @@
                 class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
                        {% if show.favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
           <i class="fa-{% if show.favourite %}solid{% else %}regular{% endif %} fa-star"></i>
-          <span class="hidden sm:inline">{% if show.favourite %}Favourited{% else %}Favourite{% endif %}</span>
+          <span class="sr-only sm:not-sr-only">{% if show.favourite %}Favourited{% else %}Favourite{% endif %}</span>
         </button>
 
         <button onclick="downloadScope('monitored')" title="Search for every monitored episode that's missing"
                 class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-magnifying-glass"></i><span class="hidden sm:inline">Search missing</span>
+          <i class="fa-solid fa-magnifying-glass"></i><span class="sr-only sm:not-sr-only">Search missing</span>
         </button>
         <button onclick="refreshSeries()" title="Refresh metadata from TheTVDB and rescan files on disk"
                 class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">Refresh &amp; scan</span>
+          <i class="fa-solid fa-rotate"></i><span class="sr-only sm:not-sr-only">Refresh &amp; scan</span>
         </button>
         <a href="{{ sonarr_link }}" target="_blank" rel="noreferrer"
            class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="hidden sm:inline">Sonarr</span>
+          <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="sr-only sm:not-sr-only">Sonarr</span>
         </a>
         <button onclick="removeSeries()"
                 class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
-          <i class="fa-solid fa-trash"></i><span class="hidden sm:inline">Remove</span>
+          <i class="fa-solid fa-trash"></i><span class="sr-only sm:not-sr-only">Remove</span>
         </button>
       </div>
       {% if show.path %}<p class="text-[11px] text-gray-600 font-mono mt-3 truncate" title="Path inside Sonarr">{{ show.path }}</p>{% endif %}

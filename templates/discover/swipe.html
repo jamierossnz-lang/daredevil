@@ -109,11 +109,11 @@
 
   <!-- Controls -->
   <div class="flex items-center justify-center gap-8 mt-6">
-    <button @click="swipeLeft()" :disabled="busy || !current"
+    <button aria-label="Pass" @click="swipeLeft()" :disabled="busy || !current"
             class="w-16 h-16 rounded-full bg-surface-800 border border-surface-600 text-rose-400 text-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-30">
       <i class="fa-solid fa-xmark"></i>
     </button>
-    <button @click="swipeRight()" :disabled="busy || !current"
+    <button aria-label="Like — add it" @click="swipeRight()" :disabled="busy || !current"
             class="w-16 h-16 rounded-full bg-surface-800 border border-surface-600 text-emerald-400 text-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-30">
       <i class="fa-solid fa-heart"></i>
     </button>
@@ -122,7 +122,7 @@
   <!-- Trailer -->
   <div x-show="showTrailer" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
     <div class="absolute inset-0" @click="closeTrailer()"></div>
-    <button @click="closeTrailer()"
+    <button aria-label="Close trailer" @click="closeTrailer()"
             class="absolute top-5 right-5 w-10 h-10 rounded-full bg-surface-800 border border-surface-600 text-gray-300 hover:text-white flex items-center justify-center transition-colors"
             style="top: calc(1.25rem + env(safe-area-inset-top, 0px))">
       <i class="fa-solid fa-xmark text-lg"></i>

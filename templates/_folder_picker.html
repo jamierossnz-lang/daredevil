@@ -16,7 +16,7 @@
         <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500" x-text="`Folders as ${label()} sees them`"></p>
         <h3 class="text-base font-bold text-white truncate" x-text="cfg.title || 'Choose a folder'"></h3>
       </div>
-      <button @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      <button aria-label="Close" @click="close()" class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-400 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
     <form @submit.prevent="go(path)" class="flex gap-2 mb-3">

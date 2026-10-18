@@ -90,20 +90,6 @@ def torrents_action(request):
         return JsonResponse({'ok': False, 'error': str(e)}, status=400)
 
 
-@require_POST
-def torrent_add_magnet(request):
-    magnet = request.POST.get('magnet', '').strip()
-    save_path = request.POST.get('save_path', '')
-    category = request.POST.get('category', '')
-    if not magnet:
-        return JsonResponse({'error': 'No magnet link provided'}, status=400)
-    try:
-        client.add_magnet(magnet, save_path=save_path or None, category=category or None)
-        return JsonResponse({'ok': True})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
 def settings_view(request):
     """Moved to App Settings → qBittorrent."""
     return redirect('/settings/#qbittorrent')

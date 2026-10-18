@@ -76,7 +76,7 @@
               <li class="flex items-start gap-2" :class="h.type === 'error' ? 'text-red-300' : 'text-yellow-300'">
                 <i class="fa-solid mt-0.5" :class="h.type === 'error' ? 'fa-circle-xmark' : 'fa-triangle-exclamation'"></i>
                 <span class="flex-1" x-text="h.message"></span>
-                <a x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
+                <a aria-label="Read more on the wiki" x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
               </li>
             </template>
           </ul>
@@ -159,7 +159,7 @@
                 <p class="text-sm text-gray-200">Refresh Plex when files change</p>
                 <p class="text-xs text-gray-500">Plex scans the folder as soon as {{ label }} imports, upgrades, renames or deletes something — no waiting for its own scan.</p>
               </div>
-              <button type="button" @click="plexToggle('refresh')" :disabled="!!(busy.plexrefresh)" role="switch" :aria-checked="plex.refresh?.connected"
+              <button type="button" @click="plexToggle('refresh')" :disabled="!!(busy.plexrefresh)" role="switch" aria-label="Refresh Plex after imports" :aria-checked="String(!!plex.refresh?.connected)"
                       class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.refresh?.connected ? 'bg-brand-600' : 'bg-surface-600'">
                 <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.refresh?.connected ? 'translate-x-5' : ''"></span>
               </button>
@@ -189,7 +189,7 @@
                 <p class="text-sm text-gray-200">Add from your Plex Watchlist</p>
                 <p class="text-xs text-gray-500">Anything you add to your Watchlist in any Plex app is added to {{ label }} — it checks every few hours.</p>
               </div>
-              <button type="button" @click="plexToggle('watchlist')" :disabled="!!(busy.plexwatchlist)" role="switch" :aria-checked="plex.watchlist?.connected"
+              <button type="button" @click="plexToggle('watchlist')" :disabled="!!(busy.plexwatchlist)" role="switch" aria-label="Add from the Plex Watchlist" :aria-checked="String(!!plex.watchlist?.connected)"
                       class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-50" :class="plex.watchlist?.connected ? 'bg-brand-600' : 'bg-surface-600'">
                 <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform" :class="plex.watchlist?.connected ? 'translate-x-5' : ''"></span>
               </button>

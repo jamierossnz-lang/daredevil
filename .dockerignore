@@ -17,6 +17,9 @@ README.md
 docker-compose.yml
 docker-compose.override.yml
 scripts/
+tests/
+.venv-e2e/
+.pytest_cache/
 backups/
 .vscode/
 .idea/

@@ -63,7 +63,7 @@
               <li class="flex items-start gap-2" :class="h.type === 'error' ? 'text-red-300' : 'text-yellow-300'">
                 <i class="fa-solid mt-0.5" :class="h.type === 'error' ? 'fa-circle-xmark' : 'fa-triangle-exclamation'"></i>
                 <span class="flex-1" x-text="h.message"></span>
-                <a x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
+                <a aria-label="Read more on the wiki" x-show="h.wiki" :href="h.wiki" target="_blank" rel="noreferrer" class="text-gray-500 hover:text-gray-300"><i class="fa-solid fa-book"></i></a>
               </li>
             </template>
           </ul>
@@ -174,7 +174,7 @@
         <div class="flex flex-col min-h-0">
           <div class="flex items-center gap-2 mb-3">
             <h3 class="text-base font-bold text-white flex-1">Add an indexer</h3>
-            <button @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+            <button aria-label="Close" @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="flex flex-wrap gap-2 mb-3">
             <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="catalogueQuery" placeholder="Search 600+ indexers…" x-ref="catq"
@@ -219,9 +219,9 @@
       <template x-if="dialog === 'form' && def">
         <div class="flex flex-col min-h-0">
           <div class="flex items-center gap-2 mb-1">
-            <button x-show="!def.id" @click="dialog = 'pick'" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-arrow-left"></i></button>
+            <button aria-label="Back" x-show="!def.id" @click="dialog = 'pick'" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-arrow-left"></i></button>
             <h3 class="text-base font-bold text-white flex-1 truncate" x-text="def.id ? `Edit ${def.name}` : `Add ${def.name}`"></h3>
-            <button @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
+            <button aria-label="Close" @click="dialog = null" class="w-8 h-8 rounded-lg bg-surface-700 text-gray-400"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <p class="text-xs text-gray-500 mb-3" x-text="def.description"></p>
           <div x-show="def.needs_captcha" class="mb-3 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-300">

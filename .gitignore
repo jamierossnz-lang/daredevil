@@ -11,6 +11,8 @@ build/
 venv/
 env/
 .venv/
+.venv-e2e/
+.pytest_cache/
 
 # Django
 db.sqlite3

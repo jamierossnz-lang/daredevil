@@ -19,8 +19,8 @@
     <p class="text-[10px] text-gray-600 mt-1">{{ item.time_ago }}</p>
   </div>
 
-  <button @click="dismiss({{ item.notif.pk }})"
-          class="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-all flex-shrink-0 mt-0.5 rounded">
+  <button aria-label="Dismiss" @click="dismiss({{ item.notif.pk }})"
+          class="[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 w-5 h-5 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-all flex-shrink-0 mt-0.5 rounded">
     <i class="fa-solid fa-xmark text-xs"></i>
   </button>
 </div>

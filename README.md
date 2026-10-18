@@ -492,6 +492,7 @@ daredevil/
 ├── apps/
 │   ├── accounts/       # Login-required middleware, no-signup adapter
 │   ├── arr/            # Sonarr / Radarr / Prowlarr clients, Settings tabs, Search, webhooks
+│   ├── calendar/       # Calendar of episodes and releases + the .ics feed for Google / Apple
 │   ├── discover/       # For You swipe deck (TMDB recommendations + trending)
 │   ├── downloads/      # Download queue + imports (read from Sonarr/Radarr)
 │   ├── events/         # Activity log (domain events)
@@ -500,12 +501,27 @@ daredevil/
 │   ├── plex/           # Plex library page, cleanup, storage usage
 │   └── qbt/            # qBittorrent client, Torrent Manager, file browser
 ├── config/             # Django settings, URLs, Celery config, .env read/write
-├── templates/          # Django templates (Tailwind + Alpine.js + htmx, all from CDNs)
+├── templates/          # Django templates (Tailwind, built in Docker; Alpine.js + htmx from CDNs)
+├── tests/e2e/          # End-to-end tests (Playwright) — see Tests below
 ├── scripts/            # backup-db.sh
 ├── manage.py
 ├── requirements.txt
 └── start.sh            # Dev launcher (macOS/Linux)
 ```
+
+---
+
+## Tests
+
+`tests/e2e/` drives a real browser (Playwright) through every page and action, on a phone-sized screen and a desktop one, against a running Daredevil:
+
+```bash
+python3 -m venv .venv-e2e && .venv-e2e/bin/pip install -r tests/e2e/requirements.txt
+.venv-e2e/bin/playwright install chromium
+DD_BASE=http://localhost:8000 DD_USERNAME=you DD_PASSWORD=… .venv-e2e/bin/pytest tests/e2e
+```
+
+They use your real Sonarr, Radarr, Prowlarr, qBittorrent and Plex. Reading is real; anything destructive (deleting, removing, grabbing, swiping, clearing) is caught in the browser — the test checks the request the page sends and answers it itself. The few real changes (a favourite, a monitoring switch, re-saving settings, adding a throwaway show and movie) are marked `changes` and put back before each test ends; leave them out with `-m "not changes"`.
 
 ---
 
