@@ -2,13 +2,20 @@
 {% block title %}For You{% endblock %}
 {% block page_title %}For You{% endblock %}
 
+{% block header_actions %}
+<a href="{% url 'app_settings' %}#foryou" title="For You settings" aria-label="For You settings"
+   class="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors">
+  <i class="fa-solid fa-sliders"></i>
+</a>
+{% endblock %}
+
 {% block content %}
 <div x-data="swipeDeck()" class="max-w-md mx-auto">
 
   <!-- Header -->
   <div class="flex items-center justify-between mb-4 px-1">
     <p class="text-xs text-gray-500">
-      <span x-show="!loading" x-text="remaining"></span><span x-show="!loading"> left today</span>
+      <span x-show="!loading" x-text="`${remaining} pick${remaining === 1 ? '' : 's'} waiting`"></span>
       <span x-show="loading">Loading picks…</span>
     </p>
     <p class="text-xs text-gray-600"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-brand-400"></i>Personalised nightly</p>
@@ -27,7 +34,8 @@
       <div class="absolute inset-0 rounded-3xl border-2 border-dashed border-surface-700 flex flex-col items-center justify-center text-center px-8">
         <i class="fa-solid fa-champagne-glasses text-4xl text-brand-400 mb-3"></i>
         <p class="text-white font-semibold mb-1">You're all caught up</p>
-        <p class="text-sm text-gray-500">New picks are generated overnight from your library and what's buzzing — check back tomorrow.</p>
+        <p class="text-sm text-gray-500">New picks are made overnight from your library and what's buzzing — check back tomorrow, or
+          <a href="{% url 'app_settings' %}#foryou" class="text-brand-400 hover:underline">rebuild the deck now</a>.</p>
       </div>
     </template>
 
@@ -71,8 +79,11 @@
           <div class="flex items-center gap-2 mb-2 flex-wrap">
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-600/80 text-white"
                   x-text="current.media_type === 'movie' ? 'Movie' : 'TV Show'"></span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/50 text-gray-200"
-                  x-text="current.source === 'anticipated' ? (current.source_title || 'New &amp; Anticipated') : ('Because you like ' + current.source_title)"></span>
+            <span x-show="current.source === 'anticipated'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/50 text-gray-200"
+                  x-text="current.source_title || 'New & Anticipated'"></span>
+            <span x-show="current.source !== 'anticipated' && current.because.length > 1"
+                  class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/80 text-black"
+                  x-text="`Matches ${current.because.length} of yours`"></span>
             <span x-show="!current.is_released" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/80 text-black">
               Coming <span x-text="current.release_date ? current.release_date.slice(0,4) : 'soon'"></span>
             </span>
@@ -82,6 +93,9 @@
             </button>
           </div>
           <h2 class="text-2xl font-bold text-white leading-tight mb-1" x-text="current.title"></h2>
+          <p x-show="current.source !== 'anticipated' && current.because.length" class="text-xs text-gray-200 mb-1.5 line-clamp-2">
+            <i class="fa-solid fa-heart text-emerald-400 mr-1"></i>Because you like <span class="font-semibold text-white" x-text="becauseText(current)"></span>
+          </p>
           <div class="flex items-center gap-3 text-xs text-gray-300 mb-2">
             <span x-show="current.release_date"><i class="fa-solid fa-calendar mr-1"></i><span x-text="(current.release_date || '').slice(0,4)"></span></span>
             <span x-show="current.vote_average"><i class="fa-solid fa-star text-amber-400 mr-1"></i><span x-text="current.vote_average"></span></span>
@@ -176,6 +190,12 @@ function swipeDeck() {
     get next1() { return this.items[this.index + 1] || null; },
     get next2() { return this.items[this.index + 2] || null; },
     get remaining() { return Math.max(this.items.length - this.index, 0); },
+
+    becauseText(item) {
+      const names = item.because || [];
+      if (names.length <= 3) return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : (names[0] || '');
+      return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+    },
 
     cardStyle() {
       const rot = this.dragX / 14;

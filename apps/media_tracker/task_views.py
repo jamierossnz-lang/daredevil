@@ -33,6 +33,12 @@ TASK_REGISTRY = {
         'icon': 'fa-fire',
         'color': 'cyan',
     },
+    'rebuild_for_you': {
+        'label': 'For You: Rebuild Deck',
+        'description': 'Both For You jobs in a row — fresh recommendations, then trending picks — within the deck size set on the For You tab.',
+        'icon': 'fa-wand-magic-sparkles',
+        'color': 'cyan',
+    },
     'import_library_to_arr': {
         'label': 'Import Old Library into Sonarr/Radarr',
         'description': "One-off: add the shows/movies Daredevil tracked before Sonarr/Radarr took over. Existing files are picked up; nothing is re-downloaded. Safe to re-run.",

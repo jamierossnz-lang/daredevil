@@ -247,6 +247,7 @@ def app_settings_view(request):
             ('sonarr', 'Sonarr', 'fa-tv'),
             ('radarr', 'Radarr', 'fa-film'),
             ('qbittorrent', 'qBittorrent', 'fa-seedling'),
+            ('foryou', 'For You', 'fa-layer-group'),
             ('tasks', 'Background Tasks', 'fa-gears'),
         ],
         'cfg': {

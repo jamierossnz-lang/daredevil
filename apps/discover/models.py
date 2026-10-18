@@ -23,7 +23,11 @@ class DiscoverItem(models.Model):
     vote_average = models.FloatField(default=0)
     genres = models.CharField(max_length=500, blank=True)
     source = models.CharField(max_length=20, choices=Source.choices)
+    # Recommendations: the first title in `because`. Anticipated: the TMDB list's name.
     source_title = models.CharField(max_length=500, blank=True)
+    # Recommendations: every title in your library that recommends this one, strongest first
+    because = models.JSONField(default=list, blank=True)
+    score = models.FloatField(default=0)
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -71,3 +75,26 @@ class DiscoverDecision(models.Model):
 
     def __str__(self):
         return f'{self.media_type}:{self.tmdb_id} — {self.direction}'
+
+
+class DiscoverSettings(models.Model):
+    """Singleton — always use DiscoverSettings.get(). Edited on App Settings → For You."""
+
+    deck_size = models.PositiveIntegerField(default=40, help_text='Most cards waiting in the deck at once')
+    min_matches = models.PositiveSmallIntegerField(
+        default=2, help_text='A recommendation needs at least this many titles in your library pointing to it')
+    include_movies = models.BooleanField(default=True)
+    include_tv = models.BooleanField(default=True)
+    include_trending = models.BooleanField(default=True, help_text="TMDB's trending / new / coming soon / popular lists")
+
+    class Meta:
+        verbose_name = 'For You settings'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def media_types(self):
+        return [m for m, on in (('movie', self.include_movies), ('tv', self.include_tv)) if on]
+

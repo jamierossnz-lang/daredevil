@@ -1,0 +1,161 @@
+<div class="max-w-3xl mx-auto space-y-6" x-data="forYouSettings()" x-effect="tab === 'foryou' && ensureLoaded()">
+
+  <!-- Deck at a glance -->
+  <div class="grid grid-cols-3 gap-3">
+    <div class="glass rounded-2xl p-4">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Waiting</p>
+      <p class="text-2xl font-bold text-white mt-1" x-text="stats.waiting ?? '—'"></p>
+      <p class="text-[11px] text-gray-500 mt-0.5" x-text="`${stats.recommendations ?? 0} for you · ${stats.trending ?? 0} trending`"></p>
+    </div>
+    <div class="glass rounded-2xl p-4">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Liked</p>
+      <p class="text-2xl font-bold text-emerald-400 mt-1" x-text="stats.liked ?? '—'"></p>
+      <p class="text-[11px] text-gray-500 mt-0.5">added to Sonarr / Radarr</p>
+    </div>
+    <div class="glass rounded-2xl p-4">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Passed</p>
+      <p class="text-2xl font-bold text-rose-400 mt-1" x-text="stats.passed ?? '—'"></p>
+      <p class="text-[11px] text-gray-500 mt-0.5">never shown again</p>
+    </div>
+  </div>
+
+  <!-- What goes in the deck -->
+  <div class="glass rounded-2xl p-6 space-y-6">
+    <div>
+      <h2 class="text-sm font-semibold text-gray-200">Deck size</h2>
+      <p class="text-xs text-gray-500 mt-1 mb-3">The most picks waiting at once. Each nightly rebuild keeps the best ones up to this number.</p>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="n in deckSizes" :key="n">
+          <button type="button" @click="form.deck_size = n"
+                  :class="form.deck_size === n ? 'bg-brand-600 text-white border-brand-500' : 'bg-surface-800 text-gray-300 border-surface-600 hover:border-brand-500/60'"
+                  class="min-w-[3.25rem] px-3 py-2 rounded-xl border text-sm font-medium" x-text="n"></button>
+        </template>
+      </div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-semibold text-gray-200">How specific</h2>
+      <p class="text-xs text-gray-500 mt-1 mb-3">A recommendation has to be linked to at least this many of the shows and movies in your library — the higher, the more it's "your kind of thing", the fewer there are.</p>
+      <div class="flex rounded-xl bg-surface-800 p-1">
+        <template x-for="n in [1, 2, 3, 4]" :key="n">
+          <button type="button" @click="form.min_matches = n"
+                  :class="form.min_matches === n ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                  class="flex-1 py-2 rounded-lg text-sm font-medium" x-text="n === 1 ? 'Any 1' : `${n}+ titles`"></button>
+        </template>
+      </div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-semibold text-gray-200 mb-3">Include</h2>
+      <div class="space-y-1">
+        <template x-for="opt in [['include_movies', 'Movies', 'fa-film'], ['include_tv', 'TV shows', 'fa-tv'], ['include_trending', 'Trending, new and coming soon', 'fa-fire']]" :key="opt[0]">
+          <button type="button" role="switch" :aria-checked="String(!!form[opt[0]])" @click="form[opt[0]] = !form[opt[0]]"
+                  class="w-full flex items-center gap-3 px-2 py-3 rounded-xl hover:bg-surface-800/60 text-left">
+            <i class="fa-solid w-5 text-center text-gray-500" :class="opt[2]"></i>
+            <span class="flex-1 text-sm text-gray-200" x-text="opt[1]"></span>
+            <span class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0" :class="form[opt[0]] ? 'bg-brand-600' : 'bg-surface-600'">
+              <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all" :class="form[opt[0]] ? 'left-[1.375rem]' : 'left-0.5'"></span>
+            </span>
+          </button>
+        </template>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Trending picks take up to a third of the deck; the rest is recommendations.</p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button @click="save()" :disabled="!!busy.save"
+              class="px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+        <i class="fa-solid mr-1.5" :class="busy.save ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i>Save
+      </button>
+      <span class="text-xs text-gray-500">Applies from the next rebuild.</span>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="glass rounded-2xl p-6">
+    <h2 class="text-sm font-semibold text-gray-200 mb-4">Deck</h2>
+    <div class="space-y-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <button @click="rebuild()" :disabled="!!busy.rebuild"
+                class="px-4 py-2.5 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-100 disabled:opacity-50">
+          <i class="fa-solid mr-1.5" :class="busy.rebuild ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>Rebuild now
+        </button>
+        <p class="text-xs text-gray-500 flex-1 min-w-[12rem]">Make fresh picks from your library and TMDB's lists now instead of tonight.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button @click="clearDeck()" :disabled="!!busy.clear"
+                class="px-4 py-2.5 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-100 disabled:opacity-50">
+          <i class="fa-solid fa-broom mr-1.5"></i>Clear the deck
+        </button>
+        <p class="text-xs text-gray-500 flex-1 min-w-[12rem]">Remove every waiting pick. Nothing is marked as passed — they can come back.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button @click="resetHistory()" :disabled="!!busy.history"
+                class="px-4 py-2.5 rounded-xl text-sm font-medium bg-red-900/30 hover:bg-red-900/50 text-red-300 border border-red-800/30 disabled:opacity-50">
+          <i class="fa-solid fa-rotate-left mr-1.5"></i>Reset swipe history
+        </button>
+        <p class="text-xs text-gray-500 flex-1 min-w-[12rem]">Forget every like and pass, so titles you passed on can be suggested again.</p>
+      </div>
+    </div>
+    <p x-show="message" x-cloak class="mt-4 text-sm text-gray-300 bg-surface-800/60 rounded-xl px-3 py-2" x-text="message"></p>
+  </div>
+</div>
+
+<script>
+function forYouSettings() {
+  return {
+    loaded: false, loading: false, form: {}, stats: {}, deckSizes: [], busy: {}, message: '',
+    ensureLoaded() { if (!this.loaded && !this.loading) this.load(); },
+    apply(d) {
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      this.form = { ...d.settings };
+      this.stats = d.stats;
+      this.deckSizes = d.deck_sizes;
+      if (d.message) this.message = d.message;
+    },
+    async load() {
+      this.loading = true;
+      try { this.apply(await (await fetch('{% url "foryou_settings" %}')).json()); }
+      catch (e) { ddToast('Could not load For You settings', 'error'); }
+      this.loaded = true; this.loading = false;
+    },
+    async save() {
+      this.busy = { ...this.busy, save: true };
+      const d = await ddPost('{% url "foryou_settings" %}', this.form);
+      this.busy = { ...this.busy, save: false };
+      this.apply(d);
+      if (d.ok) ddToast('Saved — applies from the next rebuild');
+    },
+    async rebuild() {
+      this.busy = { ...this.busy, rebuild: true };
+      this.message = 'Rebuilding…';
+      const d = await ddPost('{% url "foryou_rebuild" %}', {});
+      if (!d.ok) { this.busy = { ...this.busy, rebuild: false }; this.message = ''; return ddToast(d.error || 'Failed', 'error'); }
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const p = await (await fetch(`/tasks/poll/${d.task_id}/`)).json();
+        if (p.status === 'SUCCESS' || p.status === 'FAILURE') {
+          let result = p.result;
+          try { result = JSON.parse(result); } catch (e) { /* plain string */ }
+          this.message = p.status === 'SUCCESS' ? result : `Rebuild failed: ${(p.traceback || '').split('\n').slice(-2).join(' ')}`;
+          break;
+        }
+      }
+      this.busy = { ...this.busy, rebuild: false };
+      await this.load();
+    },
+    async clearDeck() {
+      if (!confirm('Remove every waiting pick from the deck?')) return;
+      this.busy = { ...this.busy, clear: true };
+      this.apply(await ddPost('{% url "foryou_clear" %}', {}));
+      this.busy = { ...this.busy, clear: false };
+    },
+    async resetHistory() {
+      if (!confirm('Forget every like and pass? Titles you passed on can then be suggested again.')) return;
+      this.busy = { ...this.busy, history: true };
+      this.apply(await ddPost('{% url "foryou_reset_history" %}', {}));
+      this.busy = { ...this.busy, history: false };
+    },
+  };
+}
+</script>

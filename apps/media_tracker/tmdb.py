@@ -11,6 +11,7 @@ _local = threading.local()
 
 # Lists change slowly — browse pages and the dashboard reuse them for a while
 LIST_TTL = 1800
+REC_TTL = 6 * 3600
 
 
 class TMDBClient:
@@ -72,17 +73,18 @@ class TMDBClient:
     def get_movie_credits(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/credits')
 
+    # Recommendation lists drive For You (one call per library title per run) — cached
     def get_movie_recommendations(self, tmdb_id, page=1):
-        return self._get(f'/movie/{tmdb_id}/recommendations', page=page)
+        return self._get(f'/movie/{tmdb_id}/recommendations', ttl=REC_TTL, page=page)
 
     def get_movie_similar(self, tmdb_id, page=1):
-        return self._get(f'/movie/{tmdb_id}/similar', page=page)
+        return self._get(f'/movie/{tmdb_id}/similar', ttl=REC_TTL, page=page)
 
     def get_tv_recommendations(self, tmdb_id, page=1):
-        return self._get(f'/tv/{tmdb_id}/recommendations', page=page)
+        return self._get(f'/tv/{tmdb_id}/recommendations', ttl=REC_TTL, page=page)
 
     def get_tv_similar(self, tmdb_id, page=1):
-        return self._get(f'/tv/{tmdb_id}/similar', page=page)
+        return self._get(f'/tv/{tmdb_id}/similar', ttl=REC_TTL, page=page)
 
 
 def _parse_date(value):

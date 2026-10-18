@@ -1,4 +1,21 @@
+"""
+The For You deck. Two nightly jobs fill it — both can also be run from
+App Settings → For You:
+
+* generate_recommendations: TMDB's "recommendations" and "similar" lists for
+  every show and movie in Sonarr/Radarr, scored by how many of *your* titles
+  point to each candidate (and how near the top of their lists it is). A pick
+  reads "Because you like Breaking Bad, Ozark and Narcos" instead of hanging
+  off whichever library title happened to be looked at first.
+* generate_anticipated: TMDB's trending / new / coming soon / popular lists,
+  a share of the deck.
+
+Each job replaces its part of the deck, so the deck always holds the current
+best picks and never more than DiscoverSettings.deck_size cards.
+"""
 import logging
+import math
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 from celery import shared_task
@@ -8,18 +25,14 @@ from .genres import genre_names
 
 log = logging.getLogger('daredevil.discover.tasks')
 
-# Caps keep each nightly run fast and stop the pool growing unbounded —
-# the deck is meant to be a curated trickle, not a dump of everything TMDB
-# knows about.
-RECS_PER_LIBRARY_ITEM = 6
-MAX_NEW_RECS_PER_RUN = 25
-MAX_PER_LIST = 8  # ×4 lists ×2 media types
 # TMDB's TV lists are dominated by daily shows — News, Reality, Soap, Talk
 SKIP_TV_GENRES = {10763, 10764, 10766, 10767}
-MIN_VOTES = 20  # skip obscure titles (except upcoming ones, which can't have votes yet)
+MIN_VOTES = 20          # skip obscure titles (upcoming ones excepted — they can't have votes yet)
+TRENDING_SHARE = 0.3    # of the deck, when trending picks are on
+LIST_DEPTH = 20         # how far down each TMDB recommendation list to look
 
 
-def _card(r, media_type, source, source_title):
+def _card(r, media_type, source, source_title, because=(), score=0.0):
     """DiscoverItem fields from a TMDB list result (movies use title /
     release_date, shows name / first_air_date)."""
     is_movie = media_type == 'movie'
@@ -33,6 +46,8 @@ def _card(r, media_type, source, source_title):
         genres=genre_names(r.get('genre_ids'), media_type),
         source=source,
         source_title=source_title,
+        because=list(because),
+        score=score,
     )
 
 
@@ -47,104 +62,112 @@ def _library(media_type):
     try:
         items = radarr().movies() if kind == 'radarr' else sonarr().series_list()
     except ArrError as e:
-        log.warning('generate_recommendations: could not read %s library — %s', kind, e)
+        log.warning('For You: could not read the %s library — %s', kind, e)
         return []
     return [(i['tmdbId'], i.get('title') or '') for i in items if i.get('tmdbId')]
 
 
-def _existing_and_decided(media_type, library=None):
-    """tmdb_ids already in the library, already in the pool, or already swiped on."""
-    from .models import DiscoverItem, DiscoverDecision
+def _decided(media_type):
+    from .models import DiscoverDecision
+    return set(DiscoverDecision.objects.filter(media_type=media_type).values_list('tmdb_id', flat=True))
 
-    library_ids = {tmdb_id for tmdb_id, _ in (library if library is not None else _library(media_type))}
-    pool_ids = set(DiscoverItem.objects.filter(media_type=media_type).values_list('tmdb_id', flat=True))
-    decided_ids = set(DiscoverDecision.objects.filter(media_type=media_type).values_list('tmdb_id', flat=True))
-    return library_ids | pool_ids | decided_ids
+
+def _replace(source, cards):
+    """Make `cards` [(media_type, tmdb_id, fields)] this source's part of the
+    deck: update the cards already there, add new ones, drop the rest.
+    Returns how many were dropped."""
+    from .models import DiscoverItem
+    keep = set()
+    for media_type, tmdb_id, fields in cards:
+        item, _ = DiscoverItem.objects.update_or_create(tmdb_id=tmdb_id, media_type=media_type, defaults=fields)
+        keep.add(item.pk)
+    return DiscoverItem.objects.filter(source=source).exclude(pk__in=keep).delete()[0]
+
+
+def _wanted(r, media_type):
+    if media_type == 'tv' and SKIP_TV_GENRES & set(r.get('genre_ids') or []):
+        return False
+    return (r.get('vote_count') or 0) >= MIN_VOTES
+
+
+def _recommendations_for(media_type, tmdb_id):
+    """[(TMDB result, weight)] for one library title. Higher up a list counts
+    for more, and "recommended" counts for more than merely "similar"."""
+    if media_type == 'movie':
+        fetchers = ((tmdb.get_movie_recommendations, 1.0), (tmdb.get_movie_similar, 0.6))
+    else:
+        fetchers = ((tmdb.get_tv_recommendations, 1.0), (tmdb.get_tv_similar, 0.6))
+    out = []
+    for fetch, base in fetchers:
+        try:
+            results = fetch(tmdb_id).get('results', [])
+        except Exception as e:
+            log.warning('For You: %s %s — %s', media_type, tmdb_id, e)
+            continue
+        out.extend((r, base * (1 - rank / (2 * LIST_DEPTH))) for rank, r in enumerate(results[:LIST_DEPTH]))
+    return out
+
+
+def rank_recommendations(media_type, library, excluded, min_matches):
+    """[(tmdb_id, result, because, score)], best first: most of your titles
+    pointing to it, then how strongly they do."""
+    candidates = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        lists = pool.map(lambda item: _recommendations_for(media_type, item[0]), library)
+        for (_lib_id, lib_title), recs in zip(library, lists):
+            for r, weight in recs:
+                cid = r.get('id')
+                if not cid or cid in excluded or not _wanted(r, media_type):
+                    continue
+                entry = candidates.setdefault(cid, {'r': r, 'because': {}})
+                # The same title on both of one library item's lists counts once
+                entry['because'][lib_title] = max(weight, entry['because'].get(lib_title, 0))
+    ranked = []
+    for cid, entry in candidates.items():
+        if len(entry['because']) < min_matches:
+            continue
+        because = sorted(entry['because'], key=entry['because'].get, reverse=True)
+        score = sum(entry['because'].values()) + (entry['r'].get('vote_average') or 0) / 20
+        ranked.append((cid, entry['r'], because, round(score, 3)))
+    ranked.sort(key=lambda c: (len(c[2]), c[3]), reverse=True)
+    return ranked
 
 
 @shared_task(name='generate_recommendations')
 def generate_recommendations():
-    """
-    Nightly: for every show/movie already in Sonarr/Radarr, pull TMDB's
-    'recommendations' and 'similar' lists and add any title not already in
-    the library/pool/swipe-history to the discovery deck. This is the
-    'because you like X' half of the For You feed.
-    """
-    from .models import DiscoverItem
+    from .models import DiscoverItem, DiscoverSettings
 
-    library_movies = _library('movie')
-    library_shows = _library('tv')
-    seen_movie_ids = _existing_and_decided('movie', library_movies)
-    seen_show_ids = _existing_and_decided('tv', library_shows)
-    added_movies = 0
-    added_shows = 0
-
-    for movie_tmdb_id, movie_title in library_movies:
-        if added_movies >= MAX_NEW_RECS_PER_RUN:
-            break
-        for fetcher in (tmdb.get_movie_recommendations, tmdb.get_movie_similar):
-            if added_movies >= MAX_NEW_RECS_PER_RUN:
-                break
-            try:
-                results = fetcher(movie_tmdb_id).get('results', [])
-            except Exception as e:
-                log.warning('generate_recommendations: movie %s fetch failed — %s', movie_tmdb_id, e)
-                continue
-            for r in results[:RECS_PER_LIBRARY_ITEM]:
-                cand_id = r.get('id')
-                if not cand_id or cand_id in seen_movie_ids:
-                    continue
-                DiscoverItem.objects.get_or_create(
-                    tmdb_id=cand_id,
-                    media_type=DiscoverItem.MediaType.MOVIE,
-                    defaults=_card(r, 'movie', DiscoverItem.Source.RECOMMENDATION, movie_title),
-                )
-                seen_movie_ids.add(cand_id)
-                added_movies += 1
-                if added_movies >= MAX_NEW_RECS_PER_RUN:
-                    break
-
-    for show_tmdb_id, show_title in library_shows:
-        if added_shows >= MAX_NEW_RECS_PER_RUN:
-            break
-        for fetcher in (tmdb.get_tv_recommendations, tmdb.get_tv_similar):
-            if added_shows >= MAX_NEW_RECS_PER_RUN:
-                break
-            try:
-                results = fetcher(show_tmdb_id).get('results', [])
-            except Exception as e:
-                log.warning('generate_recommendations: show %s fetch failed — %s', show_tmdb_id, e)
-                continue
-            for r in results[:RECS_PER_LIBRARY_ITEM]:
-                cand_id = r.get('id')
-                if not cand_id or cand_id in seen_show_ids:
-                    continue
-                DiscoverItem.objects.get_or_create(
-                    tmdb_id=cand_id,
-                    media_type=DiscoverItem.MediaType.TV,
-                    defaults=_card(r, 'tv', DiscoverItem.Source.RECOMMENDATION, show_title),
-                )
-                seen_show_ids.add(cand_id)
-                added_shows += 1
-                if added_shows >= MAX_NEW_RECS_PER_RUN:
-                    break
-
-    return f'added {added_movies} movies, {added_shows} shows (recommendations)'
+    cfg = DiscoverSettings.get()
+    budget = cfg.deck_size - (math.floor(cfg.deck_size * TRENDING_SHARE) if cfg.include_trending else 0)
+    picks, library_size = [], 0
+    for media_type in cfg.media_types():
+        library = _library(media_type)
+        library_size += len(library)
+        excluded = {tmdb_id for tmdb_id, _ in library} | _decided(media_type)
+        picks += [(media_type, *c) for c in rank_recommendations(media_type, library, excluded, cfg.min_matches)]
+    picks.sort(key=lambda p: (len(p[3]), p[4]), reverse=True)
+    picks = picks[:max(budget, 0)]
+    dropped = _replace(DiscoverItem.Source.RECOMMENDATION, [
+        (media_type, cid, _card(r, media_type, DiscoverItem.Source.RECOMMENDATION, because[0], because, score))
+        for media_type, cid, r, because, score in picks
+    ])
+    movies = sum(1 for p in picks if p[0] == 'movie')
+    return (f'{len(picks)} recommendations ({movies} movies, {len(picks) - movies} shows) from {library_size} '
+            f'library titles, each matching at least {cfg.min_matches}; {dropped} older ones dropped')
 
 
 @shared_task(name='generate_anticipated')
 def generate_anticipated():
-    """
-    Nightly: four TMDB lists per media type — Trending this week, New
-    Releases (movies out digitally or on disc / shows that premiered in the
-    last month), Coming Soon (upcoming movies / series premieres) and
-    Popular — adding any title not already in the library, the deck or the
-    swipe history. Each list gets its own small cap so no single one
-    crowds out the others. TMDB list results carry everything a card needs,
-    so there's no per-title detail fetch.
-    """
-    from .models import DiscoverItem
+    """TMDB's trending, new, coming soon and popular lists, taken from in
+    turn so no one list crowds out the others."""
+    from .models import DiscoverItem, DiscoverSettings
 
+    cfg = DiscoverSettings.get()
+    if not cfg.include_trending:
+        return f'trending picks are off — {_replace(DiscoverItem.Source.ANTICIPATED, [])} removed'
+
+    recs = DiscoverItem.objects.filter(source=DiscoverItem.Source.RECOMMENDATION)
+    budget = max(cfg.deck_size - recs.count(), math.floor(cfg.deck_size * TRENDING_SHARE))
     today = date.today()
     month_ago = (today - timedelta(days=30)).isoformat()
     lists = {
@@ -165,38 +188,51 @@ def generate_anticipated():
             ('Popular on TMDB', lambda: tmdb.popular('tv')),
         ],
     }
-    added = {'movie': 0, 'tv': 0}
-    for media_type, sources in lists.items():
-        seen = _existing_and_decided(media_type)
-        for label, fetch in sources:
+
+    queues = []  # one queue of (media_type, label, result) per list
+    for media_type in cfg.media_types():
+        seen = ({tmdb_id for tmdb_id, _ in _library(media_type)} | _decided(media_type)
+                | set(recs.filter(media_type=media_type).values_list('tmdb_id', flat=True)))
+        for label, fetch in lists[media_type]:
             try:
                 results = fetch().get('results', [])
             except Exception as e:
-                log.warning('generate_anticipated: %s %s fetch failed — %s', media_type, label, e)
+                log.warning('For You: %s %s — %s', media_type, label, e)
                 continue
-            count = 0
+            queue = []
             for r in results:
-                if count >= MAX_PER_LIST:
-                    break
-                cand_id = r.get('id')
-                if not cand_id or cand_id in seen:
-                    continue
-                if media_type == 'tv' and SKIP_TV_GENRES & set(r.get('genre_ids') or []):
+                if not r.get('id') or r['id'] in seen:
                     continue
                 if label == 'Coming Soon':
                     # TMDB's upcoming list includes re-releases of old films
                     released = _parse_date(r.get('release_date') or r.get('first_air_date'))
                     if released and released < today:
                         continue
-                elif (r.get('vote_count') or 0) < MIN_VOTES:
+                    if media_type == 'tv' and SKIP_TV_GENRES & set(r.get('genre_ids') or []):
+                        continue
+                elif not _wanted(r, media_type):
                     continue
-                DiscoverItem.objects.get_or_create(
-                    tmdb_id=cand_id,
-                    media_type=media_type,
-                    defaults=_card(r, media_type, DiscoverItem.Source.ANTICIPATED, label),
-                )
-                seen.add(cand_id)
-                count += 1
-                added[media_type] += 1
+                queue.append((media_type, label, r))
+            queues.append(queue)
 
-    return f"added {added['movie']} movies, {added['tv']} shows (trending/new/coming soon/popular)"
+    cards, taken = [], set()
+    while len(cards) < budget and any(queues):
+        for queue in queues:
+            while queue:
+                media_type, label, r = queue.pop(0)
+                if (media_type, r['id']) not in taken:
+                    taken.add((media_type, r['id']))
+                    # Earlier picks rank higher in the deck
+                    cards.append((media_type, r['id'], _card(r, media_type, DiscoverItem.Source.ANTICIPATED, label,
+                                                             score=round(1 - len(cards) / max(budget, 1), 3))))
+                    break
+            if len(cards) >= budget:
+                break
+    dropped = _replace(DiscoverItem.Source.ANTICIPATED, cards)
+    return f'{len(cards)} trending / new / coming soon / popular picks; {dropped} older ones dropped'
+
+
+@shared_task(name='rebuild_for_you')
+def rebuild_for_you():
+    """Both of the above, in the order the deck's budget expects."""
+    return f'{generate_recommendations()} · {generate_anticipated()}'

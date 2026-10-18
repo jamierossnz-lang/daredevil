@@ -3,7 +3,7 @@
 {% block page_title %}App Settings{% endblock %}
 
 {% block content %}
-<div x-data="{ tab: 'general', fromHash() { const h = location.hash.replace('#', ''); if (['general','prowlarr','sonarr','radarr','qbittorrent','tasks'].includes(h)) this.tab = h; } }"
+<div x-data="{ tab: 'general', fromHash() { const h = location.hash.replace('#', ''); if (['general','prowlarr','sonarr','radarr','qbittorrent','foryou','tasks'].includes(h)) this.tab = h; } }"
      x-init="fromHash(); $watch('tab', v => history.replaceState({}, '', v === 'general' ? location.pathname : '#' + v))"
      @hashchange.window="fromHash()">
 
@@ -354,6 +354,7 @@
 <div x-show="tab === 'sonarr'" x-cloak>{% include "settings/_media_arr_tab.html" with kind="sonarr" label="Sonarr" %}</div>
 <div x-show="tab === 'radarr'" x-cloak>{% include "settings/_media_arr_tab.html" with kind="radarr" label="Radarr" %}</div>
 <div x-show="tab === 'qbittorrent'" x-cloak>{% include "settings/_qbittorrent_tab.html" %}</div>
+<div x-show="tab === 'foryou'" x-cloak>{% include "settings/_foryou_tab.html" %}</div>
 <div x-show="tab === 'tasks'" x-cloak>
   <div class="max-w-5xl mx-auto" hx-get="{% url 'tasks_panel' %}" hx-trigger="intersect once" hx-swap="innerHTML">
     <div class="py-12 text-center text-gray-500 text-sm"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading background tasks…</div>
