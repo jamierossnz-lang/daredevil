@@ -16,7 +16,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from .clients import ArrError, ArrNotConfigured, ProwlarrClient, RadarrClient, SonarrClient  # noqa: F401
+from .clients import ArrError, ArrNotConfigured, ProwlarrClient, RadarrClient, SonarrClient
 from .models import ArrService
 
 log = logging.getLogger('daredevil.arr')
@@ -48,7 +48,8 @@ def is_configured(kind):
 def in_thread(fn, *args, **kwargs):
     """Run fn in a worker thread (ThreadPoolExecutor.submit target) and close
     the DB connection it may have opened — Django only closes connections for
-    request threads, and Postgres here allows just 50."""
+    request threads, and Postgres here allows only 100, shared with Sonarr,
+    Radarr and Prowlarr."""
     from django.db import connection
     try:
         return fn(*args, **kwargs)
@@ -594,19 +595,12 @@ _WEBHOOK_EVENTS = {
 }
 
 
+def is_daredevil_webhook(n):
+    return n.get('implementation') == 'Webhook' and (n.get('name') or '').lower() == 'daredevil'
+
+
 def _find_daredevil_webhook(c):
-    for n in c.notifications():
-        if n.get('implementation') == 'Webhook' and (n.get('name') or '').lower() == 'daredevil':
-            return n
-    return None
-
-
-def webhook_status(kind):
-    c = client(kind)
-    hook = _find_daredevil_webhook(c)
-    expected = webhook_url(kind)
-    current = _field(hook, 'url') if hook else None
-    return {'connected': bool(hook), 'url': current, 'expected': expected, 'up_to_date': current == expected}
+    return next((n for n in c.notifications() if is_daredevil_webhook(n)), None)
 
 
 def ensure_webhook(kind):

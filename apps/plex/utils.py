@@ -2,17 +2,9 @@ import os
 import shutil
 import logging
 
+from .client import _fmt_bytes
+
 log = logging.getLogger('daredevil.plex')
-
-
-def _fmt_bytes(b):
-    if not b:
-        return ''
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if b < 1024:
-            return f'{b:.1f} {unit}'
-        b /= 1024
-    return f'{b:.1f} TB'
 
 
 def _storage_paths():
@@ -20,8 +12,8 @@ def _storage_paths():
     [{label, color, icon, path}] for the folders worth watching, as Daredevil
     sees them: Sonarr's and Radarr's root folders (the library) plus the
     downloads folder, translated through each app's path mappings. Falls
-    back to the completed paths on the qBittorrent Categories page if
-    neither app is connected.
+    back to the completed paths from the old (pre-Sonarr/Radarr) category
+    setup if neither app is connected.
     """
     from django.core.cache import cache
 

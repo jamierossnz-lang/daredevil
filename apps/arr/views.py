@@ -4,7 +4,6 @@ page. Every action goes straight to the app's own API — Daredevil keeps only
 the connection details and its add-defaults (ArrService).
 """
 import copy
-import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -13,11 +12,12 @@ from django.http import Http404, JsonResponse
 from django.views.decorators.http import require_POST
 
 from .clients import ArrError
+from .http import json_body as _body, json_error as _err
 from .models import ArrService
 from .services import (
     _CLIENTS, add_options, client, definition_key, ensure_prowlarr_app, ensure_qbittorrent, ensure_webhook,
-    find_definition, fmt_bytes, indexer_form_fields, indexer_schema, apply_form_values, prowlarr, public_url,
-    webhook_url, _find_daredevil_webhook, _field, DEFAULT_QBT_CATEGORY, SONARR_DEFAULT_MONITOR_CHOICES,
+    find_definition, fmt_bytes, indexer_form_fields, indexer_schema, apply_form_values, is_daredevil_webhook, prowlarr,
+    public_url, webhook_url, _find_daredevil_webhook, _field, DEFAULT_QBT_CATEGORY, SONARR_DEFAULT_MONITOR_CHOICES,
     RADARR_MONITOR_CHOICES, MIN_AVAILABILITY_CHOICES, SERIES_TYPE_CHOICES, lookup_item,
 )
 
@@ -31,17 +31,6 @@ def _kind(kind, media_only=False):
     if kind not in (_MEDIA_KINDS if media_only else _KINDS):
         raise Http404
     return kind
-
-
-def _body(request):
-    try:
-        return json.loads(request.body or b'{}')
-    except ValueError:
-        return {}
-
-
-def _err(e, status=400, **extra):
-    return JsonResponse({'ok': False, 'error': str(e), **extra}, status=status)
 
 
 def _config_dict(svc):
@@ -120,8 +109,7 @@ def overview(request, kind):
     if kind in _MEDIA_KINDS:
         qbt = next((d for d in data['download_clients'] if d['implementation'] == 'QBittorrent'), None)
         data['downloads'] = _downloads_folder((qbt or {}).get('category') or DEFAULT_QBT_CATEGORY[kind], results['qbt'])
-        hook = next((n for n in _as_list(results['notifications'])
-                     if n.get('implementation') == 'Webhook' and (n.get('name') or '').lower() == 'daredevil'), None)
+        hook = next((n for n in _as_list(results['notifications']) if is_daredevil_webhook(n)), None)
         expected = webhook_url(kind)
         current = _field(hook, 'url') if hook else None
         data['webhook'] = {'connected': bool(hook), 'url': current, 'expected': expected, 'up_to_date': current == expected}
@@ -622,11 +610,7 @@ def prowlarr_indexer_save(request):
                  else c.add_indexer(payload, force=save_disabled))
         return JsonResponse({'ok': True, 'id': saved.get('id'), 'disabled': not saved.get('enable', True)})
     except ArrError as e:
-        return _err(e, status=200, can_save_disabled=not save_disabled and payload_enabled(data))
-
-
-def payload_enabled(data):
-    return bool(data.get('enable', True))
+        return _err(e, status=200, can_save_disabled=not save_disabled and bool(data.get('enable', True)))
 
 
 @require_POST

@@ -48,8 +48,6 @@ def is_connected():
         return False
 
 
-
-
 def add_magnet(magnet_link, save_path=None, category=None):
     c = get_client()
     kwargs = {'urls': magnet_link}
@@ -108,24 +106,6 @@ def set_preferences(prefs: dict):
     c.app_set_preferences(prefs)
 
 
-def get_categories():
-    try:
-        c = get_client()
-        return dict(c.torrents_categories())
-    except Exception:
-        return {}
-
-
-def create_category(name, save_path=''):
-    c = get_client()
-    c.torrents_create_category(name=name, save_path=save_path)
-
-
-def edit_category(name, save_path):
-    c = get_client()
-    c.torrents_edit_category(name=name, save_path=save_path)
-
-
 def category_folder(name, categories, prefs):
     """
     Where qBittorrent saves a new torrent in this category when it's added
@@ -166,15 +146,3 @@ def set_category_folder(name, save_path):
 def delete_category(name):
     c = get_client()
     c.torrents_remove_categories(categories=[name])
-
-
-def set_torrent_location(torrent_hash, save_path):
-    """Tell qBittorrent to move the torrent's data to a new path (qBT does the file move)."""
-    c = get_client()
-    c.torrents_set_location(location=save_path, hashes=torrent_hash)
-
-
-def rename_torrent(torrent_hash, new_name):
-    """Rename the torrent (renames root folder for multi-file torrents)."""
-    c = get_client()
-    c.torrents_rename(torrent_hash=torrent_hash, new_torrent_name=new_name)

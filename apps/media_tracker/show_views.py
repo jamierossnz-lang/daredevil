@@ -6,7 +6,6 @@ every action (add, monitor on/off, download, pick a release, retry, delete
 a file, remove the show) is sent straight back to Sonarr's API. Sonarr does
 the monitoring, searching, grabbing (via qBittorrent) and importing.
 """
-import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -17,6 +16,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.arr.clients import ArrError
+from apps.arr.http import json_body as _body, json_error as _fail
+from apps.arr.queue import queue_entry
 from apps.arr.services import (
     FAVOURITE_TAG, FOR_YOU_TAG, SONARR_MONITOR_CHOICES, add_series, apply_series_monitoring, delete_file,
     download_episodes, download_season, download_series, favourite_tag_id, fmt_bytes, grab_release, image_url, invalidate_library,
@@ -35,17 +36,6 @@ STATUS_FILTERS = [
     ('unmonitored', 'Unmonitored'),
     ('favourite', 'Favourites'),
 ]
-
-
-def _body(request):
-    try:
-        return json.loads(request.body or b'{}')
-    except ValueError:
-        return {}
-
-
-def _fail(e, status=400):
-    return JsonResponse({'ok': False, 'error': str(e)}, status=status)
 
 
 def _not_configured(request, template='media_tracker/arr_not_configured.html'):
@@ -81,32 +71,6 @@ def _series_card(s, fav_tag=None, for_you_tag=None):
         'tmdb_id': s.get('tmdbId'),
         'tvdb_id': s.get('tvdbId'),
         'title_slug': s.get('titleSlug') or '',
-    }
-
-
-def _queue_entry(q):
-    size = q.get('size') or 0
-    sizeleft = q.get('sizeleft') or 0
-    state = q.get('trackedDownloadState') or ''
-    status = (q.get('status') or '').lower()
-    if state in ('importPending', 'importing'):
-        label = 'Importing'
-    elif q.get('trackedDownloadStatus') in ('warning', 'error') or status in ('warning', 'failed'):
-        label = 'Needs attention'
-    elif status == 'paused':
-        label = 'Paused'
-    elif status in ('queued', 'delay'):
-        label = 'Queued'
-    else:
-        label = 'Downloading'
-    return {
-        'queue_id': q.get('id'),
-        'progress': round((size - sizeleft) * 100 / size, 1) if size else 0,
-        'label': label,
-        'timeleft': q.get('timeleft') or '',
-        'release': q.get('title') or '',
-        'quality': ((q.get('quality') or {}).get('quality') or {}).get('name', ''),
-        'warning': label == 'Needs attention',
     }
 
 
@@ -165,7 +129,7 @@ def _build_detail(series_id):
     queue_by_ep = {}
     for q in queue or []:
         if q.get('episodeId'):
-            queue_by_ep[q['episodeId']] = _queue_entry(q)
+            queue_by_ep[q['episodeId']] = queue_entry(q)
 
     now = timezone.now()
     seasons = {}
@@ -599,6 +563,6 @@ def show_status(request, series_id):
         return _fail(e, status=200)
     return JsonResponse({
         'ok': True,
-        'queue': {q['episodeId']: _queue_entry(q) for q in queue if q.get('episodeId')},
+        'queue': {q['episodeId']: queue_entry(q) for q in queue if q.get('episodeId')},
         'has_file': has_file,
     })

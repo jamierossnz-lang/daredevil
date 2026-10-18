@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils import timezone
 
 # LEGACY — Daredevil's own download queue and file-move records from before
 # Sonarr/Radarr took over. Nothing writes to these any more: the queue is
@@ -69,42 +68,6 @@ class DownloadItem(models.Model):
     def __str__(self):
         return f'{self.title} ({self.get_status_display()})'
 
-    @property
-    def poster_url(self):
-        if self.poster_path:
-            return f'https://image.tmdb.org/t/p/w500{self.poster_path}'
-        return None
-
-    @property
-    def size_formatted(self):
-        if not self.size_bytes:
-            return '—'
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if self.size_bytes < 1024:
-                return f'{self.size_bytes:.1f} {unit}'
-            self.size_bytes /= 1024
-        return f'{self.size_bytes:.1f} PB'
-
-    @property
-    def speed_formatted(self):
-        if not self.download_speed:
-            return '—'
-        speed = self.download_speed
-        for unit in ['B/s', 'KB/s', 'MB/s', 'GB/s']:
-            if speed < 1024:
-                return f'{speed:.1f} {unit}'
-            speed /= 1024
-        return f'{speed:.1f} GB/s'
-
-
-def _format_bytes(n):
-    n = float(n or 0)
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if n < 1024:
-            return f'{n:.1f} {unit}'
-        n /= 1024
-    return f'{n:.1f} PB'
-
 
 class FileMove(models.Model):
     class Status(models.TextChoices):
@@ -134,15 +97,3 @@ class FileMove(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.get_status_display()})'
-
-    @property
-    def progress_pct(self):
-        if not self.bytes_total:
-            return 0
-        return min(100, round(self.bytes_moved * 100 / self.bytes_total, 1))
-
-    @property
-    def size_progress_formatted(self):
-        if not self.bytes_total:
-            return '—'
-        return f'{_format_bytes(self.bytes_moved)} / {_format_bytes(self.bytes_total)}'

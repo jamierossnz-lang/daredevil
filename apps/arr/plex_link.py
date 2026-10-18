@@ -28,9 +28,8 @@ _REFRESH_EVENTS = {
 
 
 def _plex():
-    from apps.plex.client import _plex_setting
-    url, token = _plex_setting('PLEX_URL', 'PLEX_URL'), _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
-    return url, token
+    from apps.plex.client import plex_credentials
+    return plex_credentials()
 
 
 def _plex_target():

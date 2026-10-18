@@ -161,27 +161,21 @@ docker compose up -d
 
 > **First update to the Sonarr/Radarr version:** `docker compose up -d` also creates the new `prowlarr`, `sonarr` and `radarr` containers. Jackett is no longer part of the stack — add `--remove-orphans` to remove its old container (its `data/jackett` folder is left alone). Then follow *Set up Sonarr, Radarr and Prowlarr* above.
 
-**Using existing folders on the host (instead of Docker volumes):**
+**Using existing folders on the host:**
 
-By default, media is stored in Docker-managed named volumes. To use folders already on your machine, replace the volume references in `docker-compose.yml`:
+Media lives in `./downloads`, `./movies` and `./tv` next to the compose file by default, and container config under `./data`. Point them at folders you already have in `.env` — every service that needs them (qBittorrent, Sonarr, Radarr, Plex, Daredevil) picks up the same paths:
 
-```yaml
+```env
 # macOS / Linux
-volumes:
-  - /Volumes/nas/downloads:/media/downloads
-  - /Volumes/nas/movies:/media/movies
-  - /Volumes/nas/tv:/media/tv
-```
+DOWNLOADS_DIR=/Volumes/nas/downloads
+MOVIES_DIR=/Volumes/nas/movies
+TV_DIR=/Volumes/nas/tv
 
-```yaml
 # Windows (Docker Desktop) — forward slashes
-volumes:
-  - D:/Downloads:/media/downloads
-  - D:/Movies:/media/movies
-  - D:/TV:/media/tv
+DOWNLOADS_DIR=D:/Downloads
+MOVIES_DIR=D:/Movies
+TV_DIR=D:/TV
 ```
-
-Apply the same mounts to the `web`, `worker`, and `qbittorrent` services. qBittorrent's mount must use `/downloads` as the container path.
 
 ---
 
@@ -343,7 +337,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 #### Option A — WSL2 (recommended)
 
-1. Install [WSL2](https://learn.mic rosoft.com/en-us/windows/wsl/install) and a Linux distro (Ubuntu 22.04 works well)
+1. Install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and a Linux distro (Ubuntu 22.04 works well)
 2. Inside WSL, follow the **macOS / Linux** steps above
 3. Redis: `sudo apt install redis-server && sudo service redis-server start`
 4. Access Daredevil at `http://localhost:8000` from your Windows browser
@@ -496,13 +490,18 @@ docker compose start sonarr
 ```
 daredevil/
 ├── apps/
+│   ├── accounts/       # Login-required middleware, no-signup adapter
 │   ├── arr/            # Sonarr / Radarr / Prowlarr clients, Settings tabs, Search, webhooks
+│   ├── discover/       # For You swipe deck (TMDB recommendations + trending)
 │   ├── downloads/      # Download queue + imports (read from Sonarr/Radarr)
-│   ├── media_tracker/  # Dashboard, TV shows (Sonarr) and movies (Radarr) pages
+│   ├── events/         # Activity log (domain events)
+│   ├── media_tracker/  # Dashboard, TV shows (Sonarr) and movies (Radarr), Streaming, App Settings
+│   ├── notifications/  # Notification bell + ntfy push
+│   ├── plex/           # Plex library page, cleanup, storage usage
 │   └── qbt/            # qBittorrent client, Torrent Manager, file browser
-├── config/             # Django settings, URLs, Celery config
-├── templates/          # Jinja-style Django templates (Tailwind + Alpine.js)
-├── static/             # Static assets
+├── config/             # Django settings, URLs, Celery config, .env read/write
+├── templates/          # Django templates (Tailwind + Alpine.js + htmx, all from CDNs)
+├── scripts/            # backup-db.sh
 ├── manage.py
 ├── requirements.txt
 └── start.sh            # Dev launcher (macOS/Linux)

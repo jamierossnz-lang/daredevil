@@ -1,6 +1,7 @@
 import hashlib
 import json
 import threading
+from datetime import date
 
 import requests
 from django.conf import settings
@@ -49,9 +50,6 @@ class TMDBClient:
     def discover_movie(self, ttl=LIST_TTL, refresh=False, **params):
         return self._get('/discover/movie', ttl=ttl, refresh=refresh, **params)
 
-    def tv_on_the_air(self, page=1):
-        return self._get('/tv/on_the_air', page=page)
-
     def trending(self, media_type, window='week', page=1):
         return self._get(f'/trending/{media_type}/{window}', ttl=LIST_TTL, page=page)
 
@@ -61,41 +59,15 @@ class TMDBClient:
     def movie_upcoming(self, page=1):
         return self._get('/movie/upcoming', ttl=LIST_TTL, page=page)
 
-    # ── Search ──────────────────────────────────────────────────────────────
-
-    def search_tv(self, query, page=1):
-        return self._get('/search/tv', query=query, page=page)
-
-    def search_movie(self, query, page=1):
-        return self._get('/search/movie', query=query, page=page)
-
     # ── TV Shows ────────────────────────────────────────────────────────────
-
-    def get_tv(self, tmdb_id):
-        return self._get(f'/tv/{tmdb_id}')
 
     def get_tv_videos(self, tmdb_id):
         return self._get(f'/tv/{tmdb_id}/videos')
 
-    def get_season(self, tmdb_id, season_number):
-        return self._get(f'/tv/{tmdb_id}/season/{season_number}')
-
-    def get_episode(self, tmdb_id, season_number, episode_number):
-        return self._get(f'/tv/{tmdb_id}/season/{season_number}/episode/{episode_number}')
-
     # ── Movies ──────────────────────────────────────────────────────────────
-
-    def get_movie(self, tmdb_id):
-        return self._get(f'/movie/{tmdb_id}', append_to_response='release_dates')
 
     def get_movie_videos(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/videos')
-
-    def get_movie_release_dates(self, tmdb_id):
-        return self._get(f'/movie/{tmdb_id}/release_dates')
-
-    def get_movie_watch_providers(self, tmdb_id):
-        return self._get(f'/movie/{tmdb_id}/watch/providers')
 
     def get_movie_credits(self, tmdb_id):
         return self._get(f'/movie/{tmdb_id}/credits')
@@ -114,13 +86,10 @@ class TMDBClient:
 
 
 def _parse_date(value):
-    if not value:
-        return None
+    """'YYYY-MM-DD' from TMDB → date (None if missing or malformed)."""
     try:
-        from datetime import date
-        parts = str(value).split('-')
-        return date(int(parts[0]), int(parts[1]), int(parts[2]))
-    except Exception:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except ValueError:
         return None
 
 

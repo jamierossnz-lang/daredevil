@@ -1,6 +1,7 @@
 import logging
 import requests
-from pathlib import Path
+
+from config import env_file
 
 log = logging.getLogger('daredevil.notifications')
 
@@ -8,30 +9,12 @@ _PRIORITY_MAP = {'min': 1, 'low': 2, 'default': 3, 'high': 4, 'urgent': 5, 'max'
 
 
 def _load_ntfy_cfg():
-    """Re-read .env every call so worker picks up changes without restart."""
-    from django.conf import settings as s
-    env_file = Path(s.BASE_DIR) / '.env'
-    cfg = {
-        'url':   getattr(s, 'NTFY_URL',   'https://ntfy.sh'),
-        'topic': getattr(s, 'NTFY_TOPIC', ''),
-        'token': getattr(s, 'NTFY_TOKEN', ''),
+    """Re-read .env every call so the worker picks up changes without a restart."""
+    return {
+        'url':   env_file.setting('NTFY_URL') or 'https://ntfy.sh',
+        'topic': env_file.setting('NTFY_TOPIC'),
+        'token': env_file.setting('NTFY_TOKEN'),
     }
-    try:
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith('#') or '=' not in line:
-                continue
-            key, _, val = line.partition('=')
-            key, val = key.strip(), val.strip()
-            if key == 'NTFY_URL' and val:
-                cfg['url'] = val
-            elif key == 'NTFY_TOPIC':
-                cfg['topic'] = val
-            elif key == 'NTFY_TOKEN':
-                cfg['token'] = val
-    except Exception:
-        pass
-    return cfg
 
 
 def _derive_level(priority, tags):

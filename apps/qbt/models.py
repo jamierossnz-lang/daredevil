@@ -11,14 +11,6 @@ class CategoryConfig(models.Model):
     class Meta:
         verbose_name = 'Category Config'
 
-    @classmethod
-    def get(cls):
-        obj, _ = cls.objects.get_or_create(pk=1, defaults={
-            'tv_category': 'tv-shows',
-            'movie_category': 'movies',
-        })
-        return obj
-
 
 class ExtraTab(models.Model):
     """User-defined folders to display as additional tabs in the file browser."""
@@ -34,7 +26,9 @@ class ExtraTab(models.Model):
 
 
 class CategoryPath(models.Model):
-    """Per-category path configuration stored in Daredevil."""
+    """LEGACY — per-category folders from when Daredevil moved files itself.
+    No longer editable; only read as the storage-usage fallback
+    (apps.plex.utils) until Sonarr/Radarr are connected."""
     category_name = models.CharField(max_length=200, unique=True)
     qbt_save_path = models.CharField(max_length=1000, blank=True,
         help_text="Save path sent to qBittorrent when adding torrents (qBittorrent's container path, e.g. /downloads).")

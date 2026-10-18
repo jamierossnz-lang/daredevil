@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
+from config import env_file
 from .tmdb import tmdb
 from apps.arr.clients import ArrError
 from apps.arr.services import image_url, in_thread, is_configured, library_index, parse_dt, radarr, sonarr
@@ -229,9 +230,7 @@ def dashboard_discover(request):
 
 def app_settings_view(request):
     from django.conf import settings as s
-    from dotenv import dotenv_values
-    env_file = s.BASE_DIR / '.env'
-    env = dotenv_values(env_file) if env_file.exists() else {}
+    env = env_file.read()
 
     def _get(key, default=''):
         # File is authoritative (all workers see the same file); fall back to
@@ -315,30 +314,13 @@ def app_settings_save(request):
     if 'PGID' in data:
         _set('PGID', str(data['PGID']).strip(), attr='PGID')
 
-    _update_env_file(env_updates)
+    env_file.update(env_updates)
 
     return JsonResponse({
         'ok': True,
         'live': list(live.keys()),
         'restart_required': needs_restart,
     })
-
-
-def _update_env_file(updates: dict):
-    import re
-    from django.conf import settings as s
-    env_file = s.BASE_DIR / '.env'
-    if not env_file.exists():
-        return
-    text = env_file.read_text()
-    for key, value in updates.items():
-        pattern = re.compile(rf'^{re.escape(key)}\s*=.*', re.MULTILINE)
-        replacement = f'{key}={value}'
-        if pattern.search(text):
-            text = pattern.sub(replacement, text)
-        else:
-            text = text.rstrip('\n') + f'\n{replacement}\n'
-    env_file.write_text(text)
 
 
 def server_ping(request):

@@ -6,16 +6,16 @@ Radarr's minimum availability (announced / in cinemas / released) is what
 watches unreleased movies now: add one monitored and Radarr grabs it on its
 own once it's out — no Daredevil release-date jobs involved.
 """
-import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.arr.clients import ArrError
+from apps.arr.http import json_body as _body, json_error as _fail
+from apps.arr.queue import queue_entry
 from apps.arr.services import (
     FAVOURITE_TAG, FOR_YOU_TAG, MIN_AVAILABILITY_CHOICES, add_movie, delete_file, download_movie, favourite_tag_id,
     fmt_bytes, grab_release, image_url, invalidate_library, is_configured, library_index, normalize_release,
@@ -34,17 +34,6 @@ STATUS_FILTERS = [
     ('unmonitored', 'Unmonitored'),
     ('favourite', 'Favourites'),
 ]
-
-
-def _body(request):
-    try:
-        return json.loads(request.body or b'{}')
-    except ValueError:
-        return {}
-
-
-def _fail(e, status=400):
-    return JsonResponse({'ok': False, 'error': str(e)}, status=status)
 
 
 def _release_info(m):
@@ -98,35 +87,7 @@ def _movie_card(m, fav_tag=None, queued=None, for_you_tag=None):
 
 
 def _queue_by_movie(records):
-    out = {}
-    for q in records or []:
-        if not q.get('movieId'):
-            continue
-        size = q.get('size') or 0
-        sizeleft = q.get('sizeleft') or 0
-        status = (q.get('status') or '').lower()
-        state = q.get('trackedDownloadState') or ''
-        if state in ('importPending', 'importing'):
-            label = 'Importing'
-        elif q.get('trackedDownloadStatus') in ('warning', 'error') or status in ('warning', 'failed'):
-            label = 'Needs attention'
-        elif status == 'paused':
-            label = 'Paused'
-        elif status in ('queued', 'delay'):
-            label = 'Queued'
-        else:
-            label = 'Downloading'
-        out[q['movieId']] = {
-            'queue_id': q.get('id'),
-            'progress': round((size - sizeleft) * 100 / size, 1) if size else 0,
-            'label': label,
-            'timeleft': q.get('timeleft') or '',
-            'release': q.get('title') or '',
-            'quality': ((q.get('quality') or {}).get('quality') or {}).get('name', ''),
-            'warning': label == 'Needs attention',
-            'messages': [m for sm in q.get('statusMessages') or [] for m in sm.get('messages') or []],
-        }
-    return out
+    return {q['movieId']: queue_entry(q) for q in records or [] if q.get('movieId')}
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────

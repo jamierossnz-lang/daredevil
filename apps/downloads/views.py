@@ -22,24 +22,14 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.arr.clients import ArrError
+from apps.arr.http import json_body as _body, json_error as _fail
 from apps.arr.models import ArrService
 from apps.arr.queue import build_queue
 from apps.arr.services import (
-    client, image_url, in_thread, is_configured, parse_dt, queue_remove, radarr, sonarr,
+    client, download_episodes, image_url, in_thread, is_configured, parse_dt, queue_remove, radarr, sonarr,
 )
 
 log = logging.getLogger('daredevil.downloads')
-
-
-def _body(request):
-    try:
-        return json.loads(request.body or b'{}')
-    except ValueError:
-        return {}
-
-
-def _fail(e, status=400):
-    return JsonResponse({'ok': False, 'error': str(e)}, status=status)
 
 
 def _app(value):
@@ -153,7 +143,6 @@ def search_again(request):
             if data.get('all_missing'):
                 sonarr().command('MissingEpisodeSearch', monitored=True)
             elif ids:
-                from apps.arr.services import download_episodes
                 download_episodes(ids)
             else:
                 return _fail('Nothing to search for')

@@ -1,21 +1,16 @@
 import logging
 import re
 import threading
-from django.conf import settings
+
+from config import env_file
 
 log = logging.getLogger('daredevil.plex')
 
 
-def _plex_setting(key, fallback_attr):
-    """Read from .env file first (shared across all gunicorn workers), then fall back to module settings."""
-    from dotenv import dotenv_values
-    from pathlib import Path
-    env_file = Path(settings.BASE_DIR) / '.env'
-    if env_file.exists():
-        val = dotenv_values(env_file).get(key, '')
-        if val:
-            return val
-    return getattr(settings, fallback_attr, '')
+def plex_credentials():
+    """(url, token) — read from .env on use, so a change on App Settings
+    reaches every worker straight away."""
+    return env_file.setting('PLEX_URL'), env_file.setting('PLEX_TOKEN')
 
 
 _server = {'key': None, 'plex': None}
@@ -28,8 +23,7 @@ def get_plex():
     token changes — connecting costs a round trip of its own, on every page
     that touches Plex.
     """
-    url   = _plex_setting('PLEX_URL',   'PLEX_URL')
-    token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
+    url, token = plex_credentials()
     if not url or not token:
         return None
     with _server_lock:

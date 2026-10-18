@@ -4,7 +4,10 @@ import os
 from django.shortcuts import redirect, render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.contrib import messages
+
+from apps.arr.queue import fmt_eta, fmt_speed
+from apps.arr.services import fmt_bytes
+from config import env_file
 
 from . import client
 
@@ -48,11 +51,11 @@ def torrents_json(request):
         'group': _STATE_GROUPS.get(t.state, 'other'),
         'progress': round(t.progress * 100, 1),
         'dl': t.dlspeed, 'up': t.upspeed,
-        'dlspeed': _fmt_speed(t.dlspeed),
-        'upspeed': _fmt_speed(t.upspeed),
+        'dlspeed': fmt_speed(t.dlspeed),
+        'upspeed': fmt_speed(t.upspeed),
         'size_bytes': t.size,
-        'size': _fmt_size(t.size),
-        'eta': _fmt_eta(t.eta),
+        'size': fmt_bytes(t.size),
+        'eta': fmt_eta(t.eta),
         'category': t.category,
         'seeds': t.num_seeds,
         'peers': t.num_leechs,
@@ -159,7 +162,6 @@ def settings_save(request):
 @require_POST
 def connection_save(request):
     """Update qBittorrent connection settings in-memory and persist to .env."""
-    import re
     from django.conf import settings as django_settings
 
     try:
@@ -186,7 +188,7 @@ def connection_save(request):
     django_settings.QBITTORRENT_PASSWORD = password
 
     # Persist to .env so values survive a restart
-    _update_env({
+    env_file.update({
         'QBITTORRENT_HOST':     host,
         'QBITTORRENT_PORT':     str(port),
         'QBITTORRENT_USERNAME': username,
@@ -202,30 +204,6 @@ def connection_save(request):
     ok = client.is_connected()
     log.info('connection_save: %s:%s ok=%s', host, port, ok)
     return JsonResponse({'ok': ok, 'connected': ok})
-
-
-def _update_env(updates: dict):
-    """Write key=value pairs into .env, adding lines for missing keys."""
-    import re
-    from django.conf import settings as django_settings
-
-    env_path = getattr(django_settings, 'BASE_DIR', None)
-    if env_path is None:
-        return
-    env_file = env_path / '.env'
-    if not env_file.exists():
-        return
-
-    text = env_file.read_text()
-    for key, value in updates.items():
-        pattern = re.compile(rf'^{re.escape(key)}\s*=.*$', re.MULTILINE)
-        replacement = f'{key}={value}'
-        if pattern.search(text):
-            text = pattern.sub(replacement, text)
-        else:
-            text = text.rstrip('\n') + f'\n{replacement}\n'
-    env_file.write_text(text)
-    log.info('_update_env: wrote %s', list(updates.keys()))
 
 
 def _arr_categories():
@@ -289,16 +267,16 @@ def transfer_info_json(request):
     try:
         info = client.get_transfer_info()
         return JsonResponse({
-            'dl_speed': _fmt_speed(info.get('dl_info_speed', 0)),
-            'up_speed': _fmt_speed(info.get('up_info_speed', 0)),
-            'dl_total': _fmt_size(info.get('dl_info_data', 0)),
-            'up_total': _fmt_size(info.get('up_info_data', 0)),
+            'dl_speed': fmt_speed(info.get('dl_info_speed', 0)),
+            'up_speed': fmt_speed(info.get('up_info_speed', 0)),
+            'dl_total': fmt_bytes(info.get('dl_info_data', 0)),
+            'up_total': fmt_bytes(info.get('up_info_data', 0)),
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=503)
 
 
-# ── Formatters ───────────────────────────────────────────────────────────────
+# ── File Browser ─────────────────────────────────────────────────────────────
 
 def _downloads_local_path():
     """qBittorrent's download folder as Daredevil sees it (via the Sonarr/Radarr
@@ -378,6 +356,10 @@ def _all_allowed_roots():
     return roots
 
 
+def _within(path, roots):
+    return any(path == r or path.startswith(r + os.sep) for r in roots)
+
+
 @require_POST
 def file_tabs_add(request):
     from .models import ExtraTab
@@ -411,9 +393,7 @@ def file_browser_page(request):
 
 
 def file_browser_list(request):
-    """Return a directory listing as JSON. Path must be inside a configured category path."""
-    import os
-
+    """Return a directory listing as JSON. Path must be inside one of the File Browser's folders."""
     raw = request.GET.get('path', '').strip()
     if not raw:
         return JsonResponse({'error': 'No path specified'}, status=400)
@@ -434,16 +414,13 @@ def file_browser_list(request):
 
     allowed = _all_allowed_roots()
 
-    def _permitted(p):
-        return any(p == a or p.startswith(a + os.sep) for a in allowed)
-
-    if not _permitted(path):
+    if not _within(path, allowed):
         return JsonResponse({'error': 'Path not permitted'}, status=403)
 
     if not os.path.exists(path):
         return JsonResponse({
             'error': f'Path not found on this machine: {path}\n'
-                     'The folder may not be mounted or the path may need updating in Categories.'
+                     'The folder may not be mounted, or the path mappings in Settings may need updating.'
         }, status=404)
 
     if not os.path.isdir(path):
@@ -471,7 +448,7 @@ def file_browser_list(request):
 
     # Parent: only expose if it's still within an allowed root
     parent_path = os.path.dirname(path)
-    parent = parent_path if (parent_path != path and _permitted(parent_path)) else None
+    parent = parent_path if (parent_path != path and _within(parent_path, allowed)) else None
 
     # Breadcrumb: walk from the deepest allowed root up to current path
     root = max(
@@ -520,7 +497,7 @@ def file_browser_list(request):
 
 @require_POST
 def file_delete(request):
-    """Delete a file or folder within an allowed category path."""
+    """Delete a file or folder inside one of the File Browser's folders."""
     import shutil
 
     raw = request.POST.get('path', '').strip()
@@ -530,10 +507,7 @@ def file_delete(request):
     path = os.path.realpath(raw)
     allowed = _all_allowed_roots()
 
-    def _permitted(p):
-        return any(p == a or p.startswith(a + os.sep) for a in allowed)
-
-    if not _permitted(path):
+    if not _within(path, allowed):
         return JsonResponse({'error': 'Path not permitted'}, status=403)
 
     if not os.path.exists(path):
@@ -585,13 +559,10 @@ def file_import(request):
 
     allowed = _all_allowed_roots()
 
-    def _permitted(p):
-        return any(p == a or p.startswith(a + os.sep) for a in allowed)
-
     results = []
     for raw in paths:
         src = os.path.realpath(raw)
-        if not _permitted(src):
+        if not _within(src, allowed):
             results.append({'path': raw, 'error': 'Not permitted'})
             continue
         if not os.path.exists(src):
@@ -612,27 +583,3 @@ def file_import(request):
             results.append({'path': raw, 'error': str(e)})
 
     return JsonResponse({'results': results})
-
-
-def _fmt_size(b):
-    if not b:
-        return '0 B'
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if b < 1024:
-            return f'{b:.1f} {unit}'
-        b /= 1024
-    return f'{b:.1f} PB'
-
-
-def _fmt_speed(bps):
-    return _fmt_size(bps) + '/s'
-
-
-def _fmt_eta(seconds):
-    if not seconds or seconds < 0 or seconds > 8640000:
-        return '∞'
-    if seconds >= 3600:
-        return f'{seconds // 3600}h {(seconds % 3600) // 60}m'
-    if seconds >= 60:
-        return f'{seconds // 60}m {seconds % 60}s'
-    return f'{seconds}s'

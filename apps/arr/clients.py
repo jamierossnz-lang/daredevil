@@ -277,14 +277,8 @@ class SonarrClient(_MediaArrClient):
                         includeImages=str(include_images).lower(),
                         includeEpisodeFile=str(include_episode_file).lower()) or []
 
-    def episodes_by_id(self, episode_ids):
-        return self.get('/episode', episodeIds=list(episode_ids)) or []
-
     def set_episodes_monitored(self, episode_ids, monitored=True):
         return self.put('/episode/monitor', {'episodeIds': list(episode_ids), 'monitored': monitored})
-
-    def episode_files(self, series_id):
-        return self.get('/episodefile', seriesId=series_id) or []
 
     def delete_episode_file(self, file_id):
         return self.delete(f'/episodefile/{file_id}')
@@ -322,9 +316,6 @@ class RadarrClient(_MediaArrClient):
         return self.delete(f'/movie/{movie_id}', params={
             'deleteFiles': str(delete_files).lower(), 'addImportExclusion': 'false',
         }, timeout=60)
-
-    def movie_files(self, movie_id):
-        return self.get('/moviefile', movieId=movie_id) or []
 
     def delete_movie_file(self, file_id):
         return self.delete(f'/moviefile/{file_id}')

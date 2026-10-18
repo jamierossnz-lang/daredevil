@@ -12,11 +12,11 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from .client import get_plex, movie_to_dict, show_to_dict, item_to_dict, _file_size, _fmt_bytes
-from .utils import get_disk_usage
+from .client import (
+    extract_tmdb_id, get_plex, item_to_dict, movie_to_dict, plex_credentials, show_to_dict, _file_size, _fmt_bytes,
+)
 
 log = logging.getLogger('daredevil.plex')
-
 
 
 _30_DAYS  = timedelta(days=30)
@@ -182,7 +182,6 @@ def library(request):
         'configured': True,
         **data,
         'candidates': candidates,
-        'drives': get_disk_usage(),
         'plex_web_url': _plex_web_url(request),
     })
 
@@ -274,7 +273,6 @@ def _build_candidates(items, now):
     )
 
     categories = []
-    from .client import _fmt_bytes
 
     def _add(label, description, color, icon, cat_items):
         if cat_items:
@@ -311,7 +309,6 @@ def _delete_via_arr(item, item_type, tmdb_id):
     """
     from apps.arr.clients import ArrError
     from apps.arr.services import invalidate_library, is_configured, library_index, radarr, sonarr
-    from .client import extract_tmdb_id
 
     try:
         if item_type == 'movie' and tmdb_id and is_configured('radarr'):
@@ -363,8 +360,6 @@ def plex_delete(request, rating_key):
     them (see _delete_via_arr); anything else has its files removed
     directly. Either way Plex then rescans so the entry disappears.
     """
-    from .client import extract_tmdb_id
-
     plex = get_plex()
     if not plex:
         return JsonResponse({'error': 'Plex not connected'}, status=503)
@@ -481,14 +476,11 @@ _thumb_local = threading.local()
 
 def thumb(request):
     """Proxy Plex thumbnails — keeps token server-side and handles Docker networking."""
-    from .client import _plex_setting
-
     path = request.GET.get('path', '')
     if not path or not path.startswith('/'):
         return HttpResponse(status=400)
 
-    plex_url = _plex_setting('PLEX_URL', 'PLEX_URL')
-    plex_token = _plex_setting('PLEX_TOKEN', 'PLEX_TOKEN')
+    plex_url, plex_token = plex_credentials()
     if not plex_url or not plex_token:
         return HttpResponse(status=503)
 

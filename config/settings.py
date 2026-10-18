@@ -39,8 +39,6 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'allauth.mfa',
-    'rest_framework',
-    'django_htmx',
     'django_celery_beat',
     'django_celery_results',
     'apps.accounts',
@@ -65,7 +63,6 @@ MIDDLEWARE = [
     'apps.accounts.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django_htmx.middleware.HtmxMiddleware',
 ]
 
 SITE_ID = 1
@@ -183,11 +180,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -195,7 +188,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p'
-
 
 # qBittorrent Web UI
 QBITTORRENT_HOST = os.environ.get('QBITTORRENT_HOST', 'localhost')
@@ -279,10 +271,4 @@ LOGGING = {
             'propagate': False,
         },
     },
-}
-
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 50,
 }

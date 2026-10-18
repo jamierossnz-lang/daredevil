@@ -51,6 +51,35 @@ def _phase(record, torrent):
     return 'downloading', 'Downloading'
 
 
+def queue_entry(q):
+    """One queue record → the progress badge the show and movie pages put
+    next to an episode or movie that's downloading."""
+    size = q.get('size') or 0
+    sizeleft = q.get('sizeleft') or 0
+    state = q.get('trackedDownloadState') or ''
+    status = (q.get('status') or '').lower()
+    if state in ('importPending', 'importing'):
+        label = 'Importing'
+    elif q.get('trackedDownloadStatus') in ('warning', 'error') or status in ('warning', 'failed'):
+        label = 'Needs attention'
+    elif status == 'paused':
+        label = 'Paused'
+    elif status in ('queued', 'delay'):
+        label = 'Queued'
+    else:
+        label = 'Downloading'
+    return {
+        'queue_id': q.get('id'),
+        'progress': round((size - sizeleft) * 100 / size, 1) if size else 0,
+        'label': label,
+        'timeleft': q.get('timeleft') or '',
+        'release': q.get('title') or '',
+        'quality': ((q.get('quality') or {}).get('quality') or {}).get('name', ''),
+        'warning': label == 'Needs attention',
+        'messages': [m for sm in q.get('statusMessages') or [] for m in sm.get('messages') or []],
+    }
+
+
 def _messages(record):
     out = []
     for sm in record.get('statusMessages') or []:
@@ -262,13 +291,3 @@ def _add_record(groups, app, r, torrents):
     added = parse_dt(r.get('added'))
     if added:
         g['added_dt'] = added.isoformat()
-
-
-def queue_summary():
-    """Cheap counts for the dashboard / nav badges."""
-    items, _ = build_queue()
-    return {
-        'total': len(items),
-        'downloading': sum(1 for i in items if i['phase'] in ('downloading', 'stalled', 'queued')),
-        'attention': sum(1 for i in items if i['phase'] in ('warning', 'failed')),
-    }

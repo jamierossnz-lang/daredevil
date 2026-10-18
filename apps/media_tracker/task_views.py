@@ -1,5 +1,5 @@
 import json
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
@@ -89,7 +89,6 @@ def _dashboard_context():
 
 def tasks_dashboard(request):
     """Moved to App Settings → Background Tasks."""
-    from django.shortcuts import redirect
     return redirect('/settings/#tasks')
 
 
@@ -129,11 +128,10 @@ def recent_results_partial(request):
 
 
 def _annotate_recent(qs):
-    import json as _json
     rows = []
     for r in qs:
         try:
-            val = _json.loads(r.result) if r.result else None
+            val = json.loads(r.result) if r.result else None
         except Exception:
             val = r.result
 
@@ -203,16 +201,10 @@ def schedule_delete(request, pk):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _dispatch(task_name):
-    from apps.media_tracker.tasks import check_storage
-    from apps.discover.tasks import generate_recommendations, generate_anticipated
-    from apps.arr.tasks import import_library_to_arr
-    mapping = {
-        'check_storage':            check_storage,
-        'generate_recommendations': generate_recommendations,
-        'generate_anticipated':     generate_anticipated,
-        'import_library_to_arr':    import_library_to_arr,
-    }
-    return mapping[task_name].delay()
+    """Queue a TASK_REGISTRY task by its Celery name (each @shared_task is
+    registered under the same name as its registry key)."""
+    from config.celery import app
+    return app.send_task(task_name)
 
 
 def _describe_schedule(beat):

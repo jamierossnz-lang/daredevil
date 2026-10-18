@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils import timezone
 
 # LEGACY — Sonarr and Radarr are the library now (apps.arr). These tables are
 # no longer read or written by the app; they're kept only as the source for
@@ -46,22 +45,6 @@ class TVShow(models.Model):
     def __str__(self):
         return self.name
 
-    @property
-    def poster_url(self):
-        if self.poster_path:
-            return f'https://image.tmdb.org/t/p/w500{self.poster_path}'
-        return None
-
-    @property
-    def backdrop_url(self):
-        if self.backdrop_path:
-            return f'https://image.tmdb.org/t/p/w1280{self.backdrop_path}'
-        return None
-
-    @property
-    def is_ongoing(self):
-        return self.status in (self.Status.RETURNING, self.Status.IN_PRODUCTION)
-
 
 class Season(models.Model):
     show = models.ForeignKey(TVShow, on_delete=models.CASCADE, related_name='seasons')
@@ -79,12 +62,6 @@ class Season(models.Model):
 
     def __str__(self):
         return f'{self.show.name} - Season {self.season_number}'
-
-    @property
-    def poster_url(self):
-        if self.poster_path:
-            return f'https://image.tmdb.org/t/p/w300{self.poster_path}'
-        return None
 
 
 class Episode(models.Model):
@@ -120,28 +97,6 @@ class Episode(models.Model):
 
     def __str__(self):
         return f'{self.season.show.name} S{self.season.season_number:02d}E{self.episode_number:02d} - {self.name}'
-
-    @property
-    def has_aired(self):
-        from datetime import timedelta
-        if self.air_datetime:
-            return self.air_datetime + timedelta(hours=1) <= timezone.now()
-        if self.air_date:
-            return self.air_date < timezone.localdate()  # next day in NZT
-        return False
-
-    @property
-    def air_datetime_local(self):
-        """air_datetime converted to the configured local timezone (NZT)."""
-        if self.air_datetime:
-            return timezone.localtime(self.air_datetime)
-        return None
-
-    @property
-    def still_url(self):
-        if self.still_path:
-            return f'https://image.tmdb.org/t/p/w300{self.still_path}'
-        return None
 
 
 class Movie(models.Model):
@@ -180,25 +135,6 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.title
-
-    @property
-    def poster_url(self):
-        if self.poster_path:
-            return f'https://image.tmdb.org/t/p/w500{self.poster_path}'
-        return None
-
-    @property
-    def backdrop_url(self):
-        if self.backdrop_path:
-            return f'https://image.tmdb.org/t/p/w1280{self.backdrop_path}'
-        return None
-
-    @property
-    def is_digitally_available(self):
-        """True if the known/estimated digital release date has passed."""
-        if self.digital_release_date:
-            return self.digital_release_date <= timezone.now().date()
-        return False
 
 
 class QualityProfile(models.Model):

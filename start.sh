@@ -15,7 +15,7 @@ if redis-cli ping >/dev/null 2>&1; then
          --scheduler django_celery_beat.schedulers:DatabaseScheduler
   echo "    Celery logs: celery-worker.log / celery-beat.log"
 else
-  echo "⚠️   Redis not found — background tasks (episode sync, auto-download) disabled."
+  echo "⚠️   Redis not found — background tasks (storage alerts, For You, cache warming) disabled."
   echo "    Install Redis and rerun to enable: brew install redis && brew services start redis"
 fi
 
