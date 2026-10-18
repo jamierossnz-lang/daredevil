@@ -12,4 +12,5 @@ urlpatterns = [
     path('notifications/', include('apps.notifications.urls')),
     path('activity/', include('apps.events.urls')),
     path('foryou/', include('apps.discover.urls')),
+    path('calendar/', include('apps.calendar.urls')),
 ]

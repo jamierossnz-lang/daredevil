@@ -7,9 +7,10 @@ from django.contrib.auth.views import redirect_to_login
 # it's exposed beyond the LAN. Everything requires a login except: allauth's
 # own login/logout/password-reset views, Django admin (has its own auth),
 # static files (defensive — WhiteNoise already serves these before this
-# middleware runs in the normal case), and the Sonarr/Radarr webhook
-# receiver, which authenticates with its own per-app secret in the URL.
-EXEMPT_PREFIXES = ('/accounts/', '/admin/', '/static/', '/arr/webhook/')
+# middleware runs in the normal case), the Sonarr/Radarr webhook receiver,
+# which authenticates with its own per-app secret in the URL, and the
+# calendar feed, likewise (calendar apps can't log in).
+EXEMPT_PREFIXES = ('/accounts/', '/admin/', '/static/', '/arr/webhook/', '/calendar/feed/')
 
 
 class LoginRequiredMiddleware:

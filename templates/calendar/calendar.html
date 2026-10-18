@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block page_title %}Calendar{% endblock %}
+
+{% block header_actions %}
+<button type="button" onclick="window.dispatchEvent(new CustomEvent('dd-subscribe'))"
+        class="flex items-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
+  <i class="fa-solid fa-calendar-plus"></i><span class="hidden sm:inline">Subscribe</span>
+</button>
+{% endblock %}
+
+{% block content %}
+{% if not sonarr_ready and not radarr_ready %}
+<div class="max-w-xl mx-auto glass rounded-2xl p-8 text-center mt-8">
+  <i class="fa-solid fa-calendar-days text-4xl text-brand-400 mb-4 block"></i>
+  <h2 class="text-lg font-semibold text-white mb-2">Connect Sonarr or Radarr</h2>
+  <p class="text-sm text-gray-400 mb-6">The calendar shows when episodes air and movies come out, straight from Sonarr and Radarr.</p>
+  <a href="{% url 'app_settings' %}#sonarr" class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium">
+    <i class="fa-solid fa-plug"></i> Settings
+  </a>
+</div>
+{% else %}
+<div x-data="calendarPage('{{ feed_path|escapejs }}')" x-init="init()" @dd-subscribe.window="subscribeOpen = true"
+     @keydown.escape.window="selected = null; subscribeOpen = false">
+
+  <!-- Toolbar: phones get the Month / List switch on a row of its own -->
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <div class="flex items-center gap-1 flex-1 min-w-0">
+      <button @click="shift(-1)" class="flex-shrink-0 w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 flex items-center justify-center" aria-label="Previous month">
+        <i class="fa-solid fa-chevron-left text-sm"></i>
+      </button>
+      <button @click="shift(1)" class="flex-shrink-0 w-10 h-10 sm:w-9 sm:h-9 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 flex items-center justify-center" aria-label="Next month">
+        <i class="fa-solid fa-chevron-right text-sm"></i>
+      </button>
+      <h2 class="ml-2 text-lg font-semibold text-gray-100 truncate" x-text="monthLabel()"></h2>
+    </div>
+    <button @click="goToday()" class="flex-shrink-0 px-3 py-2 sm:py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 text-sm font-medium">Today</button>
+    <div class="flex w-full sm:w-auto rounded-xl bg-surface-800 p-1">
+      <template x-for="v in [['month', 'Month', 'fa-calendar-days'], ['agenda', 'List', 'fa-list']]" :key="v[0]">
+        <button @click="setView(v[0])" :class="view === v[0] ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                class="flex-1 sm:flex-none justify-center px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
+          <i class="fa-solid text-xs" :class="v[2]"></i><span x-text="v[1]"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex gap-2 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+    <button @click="toggle('tv')" :class="filters.tv ? 'bg-brand-600/25 border-brand-500/50 text-brand-200' : 'bg-surface-800 border-surface-700 text-gray-500'"
+            class="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap">
+      <i class="fa-solid fa-tv"></i> TV episodes
+    </button>
+    <button @click="toggle('movies')" :class="filters.movies ? 'bg-cyan-600/25 border-cyan-500/50 text-cyan-200' : 'bg-surface-800 border-surface-700 text-gray-500'"
+            class="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap">
+      <i class="fa-solid fa-film"></i> Movie releases
+    </button>
+    <button @click="toggle('monitored')" :class="filters.monitored ? 'bg-green-600/20 border-green-500/40 text-green-300' : 'bg-surface-800 border-surface-700 text-gray-500'"
+            class="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap">
+      <i class="fa-solid fa-bookmark"></i> Monitored only
+    </button>
+    <span class="flex-shrink-0 flex items-center gap-3 px-2 text-[11px] text-gray-500 whitespace-nowrap">
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>In library</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span>Missing</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-400"></span>Coming up</span>
+    </span>
+  </div>
+
+  <template x-for="err in errors" :key="err">
+    <div class="glass rounded-2xl p-3 border border-red-500/30 mb-3 text-sm text-red-300"><i class="fa-solid fa-circle-exclamation mr-2"></i><span x-text="err"></span></div>
+  </template>
+
+  <!-- ── Month ── -->
+  <div x-show="view === 'month'" class="relative">
+    <div class="glass rounded-2xl overflow-hidden">
+      <div class="grid grid-cols-7 border-b border-white/5">
+        <template x-for="d in weekdayLabels()" :key="d">
+          <div class="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500" x-text="d"></div>
+        </template>
+      </div>
+      <div class="grid grid-cols-7">
+        <template x-for="cell in gridDays()" :key="cell.iso">
+          <button type="button" @click="pickDay(cell)"
+                  :class="[cell.inMonth ? '' : 'opacity-40', selectedDay === cell.iso ? 'bg-brand-600/15' : 'hover:bg-white/[0.03]']"
+                  class="relative text-left border-b border-r border-white/5 min-h-[64px] sm:min-h-[112px] p-1 sm:p-1.5 flex flex-col gap-1 overflow-hidden">
+            <span class="self-start w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs font-semibold"
+                  :class="cell.iso === todayIso ? 'bg-brand-600 text-white' : 'text-gray-400'" x-text="cell.date.getDate()"></span>
+            <!-- Phones: dots. Larger screens: labelled chips. -->
+            <span class="flex flex-wrap gap-0.5 sm:hidden">
+              <template x-for="e in eventsOn(cell.iso).slice(0, 6)" :key="e.uid">
+                <span class="w-1.5 h-1.5 rounded-full" :class="dotClass(e)"></span>
+              </template>
+            </span>
+            <template x-for="e in eventsOn(cell.iso).slice(0, 3)" :key="e.uid">
+              <span class="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] leading-tight truncate"
+                    :class="[e.kind === 'episode' ? 'bg-brand-600/20 text-brand-100' : 'bg-cyan-600/20 text-cyan-100', e.status === 'unmonitored' ? 'opacity-50' : '']"
+                    @click.stop="selected = e" :title="`${e.title} — ${e.subtitle}`">
+                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="dotClass(e)"></span>
+                <span class="truncate" x-text="e.kind === 'episode' ? `${e.title} ${e.subtitle.split(' · ')[0]}` : e.title"></span>
+              </span>
+            </template>
+            <span x-show="eventsOn(cell.iso).length > 3" class="hidden sm:block text-[11px] text-gray-500 px-1" x-text="`+${eventsOn(cell.iso).length - 3} more`"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- The picked day's events (always on phones, where cells only show dots) -->
+    <div x-show="selectedDay" x-cloak class="mt-4">
+      <h3 class="text-sm font-semibold text-gray-300 mb-2" x-text="dayLabel(selectedDay)"></h3>
+      <div class="glass rounded-2xl divide-y divide-white/5 overflow-hidden">
+        <template x-for="e in eventsOn(selectedDay)" :key="e.uid">
+          <div>{% include "calendar/_event_row.html" %}</div>
+        </template>
+        <p x-show="!eventsOn(selectedDay).length" class="px-4 py-6 text-sm text-gray-500 text-center">Nothing on this day.</p>
+      </div>
+    </div>
+    <div x-show="loading" class="absolute inset-0 flex items-start justify-center pt-24 pointer-events-none">
+      <i class="fa-solid fa-spinner fa-spin text-2xl text-brand-400"></i>
+    </div>
+  </div>
+
+  <!-- ── Agenda ── -->
+  <div x-show="view === 'agenda'" x-cloak>
+    <div x-show="loading && !events.length" class="py-16 text-center text-gray-500 text-sm"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</div>
+    <template x-for="group in agenda()" :key="group.day">
+      <section class="mb-5" :id="`day-${group.day}`" style="scroll-margin-top: calc(4.25rem + env(safe-area-inset-top, 0px))">
+        <h3 class="sticky z-10 -mx-4 px-4 sm:mx-0 sm:px-1 py-2 text-sm font-semibold bg-surface-900/90 backdrop-blur"
+            style="top: calc(3.75rem + env(safe-area-inset-top, 0px))"
+            :class="group.day === todayIso ? 'text-brand-300' : 'text-gray-300'" x-text="dayLabel(group.day)"></h3>
+        <div class="glass rounded-2xl divide-y divide-white/5 overflow-hidden">
+          <template x-for="e in group.events" :key="e.uid">
+            <div>{% include "calendar/_event_row.html" %}</div>
+          </template>
+        </div>
+      </section>
+    </template>
+    <div x-show="!loading && !agenda().length" class="glass rounded-2xl p-12 text-center">
+      <i class="fa-solid fa-calendar-xmark text-4xl text-gray-700 mb-3 block"></i>
+      <p class="text-gray-400 text-sm">Nothing airing or releasing this month</p>
+      <p class="text-gray-600 text-xs mt-1">Shows and movies in Sonarr and Radarr appear here.</p>
+    </div>
+  </div>
+
+  <!-- ── Event sheet ── -->
+  <div x-show="selected" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="selected = null"></div>
+    <div class="relative glass !bg-surface-800/95 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-5" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+      <template x-if="selected">
+        <div>
+          <div class="flex gap-4 mb-4">
+            <img x-show="selected.poster" :src="selected.poster" alt="" class="w-20 aspect-[2/3] rounded-xl object-cover bg-surface-700 flex-shrink-0">
+            <div class="min-w-0 flex-1">
+              <p class="text-[11px] font-semibold uppercase tracking-wider" :class="selected.kind === 'episode' ? 'text-brand-300' : 'text-cyan-300'"
+                 x-text="selected.kind === 'episode' ? 'TV episode' : 'Movie release'"></p>
+              <h3 class="text-lg font-bold text-white leading-tight" x-text="selected.title"></h3>
+              <p class="text-sm text-gray-300 mt-0.5" x-text="selected.subtitle"></p>
+              <p class="text-xs text-gray-500 mt-1" x-text="`${dayLabel(selected.day)}${selected.time ? ' · ' + selected.time : ''}${selected.network ? ' · ' + selected.network : ''}`"></p>
+              <span class="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded-full text-[11px] font-semibold" :class="statusClass(selected)">
+                <span class="w-1.5 h-1.5 rounded-full" :class="dotClass(selected)"></span><span x-text="statusLabel(selected)"></span>
+              </span>
+            </div>
+          </div>
+          <p x-show="selected.overview" class="text-sm text-gray-400 line-clamp-4 mb-4" x-text="selected.overview"></p>
+          <div class="grid grid-cols-2 gap-2">
+            <a :href="googleEventUrl(selected)" target="_blank" rel="noopener"
+               class="flex items-center justify-center gap-2 py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-100 text-sm font-medium">
+              <i class="fa-brands fa-google"></i> Google
+            </a>
+            <a :href="eventIcsUrl(selected)"
+               class="flex items-center justify-center gap-2 py-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-100 text-sm font-medium">
+              <i class="fa-brands fa-apple"></i> Apple / .ics
+            </a>
+            <a :href="selected.link" class="col-span-2 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold">
+              <i class="fa-solid" :class="selected.kind === 'episode' ? 'fa-tv' : 'fa-film'"></i>
+              <span x-text="selected.kind === 'episode' ? 'Open show' : 'Open movie'"></span>
+            </a>
+          </div>
+          <button @click="selected = null" class="w-full mt-2 py-2 text-gray-500 hover:text-gray-300 text-sm">Close</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ── Subscribe sheet ── -->
+  <div x-show="subscribeOpen" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="subscribeOpen = false"></div>
+    <div class="relative glass !bg-surface-800/95 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-5 max-h-[90vh] overflow-y-auto" style="padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px))">
+      <div class="flex items-start justify-between gap-3 mb-1">
+        <h3 class="text-lg font-bold text-white">Add to your calendar</h3>
+        <button @click="subscribeOpen = false" class="w-9 h-9 -mt-1 -mr-1 rounded-xl text-gray-400 hover:text-white hover:bg-surface-700 flex items-center justify-center" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-sm text-gray-400 mb-4">Subscribe once and new episodes and releases show up on their own — your calendar app checks this feed every few hours.</p>
+
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Include</p>
+      <div class="flex gap-2 mb-4">
+        <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-900/60 border border-white/5 text-sm text-gray-200 cursor-pointer">
+          <input type="checkbox" x-model="feedTv" class="accent-brand-500"> TV episodes
+        </label>
+        <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-900/60 border border-white/5 text-sm text-gray-200 cursor-pointer">
+          <input type="checkbox" x-model="feedMovies" class="accent-cyan-500"> Movies
+        </label>
+      </div>
+
+      <div class="space-y-2">
+        <a :href="webcalUrl()" class="flex items-center gap-3 p-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-100">
+          <span class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center flex-shrink-0"><i class="fa-brands fa-apple text-xl"></i></span>
+          <span class="min-w-0"><span class="block text-sm font-semibold">Apple Calendar</span><span class="block text-xs text-gray-400">iPhone, iPad and Mac</span></span>
+          <i class="fa-solid fa-chevron-right ml-auto text-gray-500 text-xs"></i>
+        </a>
+        <a :href="googleSubscribeUrl()" target="_blank" rel="noopener" class="flex items-center gap-3 p-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-100">
+          <span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0"><i class="fa-brands fa-google text-xl text-[#4285f4]"></i></span>
+          <span class="min-w-0"><span class="block text-sm font-semibold">Google Calendar</span><span class="block text-xs text-gray-400">Opens Google Calendar's "From URL"</span></span>
+          <i class="fa-solid fa-chevron-right ml-auto text-gray-500 text-xs"></i>
+        </a>
+      </div>
+      <p x-show="privateHost" class="mt-3 text-xs text-yellow-300/90 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i>You're on a local address. Google fetches feeds from its own servers, so open this page through your public URL (e.g. the Cloudflare tunnel) before subscribing in Google Calendar. Apple Calendar on your phone or Mac can use this address, but only updates while you're on the same network.
+      </p>
+
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mt-5 mb-2">Feed address</p>
+      <div class="flex items-center gap-2 bg-surface-900/60 rounded-xl border border-white/5 pl-3 pr-1 py-1">
+        <code class="flex-1 min-w-0 text-xs text-gray-300 font-mono truncate" x-text="feedUrl()"></code>
+        <button @click="copy()" class="px-3 py-2 rounded-lg text-xs text-gray-300 hover:bg-surface-700 flex-shrink-0">
+          <i class="fa-regular" :class="copied ? 'fa-circle-check text-green-400' : 'fa-copy'"></i> <span x-text="copied ? 'Copied' : 'Copy'"></span>
+        </button>
+      </div>
+      <p class="text-[11px] text-gray-500 mt-2">Anyone with this address can see your calendar (titles and dates only).
+        <button @click="resetFeed()" class="text-red-400 hover:underline">Make a new address</button> if it gets out — subscriptions to the old one stop updating.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function calendarPage(feedPath) {
+  const pad = n => String(n).padStart(2, '0');
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('dd-calendar') || '{}'); } catch (e) {}
+  return {
+    view: saved.view || (matchMedia('(min-width: 768px)').matches ? 'month' : 'agenda'),
+    cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    todayIso: iso(new Date()),
+    filters: { tv: true, movies: true, monitored: false, ...(saved.filters || {}) },
+    events: [], byDay: {}, loading: false, errors: [],
+    selected: null, selectedDay: null,
+    subscribeOpen: false, feedPath, feedTv: true, feedMovies: true, copied: false,
+    privateHost: /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|\.local$/.test(location.hostname),
+
+    init() { this.load(); },
+    persist() {
+      try { localStorage.setItem('dd-calendar', JSON.stringify({ view: this.view, filters: this.filters })); } catch (e) {}
+    },
+    monthLabel() { return this.cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); },
+    weekdayLabels() {
+      // 1 Jan 2024 was a Monday — weeks start on Monday
+      return [...Array(7)].map((_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' }));
+    },
+    gridDays() {
+      const y = this.cursor.getFullYear(), m = this.cursor.getMonth();
+      const offset = (new Date(y, m, 1).getDay() + 6) % 7;  // weeks start on Monday
+      const days = new Date(y, m + 1, 0).getDate();
+      const cells = Math.ceil((offset + days) / 7) * 7;
+      return [...Array(cells)].map((_, i) => {
+        const date = new Date(y, m, 1 - offset + i);
+        return { date, iso: iso(date), inMonth: date.getMonth() === m };
+      });
+    },
+    range() {
+      if (this.view === 'month') { const g = this.gridDays(); return [g[0].iso, g[g.length - 1].iso]; }
+      const y = this.cursor.getFullYear(), m = this.cursor.getMonth();
+      return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
+    },
+    async load() {
+      this.loading = true;
+      const [start, end] = this.range();
+      const p = new URLSearchParams({ start, end, tv: this.filters.tv ? 1 : 0, movies: this.filters.movies ? 1 : 0, monitored: this.filters.monitored ? 1 : 0 });
+      try {
+        const d = await (await fetch(`{% url 'calendar_events' %}?${p}`)).json();
+        this.events = d.events || [];
+        this.errors = d.ok ? (d.errors || []) : [d.error || 'Could not load the calendar'];
+      } catch (e) {
+        this.events = []; this.errors = ['Could not load the calendar'];
+      }
+      const byDay = {};
+      this.events.forEach(e => (byDay[e.day] = byDay[e.day] || []).push(e));
+      this.byDay = byDay;
+      this.loading = false;
+      if (this.view === 'agenda' && this.cursor.getMonth() === new Date().getMonth()) {
+        this.$nextTick(() => {
+          const next = Object.keys(byDay).sort().find(day => day >= this.todayIso);
+          const el = next && document.getElementById(`day-${next}`);
+          if (el && next !== Object.keys(byDay).sort()[0]) el.scrollIntoView({ block: 'start' });
+        });
+      }
+    },
+    eventsOn(day) { return this.byDay[day] || []; },
+    agenda() { return Object.keys(this.byDay).sort().map(day => ({ day, events: this.byDay[day] })); },
+    shift(months) {
+      this.cursor = new Date(this.cursor.getFullYear(), this.cursor.getMonth() + months, 1);
+      this.selectedDay = null;
+      this.load();
+    },
+    goToday() {
+      this.cursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      this.selectedDay = this.view === 'month' ? this.todayIso : null;
+      this.load();
+    },
+    setView(v) { this.view = v; this.persist(); this.load(); },
+    toggle(key) { this.filters[key] = !this.filters[key]; this.persist(); this.load(); },
+    pickDay(cell) {
+      if (!cell.inMonth) { this.cursor = new Date(cell.date.getFullYear(), cell.date.getMonth(), 1); this.selectedDay = cell.iso; this.load(); return; }
+      this.selectedDay = this.selectedDay === cell.iso ? null : cell.iso;
+    },
+    dayLabel(day) {
+      if (!day) return '';
+      const d = fromIso(day), today = fromIso(this.todayIso);
+      const diff = Math.round((d - today) / 86400000);
+      const date = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      return diff === 0 ? `Today · ${date}` : diff === 1 ? `Tomorrow · ${date}` : diff === -1 ? `Yesterday · ${date}` : date;
+    },
+    dotClass(e) {
+      return { downloaded: 'bg-green-500', missing: 'bg-orange-500', upcoming: e.kind === 'episode' ? 'bg-brand-400' : 'bg-cyan-400', unmonitored: 'bg-gray-600' }[e.status];
+    },
+    statusLabel(e) { return { downloaded: 'In your library', missing: 'Missing', upcoming: 'Coming up', unmonitored: 'Not monitored' }[e.status]; },
+    statusClass(e) {
+      return { downloaded: 'bg-green-500/15 text-green-300', missing: 'bg-orange-500/15 text-orange-300',
+               upcoming: 'bg-brand-500/15 text-brand-200', unmonitored: 'bg-gray-500/15 text-gray-400' }[e.status];
+    },
+
+    // ── One event → Google / Apple ──
+    googleEventUrl(e) {
+      const stamp = s => new Date(s).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      const dates = e.all_day ? `${e.start.replace(/-/g, '')}/${e.end.replace(/-/g, '')}` : `${stamp(e.start)}/${stamp(e.end)}`;
+      const p = new URLSearchParams({
+        action: 'TEMPLATE', text: e.kind === 'episode' ? `${e.title} — ${e.subtitle}` : `${e.title} · ${e.subtitle}`,
+        dates, details: [e.subtitle, e.network, location.origin + e.link].filter(Boolean).join('\n'),
+      });
+      return `https://calendar.google.com/calendar/render?${p}`;
+    },
+    eventIcsUrl(e) { return `{% url 'calendar_event_ics' %}?${new URLSearchParams({ uid: e.uid, day: e.day })}`; },
+
+    // ── Whole feed ──
+    feedUrl() {
+      const p = new URLSearchParams();
+      if (!this.feedTv) p.set('tv', '0');
+      if (!this.feedMovies) p.set('movies', '0');
+      return location.origin + this.feedPath + (p.toString() ? `?${p}` : '');
+    },
+    webcalUrl() { return this.feedUrl().replace(/^https?:/, 'webcal:'); },
+    googleSubscribeUrl() { return `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(this.webcalUrl())}`; },
+    async copy() {
+      try { await navigator.clipboard.writeText(this.feedUrl()); this.copied = true; setTimeout(() => this.copied = false, 2000); }
+      catch (e) { ddToast('Copy failed — select the address and copy it yourself', 'error'); }
+    },
+    async resetFeed() {
+      if (!confirm('Make a new feed address? Calendars subscribed to the current one stop updating until you subscribe again.')) return;
+      const d = await ddPost('{% url "calendar_feed_reset" %}', {});
+      if (!d.ok) return ddToast(d.error || 'Failed', 'error');
+      this.feedPath = d.feed_path;
+      ddToast('New address ready — subscribe again with it');
+    },
+  };
+}
+</script>
+{% endblock %}

@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.plex',
     'apps.notifications',
     'apps.discover',
+    'apps.calendar',
 ]
 
 MIDDLEWARE = [

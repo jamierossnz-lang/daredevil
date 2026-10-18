@@ -55,7 +55,7 @@
       <span class="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center"><i class="fa-solid fa-satellite-dish text-purple-400 text-xs"></i></span>
       Upcoming Episodes
     </h2>
-    <a href="{% url 'download_queue' %}#waiting-tv" class="text-xs text-gray-500 hover:text-purple-400 transition-colors">Calendar →</a>
+    <a href="{% url 'calendar' %}" class="text-xs text-gray-500 hover:text-purple-400 transition-colors py-2 -my-2">Calendar →</a>
   </div>
   <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
     {% for ep in upcoming_episodes %}
