@@ -227,6 +227,7 @@ function prowlarrTab() {
     ...arrConnection('prowlarr'),
     testResults: {},
     dialog: null, def: null, defForm: {}, values: {}, showAdvanced: false, defMsg: '', defMsgOk: true, canForce: false,
+    defCloudflare: false, lastDefAction: 'test', cloudflare: {}, flare: {}, flareUrl: '',
     catalogue: [], catalogueLoading: false, catalogueError: '', catalogueQuery: '', catalogueProtocol: '', cataloguePrivacy: '',
     catalogueCategory: 'tvmovies', catalogueLanguage: '',
     app(kind) { return (this.data.applications || []).find(a => a.implementation.toLowerCase() === kind); },
@@ -254,7 +255,34 @@ function prowlarrTab() {
       const d = await ddPost(`/arr/prowlarr/indexers/${ix.id}/test/`, {});
       this.busy = { ...this.busy, ['test' + ix.id]: false };
       this.testResults = { ...this.testResults, [ix.id]: d.ok ? '' : d.error };
+      this.cloudflare = { ...this.cloudflare, [ix.id]: !d.ok && !!d.cloudflare };
       ddToast(d.ok ? `${ix.name} OK` : `${ix.name}: ${d.error}`, d.ok ? 'ok' : 'error');
+    },
+
+    // ── FlareSolverr ──
+    async loadFlare() {
+      try {
+        this.flare = await (await fetch('/arr/prowlarr/flaresolverr/')).json();
+        this.flareUrl = this.flareUrl || this.flare.url;
+      } catch (e) { this.flare = { unreachable: "Couldn't ask Daredevil about FlareSolverr" }; }
+    },
+    async connectFlare() {
+      this.busy = { ...this.busy, flare: true };
+      const d = await ddPost('/arr/prowlarr/flaresolverr/', { url: this.flareUrl });
+      this.busy = { ...this.busy, flare: false };
+      if (d.url) this.flare = d;
+      ddToast(d.ok ? 'FlareSolverr connected to Prowlarr' : (d.error || 'Failed'), d.ok ? 'ok' : 'error');
+    },
+    async setFlare(ix, enabled) {
+      this.busy = { ...this.busy, ['fs' + ix.id]: true };
+      const d = await ddPost(`/arr/prowlarr/indexers/${ix.id}/flaresolverr/`, { enabled });
+      this.busy = { ...this.busy, ['fs' + ix.id]: false };
+      if (!d.ok) return ddToast(`${ix.name}: ${d.error}`, 'error');
+      ix.flaresolverr = enabled;
+      this.testResults = { ...this.testResults, [ix.id]: '' };
+      this.cloudflare = { ...this.cloudflare, [ix.id]: false };
+      ddToast(enabled ? `${ix.name} now goes through FlareSolverr` : `${ix.name} no longer uses FlareSolverr`);
+      this.loadFlare();
     },
     async testAll() {
       this.busy = { ...this.busy, testAll: true };
@@ -314,7 +342,9 @@ function prowlarrTab() {
     },
     _openForm(def) {
       this.def = def;
-      this.defForm = { name: def.name, enable: def.enable !== false, priority: def.priority || 25, app_profile_id: def.app_profile_id };
+      this.defForm = { name: def.name, enable: def.enable !== false, priority: def.priority || 25, app_profile_id: def.app_profile_id,
+                       flaresolverr: !!def.flaresolverr };
+      this.defCloudflare = false;
       const values = {};
       def.fields.forEach(f => { if (f.type !== 'info') values[f.name] = f.value ?? (f.type === 'checkbox' ? false : ''); });
       this.values = values;
@@ -337,13 +367,17 @@ function prowlarrTab() {
       return { id: this.def.id, key: this.def.key, ...this.defForm, values: this.values, save_disabled: saveDisabled };
     },
     async testDefinition() {
+      this.lastDefAction = 'test';
       this.busy = { ...this.busy, def: true };
       const d = await ddPost('/arr/prowlarr/indexers/test/', this._payload(false));
       this.busy = { ...this.busy, def: false };
       this.defMsgOk = d.ok;
       this.defMsg = d.ok ? 'Test passed' : d.error;
+      this.defCloudflare = !d.ok && !!d.cloudflare;
     },
+    retryDefinition() { return this.lastDefAction === 'test' ? this.testDefinition() : this.saveDefinition(false); },
     async saveDefinition(saveDisabled) {
+      this.lastDefAction = 'save';
       this.busy = { ...this.busy, def: true };
       const d = await ddPost('/arr/prowlarr/indexers/save/', this._payload(saveDisabled));
       this.busy = { ...this.busy, def: false };
@@ -351,6 +385,7 @@ function prowlarrTab() {
         this.defMsgOk = false;
         this.defMsg = d.error;
         this.canForce = !!d.can_save_disabled;
+        this.defCloudflare = !!d.cloudflare;
         return;
       }
       this.dialog = null;

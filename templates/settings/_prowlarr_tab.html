@@ -98,6 +98,40 @@
         </div>
       </div>
 
+      <!-- ── FlareSolverr ── -->
+      <div class="glass rounded-2xl p-6 max-w-3xl mx-auto" x-init="loadFlare()">
+        <div class="flex items-start gap-3 mb-4">
+          <span class="w-9 h-9 rounded-[10px] bg-orange-500 flex items-center justify-center text-white flex-shrink-0"><i class="fa-solid fa-shield-halved"></i></span>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-sm font-semibold text-gray-200">FlareSolverr</h2>
+            <p class="text-xs text-gray-500">Gets Prowlarr past Cloudflare's "checking your browser" page. Only the indexers you switch it on for go through it — it's slower, so leave it off for sites that work without it.</p>
+          </div>
+        </div>
+        <div class="space-y-1.5 mb-4 text-[13px]">
+          <p class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" :class="flare.ready ? 'bg-green-400' : 'bg-red-400'"></span>
+            <span x-show="flare.ready" class="text-gray-200" x-text="`Running${flare.version ? ' · v' + flare.version : ''}`"></span>
+            <span x-show="!flare.ready" class="text-red-300" x-text="flare.unreachable || 'Checking…'"></span>
+          </p>
+          <p class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" :class="flare.connected ? 'bg-green-400' : 'bg-gray-500'"></span>
+            <span x-show="flare.connected" class="text-gray-200"
+                  x-text="`Prowlarr uses it for ${flare.indexers?.length || 0} indexer${flare.indexers?.length === 1 ? '' : 's'}`"></span>
+            <span x-show="!flare.connected" class="text-gray-400">Not connected to Prowlarr yet</span>
+          </p>
+          <p x-show="flare.prowlarr_error" class="text-yellow-400/80 text-xs" x-text="flare.prowlarr_error"></p>
+        </div>
+        <label class="block text-xs text-gray-500 mb-1" for="flareUrl">Address (as Prowlarr reaches it)</label>
+        <div class="flex flex-wrap gap-2">
+          <input id="flareUrl" type="url" x-model="flareUrl" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="http://flaresolverr:8191"
+                 class="flex-1 min-w-[12rem] bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
+          <button @click="connectFlare()" :disabled="!!(busy.flare)" class="px-4 min-h-[44px] sm:min-h-0 sm:py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
+            <i class="fa-solid mr-1.5" :class="busy.flare ? 'fa-spinner fa-spin' : 'fa-link'"></i><span x-text="flare.connected ? 'Update' : 'Connect to Prowlarr'"></span>
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-600 mt-2">Then switch it on per indexer with <i class="fa-solid fa-shield-halved"></i> in the list below — or Daredevil offers it when a test is blocked by Cloudflare.</p>
+      </div>
+
       <!-- ── Indexers ── -->
       <div class="glass rounded-2xl p-6">
         <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -140,9 +174,14 @@
                     </button>
                   </td>
                   <td class="px-2 py-2">
-                    <p class="text-gray-100 font-medium" x-text="ix.name"></p>
+                    <p class="text-gray-100 font-medium"><span x-text="ix.name"></span>
+                      <span x-show="ix.flaresolverr" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-semibold">FlareSolverr</span></p>
                     <p class="text-[11px] text-red-400" x-show="ix.disabled_till" x-text="`Failing — paused until ${new Date(ix.disabled_till).toLocaleString()}`"></p>
                     <p class="text-[11px] text-red-300/80" x-show="testResults[ix.id]" x-text="testResults[ix.id]"></p>
+                    <button x-show="cloudflare[ix.id] && !ix.flaresolverr" @click="setFlare(ix, true)"
+                            class="mt-1 min-h-[44px] sm:min-h-0 text-[12px] font-semibold text-orange-300 hover:text-orange-200">
+                      <i class="fa-solid fa-shield-halved mr-1"></i>Blocked by Cloudflare — use FlareSolverr
+                    </button>
                   </td>
                   <td class="px-2 py-2 whitespace-nowrap">
                     <span class="text-[10px] px-1.5 py-0.5 rounded" :class="ix.protocol === 'torrent' ? 'bg-green-600/20 text-green-300' : 'bg-blue-600/20 text-blue-300'" x-text="ix.protocol"></span>
@@ -152,9 +191,13 @@
                   <td class="px-2 py-2 text-right text-gray-400 whitespace-nowrap" x-text="`${ix.queries} / ${ix.grabs}${ix.failed ? ' · ' + ix.failed + ' failed' : ''}`"></td>
                   <td class="px-2 py-2 text-right text-gray-500 whitespace-nowrap" x-text="ix.avg_ms ? `${ix.avg_ms} ms` : '—'"></td>
                   <td class="px-2 py-2 text-right whitespace-nowrap">
-                    <button @click="testOne(ix)" title="Test" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid text-xs" :class="busy['test' + ix.id] ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i></button>
-                    <button @click="openEdit(ix)" title="Edit" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-pen text-xs"></i></button>
-                    <button @click="remove(ix)" title="Delete" class="w-7 h-7 rounded-lg bg-surface-700 hover:bg-red-900/50 text-gray-300 hover:text-red-400"><i class="fa-solid fa-trash text-xs"></i></button>
+                    <button @click="setFlare(ix, !ix.flaresolverr)" :aria-pressed="String(!!ix.flaresolverr)" :aria-label="`FlareSolverr for ${ix.name}`"
+                            :title="ix.flaresolverr ? 'Goes through FlareSolverr — click to stop' : 'Send through FlareSolverr (sites behind Cloudflare)'"
+                            class="w-11 h-11 sm:w-7 sm:h-7 rounded-full sm:rounded-lg" :class="ix.flaresolverr ? 'bg-orange-500/25 text-orange-300' : 'bg-surface-700 text-gray-500 hover:text-gray-300'">
+                      <i class="fa-solid text-xs" :class="busy['fs' + ix.id] ? 'fa-spinner fa-spin' : 'fa-shield-halved'"></i></button>
+                    <button @click="testOne(ix)" title="Test" class="w-11 h-11 sm:w-7 sm:h-7 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid text-xs" :class="busy['test' + ix.id] ? 'fa-spinner fa-spin' : 'fa-plug-circle-check'"></i></button>
+                    <button @click="openEdit(ix)" title="Edit" class="w-11 h-11 sm:w-7 sm:h-7 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-pen text-xs"></i></button>
+                    <button @click="remove(ix)" title="Delete" class="w-11 h-11 sm:w-7 sm:h-7 rounded-full sm:rounded-lg bg-surface-700 hover:bg-red-900/50 text-gray-300 hover:text-red-400"><i class="fa-solid fa-trash text-xs"></i></button>
                   </td>
                 </tr>
               </template>
@@ -268,8 +311,17 @@
             <label class="flex items-center gap-2 text-xs text-gray-400 pt-1" x-show="def.fields.some(f => f.advanced)">
               <input type="checkbox" x-model="showAdvanced" class="accent-brand-500"> Show advanced settings
             </label>
+            <label class="flex items-start gap-2 text-xs text-gray-300 pt-1">
+              <input type="checkbox" x-model="defForm.flaresolverr" class="mt-0.5">
+              <span>Go through FlareSolverr
+                <span class="block text-[11px] text-gray-500">For sites behind Cloudflare's "checking your browser" page. Slower — only if Prowlarr can't get through.</span></span>
+            </label>
           </div>
           <p class="text-xs mt-3" :class="defMsgOk ? 'text-green-400' : 'text-red-400'" x-text="defMsg"></p>
+          <button x-show="defCloudflare && !defForm.flaresolverr" @click="defForm.flaresolverr = true; retryDefinition()" :disabled="!!(busy.def)"
+                  class="mt-2 px-4 min-h-[44px] sm:min-h-0 sm:py-2 rounded-xl text-sm font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-200 disabled:opacity-50">
+            <i class="fa-solid fa-shield-halved mr-1.5"></i>Use FlareSolverr and try again
+          </button>
           <div class="flex flex-wrap gap-2 mt-3">
             <button @click="testDefinition()" :disabled="!!(busy.def)" class="px-4 py-2 rounded-xl text-sm font-medium bg-surface-700 hover:bg-surface-600 text-gray-200 disabled:opacity-50">
               <i class="fa-solid fa-plug-circle-check mr-1.5"></i>Test

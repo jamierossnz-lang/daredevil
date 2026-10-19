@@ -160,7 +160,7 @@ def test_arr_plex_connection_status(page, arr):
 @pytest.fixture
 def prowlarr(page):
     pane = settings_tab(page, 'prowlarr')
-    expect(pane.get_by_text(re.compile(r'\bv\d+\.\d+'))).to_be_visible(timeout=20_000)
+    expect(pane.get_by_text(re.compile(r'Connected · v\d+'))).to_be_visible(timeout=20_000)
     return pane
 
 
@@ -317,3 +317,78 @@ def test_schedules_and_history(page):
     assert caught
     pane.get_by_role('button', name='History').click()
     expect(pane.get_by_role('button', name='Refresh')).to_be_visible()
+
+
+# ── FlareSolverr (Prowlarr tab) ───────────────────────────────────────────────
+
+CLOUDFLARE = {'ok': False, 'error': 'Unable to access example.to, blocked by CloudFlare Protection.', 'cloudflare': True}
+
+
+def test_flaresolverr_status(page, prowlarr):
+    status = api_get(page, '/arr/prowlarr/flaresolverr/')
+    card = page.locator('[x-init="loadFlare()"]')
+    expect(card.get_by_role('heading', name='FlareSolverr')).to_be_visible()
+    if status['ready']:
+        expect(card.get_by_text(re.compile(r'Running'))).to_be_visible()
+    else:
+        expect(card.get_by_text(status['unreachable'])).to_be_visible()
+    expect(card.locator('#flareUrl')).to_have_value(status['url'])
+
+
+def test_flaresolverr_connect_sends_the_address(page, prowlarr):
+    status = api_get(page, '/arr/prowlarr/flaresolverr/')
+    caught = intercept(page, '**/arr/prowlarr/flaresolverr/', {**status, 'ok': True, 'connected': True}, method='POST')
+    card = page.locator('[x-init="loadFlare()"]')
+    card.locator('#flareUrl').fill('http://my-flaresolverr:8191')
+    card.get_by_role('button', name=re.compile('Connect to Prowlarr|Update')).click()
+    expect(toast(page, 'FlareSolverr connected to Prowlarr')).to_be_visible()
+    assert caught.last()['json'] == {'url': 'http://my-flaresolverr:8191'}
+
+
+def test_indexer_flaresolverr_switch(page, prowlarr):
+    switch = prowlarr.get_by_role('button', name=re.compile('^FlareSolverr for ')).first
+    if not switch.count():
+        pytest.skip('no indexers in Prowlarr')
+    was_on = switch.get_attribute('aria-pressed') == 'true'
+    caught = intercept(page, '**/arr/prowlarr/indexers/*/flaresolverr/', {'ok': True, 'flaresolverr': not was_on})
+    intercept(page, '**/arr/prowlarr/flaresolverr/', api_get(page, '/arr/prowlarr/flaresolverr/'))
+    switch.click()
+    expect(switch).to_have_attribute('aria-pressed', str(not was_on).lower())
+    assert caught.last()['json'] == {'enabled': not was_on}
+
+
+def test_cloudflare_block_offers_flaresolverr(page, prowlarr):
+    rows = prowlarr.locator('tr', has=page.locator('button[aria-pressed="false"][aria-label^="FlareSolverr for"]'))
+    if not rows.count():
+        pytest.skip('every indexer already uses FlareSolverr')
+    row = rows.first
+    intercept(page, '**/arr/prowlarr/indexers/*/test/', CLOUDFLARE)
+    switched = intercept(page, '**/arr/prowlarr/indexers/*/flaresolverr/', {'ok': True, 'flaresolverr': True})
+    intercept(page, '**/arr/prowlarr/flaresolverr/', api_get(page, '/arr/prowlarr/flaresolverr/'))
+    row.get_by_title('Test', exact=True).click()
+    offer = row.get_by_role('button', name=re.compile('Blocked by Cloudflare — use FlareSolverr'))
+    expect(offer).to_be_visible()
+    offer.click()
+    expect(offer).to_be_hidden()
+    assert switched.last()['json'] == {'enabled': True}
+
+
+def test_new_indexer_blocked_by_cloudflare_retries_through_flaresolverr(page, prowlarr):
+    prowlarr.get_by_role('button', name='Add indexer').click()
+    pick = page.locator('button[\\@click="pickDefinition(d)"]')
+    expect(pick.first).to_be_visible(timeout=30_000)
+    pick.first.click()
+    replies = [CLOUDFLARE, {'ok': True, 'id': 999, 'disabled': False}]
+    sent = []
+
+    def save(route):
+        import json as _json
+        sent.append(_json.loads(route.request.post_data))
+        route.fulfill(status=200, content_type='application/json', body=_json.dumps(replies[len(sent) - 1]))
+    page.route('**/arr/prowlarr/indexers/save/', save)
+    page.locator('button[\\@click="saveDefinition(false)"]').click()
+    retry = page.get_by_role('button', name='Use FlareSolverr and try again')
+    expect(retry).to_be_visible()
+    retry.click()
+    expect(toast(page, 'Indexer saved')).to_be_visible()
+    assert sent[0]['flaresolverr'] is False and sent[1]['flaresolverr'] is True

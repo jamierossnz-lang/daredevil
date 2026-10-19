@@ -12,6 +12,7 @@ import html
 import logging
 from datetime import datetime, timezone as dt_timezone
 
+import requests
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -668,6 +669,96 @@ def ensure_prowlarr_app(kind):
     saved = p.update_application(payload) if existing else p.add_application(payload)
     p.command('ApplicationIndexerSync')
     return saved
+
+
+# ── FlareSolverr (indexers behind Cloudflare) ─────────────────────────────────
+#
+# Some sites answer with Cloudflare's "checking your browser" page, which
+# Prowlarr can't get past by itself. FlareSolverr solves it in a headless
+# browser; Prowlarr sends a request through it (an "indexer proxy") only for
+# indexers that share the proxy's tag — it's slow, so not for every site.
+
+FLARESOLVERR_TAG = 'flaresolverr'
+DEFAULT_FLARESOLVERR_URL = 'http://flaresolverr:8191'
+
+
+def flaresolverr_url():
+    """Where FlareSolverr listens — the compose service by default, or a
+    FlareSolverr of your own (e.g. an Unraid app). Read from .env on use."""
+    from config import env_file
+    return (env_file.setting('FLARESOLVERR_URL') or DEFAULT_FLARESOLVERR_URL).rstrip('/')
+
+
+def is_cloudflare_error(message):
+    """Whether Prowlarr turned an indexer down because Cloudflare blocked it."""
+    return 'cloudflare' in str(message or '').lower()
+
+
+def _flaresolverr_proxy(c):
+    return next((p for p in c.indexer_proxies() if p.get('implementation') == 'FlareSolverr'), None)
+
+
+def flaresolverr_status():
+    """Is FlareSolverr up, is Prowlarr using it, and for which indexers."""
+    url = flaresolverr_url()
+    out = {'url': url, 'ready': False, 'version': None, 'unreachable': None,
+           'connected': False, 'proxy_url': None, 'indexers': [], 'prowlarr_error': None}
+    try:
+        info = requests.get(f'{url}/', timeout=5).json()
+        out['ready'] = 'ready' in str(info.get('msg', '')).lower()
+        out['version'] = info.get('version')
+    except (requests.RequestException, ValueError) as e:
+        out['unreachable'] = f'Daredevil can\'t reach FlareSolverr at {url} ({type(e).__name__})'
+    if is_configured('prowlarr'):
+        c = prowlarr()
+        try:
+            proxy = _flaresolverr_proxy(c)
+            if proxy:
+                out['connected'] = True
+                out['proxy_url'] = (_field(proxy, 'host') or '').rstrip('/')
+            tag = tag_id(c, FLARESOLVERR_TAG)
+            if tag is not None:
+                out['indexers'] = [i['id'] for i in c.indexers() if tag in (i.get('tags') or [])]
+        except ArrError as e:
+            out['prowlarr_error'] = str(e)
+    return out
+
+
+def ensure_flaresolverr(url=None):
+    """Create (or repair) the FlareSolverr proxy in Prowlarr, for indexers
+    tagged 'flaresolverr'. Prowlarr checks it can reach FlareSolverr first."""
+    c = prowlarr()
+    tag = tag_id(c, FLARESOLVERR_TAG, create=True)
+    existing = _flaresolverr_proxy(c)
+    payload = existing or next((s for s in c.indexer_proxy_schema() if s.get('implementation') == 'FlareSolverr'), None)
+    if payload is None:
+        raise ArrError('This Prowlarr has no FlareSolverr proxy type — update Prowlarr')
+    payload['name'] = payload.get('name') or 'FlareSolverr'
+    payload['tags'] = sorted(set(payload.get('tags') or []) | {tag})
+    _set_fields(payload, {'host': f'{(url or flaresolverr_url()).rstrip("/")}/', 'requestTimeout': 60})
+    return c.update_indexer_proxy(payload) if existing else c.add_indexer_proxy(payload)
+
+
+def use_flaresolverr(c, definition, enabled):
+    """Tag (or untag) an indexer payload so Prowlarr sends it through
+    FlareSolverr, connecting the proxy first if it isn't yet."""
+    tag = tag_id(c, FLARESOLVERR_TAG, create=enabled)
+    tags = set(definition.get('tags') or [])
+    if enabled:
+        if not _flaresolverr_proxy(c):
+            ensure_flaresolverr()
+        tags.add(tag)
+    elif tag is not None:
+        tags.discard(tag)
+    definition['tags'] = sorted(tags)
+    return definition
+
+
+def set_indexer_flaresolverr(indexer_id, enabled):
+    c = prowlarr()
+    definition = use_flaresolverr(c, c.indexer(indexer_id), enabled)
+    # An enabled indexer is tested before it's saved — through FlareSolverr now
+    return c.update_indexer(definition, force=not definition.get('enable'))
 
 
 # ── Prowlarr indexer catalogue ────────────────────────────────────────────────

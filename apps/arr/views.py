@@ -19,6 +19,8 @@ from .services import (
     find_definition, fmt_bytes, indexer_form_fields, indexer_schema, apply_form_values, is_daredevil_webhook, prowlarr,
     public_url, webhook_url, _find_daredevil_webhook, _field, DEFAULT_QBT_CATEGORY, SONARR_DEFAULT_MONITOR_CHOICES,
     RADARR_MONITOR_CHOICES, MIN_AVAILABILITY_CHOICES, SERIES_TYPE_CHOICES, lookup_item,
+    FLARESOLVERR_TAG, ensure_flaresolverr, flaresolverr_status, is_cloudflare_error, set_indexer_flaresolverr, tag_id,
+    use_flaresolverr,
 )
 
 log = logging.getLogger('daredevil.arr.views')
@@ -90,7 +92,7 @@ def overview(request, kind):
                      naming=c.naming_config, media_management=c.media_management_config, qbt=_qbt_state)
     else:
         calls.update(indexers=c.indexers, indexer_status=c.indexer_status, indexer_stats=c.indexer_stats,
-                     applications=c.applications, app_profiles=c.app_profiles)
+                     applications=c.applications, app_profiles=c.app_profiles, tags=c.tags)
     with ThreadPoolExecutor(max_workers=len(calls)) as pool:
         futures = {k: pool.submit(_safe, fn) for k, fn in calls.items()}
         results = {k: f.result() for k, f in futures.items()}
@@ -133,7 +135,8 @@ def overview(request, kind):
     else:
         status = {s.get('indexerId'): s for s in _as_list(results['indexer_status'])}
         stats = {s.get('indexerId'): s for s in _as_list(results['indexer_stats'])}
-        data['indexers'] = [_prowlarr_indexer_row(i, status.get(i['id']), stats.get(i['id'])) for i in _as_list(results['indexers'])]
+        fs_tag = next((t['id'] for t in _as_list(results['tags']) if (t.get('label') or '').lower() == FLARESOLVERR_TAG), None)
+        data['indexers'] = [_prowlarr_indexer_row(i, status.get(i['id']), stats.get(i['id']), fs_tag) for i in _as_list(results['indexers'])]
         data['applications'] = [
             {'id': a['id'], 'name': a.get('name'), 'implementation': a.get('implementation'), 'sync_level': a.get('syncLevel'),
              'base_url': _field(a, 'baseUrl')}
@@ -191,8 +194,9 @@ def _downloads_folder(category, state):
     }
 
 
-def _prowlarr_indexer_row(i, status, stats):
+def _prowlarr_indexer_row(i, status, stats, fs_tag=None):
     return {
+        'flaresolverr': fs_tag is not None and fs_tag in (i.get('tags') or []),
         'id': i['id'],
         'name': i.get('name'),
         'enable': i.get('enable'),
@@ -528,8 +532,9 @@ def prowlarr_catalogue(request):
     return JsonResponse({'ok': True, 'items': items})
 
 
-def _form_payload(definition, app_profiles):
+def _form_payload(definition, app_profiles, fs_tag=None):
     return {
+        'flaresolverr': fs_tag is not None and fs_tag in (definition.get('tags') or []),
         'ok': True,
         'id': definition.get('id'),
         'key': definition_key(definition),
@@ -552,8 +557,9 @@ def prowlarr_definition_form(request):
         definition = find_definition(key)
         if not definition:
             return _err('Unknown indexer type — refresh the list and try again', status=200)
-        profiles = [{'id': p['id'], 'name': p['name']} for p in prowlarr().app_profiles()]
-        return JsonResponse(_form_payload(definition, profiles))
+        c = prowlarr()
+        profiles = [{'id': p['id'], 'name': p['name']} for p in c.app_profiles()]
+        return JsonResponse(_form_payload(definition, profiles, tag_id(c, FLARESOLVERR_TAG)))
     except ArrError as e:
         return _err(e, status=200)
 
@@ -563,7 +569,7 @@ def prowlarr_indexer_form(request, indexer_id):
         c = prowlarr()
         definition = c.indexer(indexer_id)
         profiles = [{'id': p['id'], 'name': p['name']} for p in c.app_profiles()]
-        return JsonResponse(_form_payload(definition, profiles))
+        return JsonResponse(_form_payload(definition, profiles, tag_id(c, FLARESOLVERR_TAG)))
     except ArrError as e:
         return _err(e, status=200)
 
@@ -587,6 +593,8 @@ def _build_indexer_payload(c, data):
         profiles = c.app_profiles()
         definition['appProfileId'] = profiles[0]['id'] if profiles else 1
     apply_form_values(definition, data.get('values') or {})
+    if 'flaresolverr' in data:
+        use_flaresolverr(c, definition, bool(data['flaresolverr']))
     return definition
 
 
@@ -610,7 +618,8 @@ def prowlarr_indexer_save(request):
                  else c.add_indexer(payload, force=save_disabled))
         return JsonResponse({'ok': True, 'id': saved.get('id'), 'disabled': not saved.get('enable', True)})
     except ArrError as e:
-        return _err(e, status=200, can_save_disabled=not save_disabled and bool(data.get('enable', True)))
+        return _err(e, status=200, can_save_disabled=not save_disabled and bool(data.get('enable', True)),
+                    cloudflare=is_cloudflare_error(e))
 
 
 @require_POST
@@ -621,7 +630,7 @@ def prowlarr_indexer_test(request):
         c.test_indexer(_build_indexer_payload(c, data))
         return JsonResponse({'ok': True})
     except ArrError as e:
-        return _err(e, status=200)
+        return _err(e, status=200, cloudflare=is_cloudflare_error(e))
 
 
 @require_POST
@@ -631,7 +640,7 @@ def prowlarr_indexer_test_existing(request, indexer_id):
         c.test_indexer(c.indexer(indexer_id))
         return JsonResponse({'ok': True})
     except ArrError as e:
-        return _err(e, status=200)
+        return _err(e, status=200, cloudflare=is_cloudflare_error(e))
 
 
 @require_POST
@@ -675,6 +684,34 @@ def prowlarr_indexer_test_all(request):
                 'failures': {r.get('id'): '; '.join(v.get('errorMessage', '') for v in r.get('validationFailures') or []) for r in failed},
             })
         return _err(e)
+
+
+# ── FlareSolverr ──────────────────────────────────────────────────────────────
+
+def prowlarr_flaresolverr(request):
+    """GET: is FlareSolverr up, and which indexers use it. POST {url}: save
+    its address and connect it to Prowlarr as an indexer proxy."""
+    if request.method == 'POST':
+        from config import env_file
+        url = (_body(request).get('url') or '').strip().rstrip('/')
+        if url:
+            env_file.update({'FLARESOLVERR_URL': url})
+        try:
+            ensure_flaresolverr(url or None)
+        except ArrError as e:
+            return _err(e, status=200, **flaresolverr_status())
+    return JsonResponse({'ok': True, **flaresolverr_status()})
+
+
+@require_POST
+def prowlarr_indexer_flaresolverr(request, indexer_id):
+    """Send one indexer through FlareSolverr — or stop: {enabled}."""
+    enabled = bool(_body(request).get('enabled', True))
+    try:
+        set_indexer_flaresolverr(indexer_id, enabled)
+        return JsonResponse({'ok': True, 'flaresolverr': enabled})
+    except ArrError as e:
+        return _err(e, status=200, cloudflare=is_cloudflare_error(e))
 
 
 # ── Legacy library import ─────────────────────────────────────────────────────

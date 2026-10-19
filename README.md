@@ -13,7 +13,7 @@ A self-hosted front end for an *arr media stack. [Sonarr](https://sonarr.tv/) (T
 - **Download queue** — Sonarr's and Radarr's queues in one place with qBittorrent's live speed/peers: pause, retry with a different release, remove; waiting-for-release (TV and Movies), wanted, history, failed
 - **Torrent Manager** — every torrent in qBittorrent: filter by state, category or name, start, pause, remove (with or without files), one at a time or in bulk
 - **Imports** — Sonarr/Radarr move and rename finished downloads; Daredevil confirms each file really landed in the library
-- **Settings** — Prowlarr, Sonarr, Radarr, qBittorrent and Background Tasks tabs: connections, indexers (add with category/language filters, test, edit), download and library folders with folder pickers, quality profiles and sizes, naming, add defaults, Plex (refresh on import, Watchlist), and one-click wiring (qBittorrent, webhooks, indexer sync)
+- **Settings** — Prowlarr, Sonarr, Radarr, qBittorrent and Background Tasks tabs: connections, indexers (add with category/language filters, test, edit, FlareSolverr for sites behind Cloudflare), download and library folders with folder pickers, quality profiles and sizes, naming, add defaults, Plex (refresh on import, Watchlist), and one-click wiring (qBittorrent, webhooks, indexer sync)
 - **File browser** — the download and library folders appear automatically; hand files to Sonarr/Radarr to import
 - **For You** — swipe through recommendations based on your library plus TMDB's trending, new, coming-soon and popular titles
 
@@ -34,7 +34,7 @@ A self-hosted front end for an *arr media stack. [Sonarr](https://sonarr.tv/) (T
 
 ### Docker (recommended)
 
-Docker Compose runs the full stack — Daredevil, Sonarr, Radarr, Prowlarr, qBittorrent, Plex, Redis, and Celery — in one command. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+Docker Compose runs the full stack — Daredevil, Sonarr, Radarr, Prowlarr, FlareSolverr, qBittorrent, Plex, Redis, and Celery — in one command. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```
                ┌──────────────┐  indexers   ┌──────────┐
@@ -124,6 +124,7 @@ Daredevil drives these three apps — your shows and movies are stored in Sonarr
    - under **Folders**, add a library root folder — `/tv` for Sonarr, `/movies` for Radarr — and optionally a download folder for its qBittorrent category (the folder buttons browse each app's own view of the disk),
    - under **Plex**, switch on *Refresh Plex when files change* (and the Plex Watchlist if you want it).
 5. On the **Prowlarr** tab: **Add indexer** (600+ to pick from — filter by TV/Movies and language), then **Connect Sonarr & Radarr** so they receive every indexer automatically.
+   Some sites sit behind Cloudflare's "checking your browser" page, which Prowlarr can't get past alone. Under **FlareSolverr**, tap **Connect to Prowlarr** once; then switch it on for those indexers with the shield button — or, when a test says *blocked by Cloudflare*, Daredevil offers it there. Only those indexers go through it (it's slower).
 6. Upgrading from an older Daredevil? The Sonarr/Radarr tabs show an **Import your old Daredevil library** button (or run `docker compose exec web python manage.py import_library_to_arr`). It adds your existing shows/movies without re-downloading anything — files already on disk are picked up.
 
 > **Hardlinks:** qBittorrent keeps seeding after an import, so Sonarr/Radarr either hardlink (no extra space) or copy the file. Hardlinks only work when the download and library folders are on the same filesystem *and* the same mount inside the container; with the separate `DOWNLOADS_DIR` / `TV_DIR` / `MOVIES_DIR` mounts they fall back to copying.
@@ -295,6 +296,8 @@ docker-compose up -d
 > Every later update is the normal one above. Never run `git stash`, `git checkout -- .` or `git reset --hard` on an older checkout that still tracks `data/` — they write the committed copies back over the live database.
 >
 > The first `up -d` after updating to the Sonarr/Radarr version creates the `db-init`, `prowlarr`, `sonarr` and `radarr` containers and restarts PostgreSQL once (it now allows 100 connections). `db-init` creates the apps' databases; their settings and libraries then live in PostgreSQL. Rebuilding only `web worker beat` won't start them.
+> If you already run FlareSolverr as a Community App, set its address on the **Prowlarr** tab (e.g. `http://192.168.1.10:8191`) and comment the `flaresolverr` block out of `docker-compose.yml`.
+>
 > If Sonarr, Radarr or Prowlarr already run as Community Apps, comment their blocks out of `docker-compose.yml` and point Daredevil at them from **App Settings** instead (use the Unraid IP, e.g. `http://192.168.1.10:8989`), then set the **path mappings** on each tab to match your shares.
 
 ---

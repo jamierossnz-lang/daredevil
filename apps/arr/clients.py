@@ -367,6 +367,20 @@ class ProwlarrClient(BaseArrClient):
     def app_profiles(self):
         return self.get('/appprofile') or []
 
+    # Indexer proxies (FlareSolverr): used by the indexers that share a tag with them
+    def indexer_proxies(self):
+        return self.get('/indexerProxy') or []
+
+    def indexer_proxy_schema(self):
+        return self.get('/indexerProxy/schema') or []
+
+    # Prowlarr tests the proxy before saving it
+    def add_indexer_proxy(self, payload):
+        return self.post('/indexerProxy', payload, timeout=90)
+
+    def update_indexer_proxy(self, payload):
+        return self.put(f'/indexerProxy/{payload["id"]}', payload, timeout=90)
+
     def applications(self):
         return self.get('/applications') or []
 

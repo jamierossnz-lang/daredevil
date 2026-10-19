@@ -104,6 +104,18 @@ services:
     volumes:
       - ${DATA_DIR:-./data}/prowlarr:/config
 
+  # ── FlareSolverr ───────────────────────────────────────────────────────────
+  # Gets Prowlarr past Cloudflare's "checking your browser" page on indexers
+  # that have one: Prowlarr sends their requests through it (an indexer
+  # proxy, connected from Settings → Prowlarr → FlareSolverr). Only the other
+  # containers talk to it, so no port is published.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ:-UTC}
+
   # ── Sonarr ─────────────────────────────────────────────────────────────────
   # Web UI: http://<host>:${SONARR_PORT:-8989}
   # Owns the TV library: monitoring, searching, grabbing (via qBittorrent)

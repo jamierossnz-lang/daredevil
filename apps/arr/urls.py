@@ -23,6 +23,8 @@ urlpatterns = [
     path('arr/prowlarr/indexers/<int:indexer_id>/test/', views.prowlarr_indexer_test_existing, name='arr_prowlarr_indexer_test_existing'),
     path('arr/prowlarr/indexers/<int:indexer_id>/toggle/', views.prowlarr_indexer_toggle, name='arr_prowlarr_indexer_toggle'),
     path('arr/prowlarr/indexers/<int:indexer_id>/delete/', views.prowlarr_indexer_delete, name='arr_prowlarr_indexer_delete'),
+    path('arr/prowlarr/indexers/<int:indexer_id>/flaresolverr/', views.prowlarr_indexer_flaresolverr, name='arr_prowlarr_indexer_flaresolverr'),
+    path('arr/prowlarr/flaresolverr/', views.prowlarr_flaresolverr, name='arr_prowlarr_flaresolverr'),
     path('arr/import-library/', views.import_library, name='arr_import_library'),
     path('arr/browse/', views.browse_folders, name='arr_browse_folders'),
 
