@@ -1,6 +1,6 @@
 {# One row of the phone's More menu (an iOS grouped list): href, icon, tint, label #}
-<a href="{{ href }}" @click="sidebarOpen = false" class="ios-row flex items-center gap-3 pl-4 min-h-[48px] active:bg-white/10">
-  <span class="w-[29px] h-[29px] rounded-[7px] flex items-center justify-center flex-shrink-0 text-white text-[14px]" style="background: {{ tint }}">
+<a href="{{ href }}" @click="sidebarOpen = false" class="ios-row flex items-center gap-3.5 pl-4 min-h-[54px] active:bg-white/10">
+  <span class="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0 text-white text-[16px]" style="background: {{ tint }}">
     <i class="fa-solid {{ icon }}"></i>
   </span>
   <span class="ios-row-body flex-1 flex items-center self-stretch pr-4 text-[17px] text-gray-100">

@@ -31,7 +31,10 @@
 <!-- Hero: the show's artwork full bleed, fading into the page -->
 <section class="relative -mx-4 lg:-mx-8 mb-5" style="margin-top: calc(-52px - 0.25rem - env(safe-area-inset-top, 0px))">
   <div class="relative aspect-square sm:aspect-[16/9] lg:aspect-[21/9] max-h-[74vh] min-h-[360px] overflow-hidden bg-surface-900">
-    {% if show.fanart %}<img src="{{ show.fanart }}" alt="" fetchpriority="high" class="absolute inset-0 w-full h-full object-cover">
+    {% if show.fanart %}<picture>
+      <source media="(max-width: 640px)" srcset="{{ show.fanart_small }}">
+      <img src="{{ show.fanart }}" alt="" fetchpriority="high" class="absolute inset-0 w-full h-full object-cover">
+    </picture>
     {% elif show.poster %}<img src="{{ show.poster }}" alt="" class="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-60">{% endif %}
     <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
     <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent"></div>

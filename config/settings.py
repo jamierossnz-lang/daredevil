@@ -56,6 +56,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Pages and JSON are mostly markup and repeated keys — gzip makes them ~85%
+    # smaller. (Static files are pre-compressed by WhiteNoise; Django 4.2 pads
+    # the gzip output against BREACH.)
+    'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

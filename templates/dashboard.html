@@ -3,6 +3,11 @@
 {% block page_title %}Home{% endblock %}
 {% block large_title %}{% endblock %}
 
+{% block extra_head %}
+{% if featured %}<link rel="preload" as="image" fetchpriority="high"
+      imagesrcset="{{ featured.0.backdrop_small }} 780w, {{ featured.0.backdrop }} 1280w" imagesizes="100vw">{% endif %}
+{% endblock %}
+
 {% block content %}
 <h1 class="sr-only">Home</h1>
 <!-- Featured: this week's trending shows and movies, full bleed under the bar -->
@@ -14,7 +19,8 @@
        class="flex h-full overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     <template x-for="(f, i) in items" :key="f.tmdb_id">
       <div class="relative h-full w-full flex-shrink-0 snap-center" role="group" aria-roledescription="slide" :aria-label="`${i + 1} of ${items.length}: ${f.title}`">
-        <img :src="f.backdrop" alt="" class="absolute inset-0 w-full h-full object-cover" :loading="i ? 'lazy' : 'eager'" :fetchpriority="i ? 'auto' : 'high'">
+        <img :src="f.backdrop" :srcset="`${f.backdrop_small} 780w, ${f.backdrop} 1280w`" sizes="100vw" alt=""
+             class="absolute inset-0 w-full h-full object-cover" :loading="i ? 'lazy' : 'eager'" :fetchpriority="i ? 'auto' : 'high'">
         <div class="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/20"></div>
         <div class="absolute inset-x-0 bottom-0 px-5 lg:px-10 pb-12 sm:pb-14">
           <p class="text-[13px] font-semibold text-white/70 mb-1.5" x-text="`Trending · ${f.tv ? 'TV Show' : 'Movie'}`"></p>
@@ -182,6 +188,7 @@
   </template>
 </div>
 
+{{ featured|json_script:"dd-featured" }}
 <script>
 // One request feeds the hero and the shelves
 const ddDiscover = fetch("{% url 'dashboard_discover' %}").then(r => r.ok ? r.json() : {}).catch(() => ({}));
@@ -190,7 +197,9 @@ function homeHero() {
   return {
     items: [], index: 0, pause: false, state: 'loading',
     async init() {
-      this.items = (await ddDiscover).featured || [];
+      // Sent with the page; the shelves' request is only a fallback
+      this.items = JSON.parse(document.getElementById('dd-featured').textContent) || [];
+      if (!this.items.length) this.items = (await ddDiscover).featured || [];
       this.state = this.items.length ? 'ready' : 'empty';
       // Moves on by itself — not for people who'd rather it didn't, nor while touched
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {

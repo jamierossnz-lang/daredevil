@@ -19,7 +19,7 @@ from apps.events.dispatch import emit
 from apps.events.models import EventType
 
 from .models import ArrService
-from .services import invalidate_library
+from .services import invalidate_history, invalidate_library
 
 log = logging.getLogger('daredevil.arr.webhooks')
 
@@ -39,6 +39,8 @@ def receive(request, kind, secret):
 
     event = payload.get('eventType') or ''
     log.info('webhook %s: %s', kind, event)
+    # Something happened — the history pages shouldn't show a cached copy
+    invalidate_history(kind)
     try:
         handler = _HANDLERS.get(event)
         if handler:

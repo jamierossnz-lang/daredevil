@@ -10,6 +10,7 @@ in exactly one place.
 """
 import html
 import logging
+import re
 from datetime import datetime, timezone as dt_timezone
 
 import requests
@@ -148,14 +149,22 @@ def parse_dt(value):
     return dt
 
 
+# Sizes big enough for a full-width hero — everything smaller is a card
+FULL_SIZES = ('w1280', 'original')
+
+
 def image_url(images, cover_type='poster', size='w500'):
-    """Remote artwork URL from an *arr `images` list. TMDB originals are
-    multi-megabyte, so they're rewritten to a sized variant."""
+    """Remote artwork URL from an *arr `images` list. Originals are huge — TMDB's
+    run to megabytes, TheTVDB's posters to 800 KB — so they're swapped for a
+    sized variant: TMDB's at `size`, TheTVDB's thumbnail (posters 340×500,
+    backgrounds 640×360) for anything short of a full-width hero."""
     for img in images or []:
         if img.get('coverType') == cover_type:
             url = img.get('remoteUrl') or ''
             if url and size and '/t/p/original/' in url:
                 url = url.replace('/t/p/original/', f'/t/p/{size}/')
+            elif url and size and size not in FULL_SIZES and 'artworks.thetvdb.com/' in url:
+                url = re.sub(r'(\.\w+)$', r'_t\1', url)
             return url or None
     return None
 
@@ -188,6 +197,26 @@ def library_index(kind):
 def invalidate_library(kind=None):
     kinds = [kind] if kind else ['sonarr', 'radarr']
     cache.delete_many([f'arr_library_index_{k}' for k in kinds])
+
+
+# ── History cache ─────────────────────────────────────────────────────────────
+#
+# Sonarr takes about a second to list its history with series and episodes.
+# It only changes when something is grabbed, imported or fails — all of which
+# Sonarr/Radarr report by webhook — so pages reuse it for a couple of minutes
+# and every webhook (or "Mark failed") starts afresh.
+
+HISTORY_TTL = 120
+
+
+def history_cache_key(kind, **params):
+    version = cache.get(f'arr_history_version_{kind}', 0)
+    return f'arr_history_{kind}_{version}_' + '&'.join(f'{k}={v}' for k, v in sorted(params.items()))
+
+
+def invalidate_history(kind):
+    key = f'arr_history_version_{kind}'
+    cache.set(key, cache.get(key, 0) + 1, None)
 
 
 # ── Tags (favourites and For You picks live in Sonarr/Radarr as tags) ────────

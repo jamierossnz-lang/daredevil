@@ -142,7 +142,7 @@
 
     /* iOS safe-area: main content clears the bottom nav + home indicator */
     @media (max-width: 1023px) {
-      main { padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); }
+      main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
       aside { transform: translateX(-100%); }
     }
     @media (min-width: 1024px) {
@@ -165,6 +165,20 @@
       }
     }
     input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--b500)); }
+
+    /* Phones: thumb-sized controls. Buttons and links that are styled small
+       for a mouse (text-xs / text-sm) get iOS's 15–17pt text and a 44pt
+       height; desktop keeps the compact look. */
+    @media (max-width: 640px) {
+      main button.text-xs, main a.text-xs[class*="px-"], main button.text-sm, main a.text-sm[class*="px-"],
+      [role="dialog"] button.text-xs, [role="dialog"] button.text-sm {
+        font-size: 15px; min-height: 44px; line-height: 1.25;
+      }
+      main button.text-xs i, main button.text-sm i { font-size: 15px; }
+      main select:not([multiple]) { min-height: 44px; }
+      /* Secondary text no smaller than iOS's footnote (13pt) */
+      main .text-xs { font-size: 13px; line-height: 1.35; }
+    }
 
     /* Reduce Motion: no scaling, sliding or lifting — state changes still show */
     @media (prefers-reduced-motion: reduce) {
@@ -428,7 +442,7 @@
         <button onclick="history.back()"
                 class="flex w-11 h-11 rounded-full items-center justify-center text-brand-400 hover:bg-white/10"
                 title="Go back" aria-label="Go back">
-          <i class="fa-solid fa-chevron-left text-[19px]"></i>
+          <i class="fa-solid fa-chevron-left text-[22px]"></i>
         </button>
         <button onclick="history.forward()"
                 class="hidden sm:flex w-9 h-9 rounded-full items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/10"
@@ -447,9 +461,9 @@
         <!-- Notification bell -->
         <div x-data="notifBell()" @click.outside="open = false" class="relative">
           <button @click="toggle()"
-                  class="relative w-10 h-10 sm:w-8 sm:h-8 -mr-1.5 sm:mr-0 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
+                  class="relative w-11 h-11 sm:w-9 sm:h-9 -mr-1.5 sm:mr-0 flex items-center justify-center rounded-full text-brand-400 hover:bg-white/10"
                   title="Notifications" aria-label="Notifications">
-            <i class="fa-solid fa-bell text-sm"></i>
+            <i class="fa-solid fa-bell text-[19px] sm:text-[15px]"></i>
             <span x-show="count > 0" x-cloak
                   x-text="count > 9 ? '9+' : count"
                   class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center px-1 leading-none pointer-events-none"></span>
@@ -511,7 +525,7 @@
   <!-- Mobile bottom navigation (JS-rendered, configurable) -->
   <nav id="ddMobileNav" aria-label="Tabs" class="fixed bottom-0 inset-x-0 z-40 lg:hidden material hairline-t"
        style="padding-bottom: env(safe-area-inset-bottom, 0px)">
-    <div id="ddMobileNavInner" class="flex h-[54px]"></div>
+    <div id="ddMobileNavInner" class="flex h-[60px]"></div>
   </nav>
   <script>
   (function() {
@@ -548,14 +562,14 @@
         return `<a href="${item.href}" ${active ? 'aria-current="page"' : ''}
                    class="press flex-1 flex flex-col items-center justify-center gap-[3px] pt-1
                           ${active ? 'text-brand-400' : 'text-gray-500 hover:text-gray-300'}">
-          <i class="fa-solid ${item.icon} text-[19px] leading-none"></i>
-          <span class="text-[10px] font-medium tracking-tight">${item.label}</span>
+          <i class="fa-solid ${item.icon} text-[23px] leading-none"></i>
+          <span class="text-[11px] font-medium tracking-tight">${item.label}</span>
         </a>`;
       }).join('');
       const moreBtn = `<button onclick="window.dispatchEvent(new CustomEvent('open-sidebar'))" aria-label="More pages"
                  class="flex-1 flex flex-col items-center justify-center gap-[3px] pt-1 text-gray-500 hover:text-gray-300">
-        <i class="fa-solid fa-ellipsis text-[19px] leading-none"></i>
-        <span class="text-[10px] font-medium tracking-tight">More</span>
+        <i class="fa-solid fa-ellipsis text-[23px] leading-none"></i>
+        <span class="text-[11px] font-medium tracking-tight">More</span>
       </button>`;
       document.getElementById('ddMobileNavInner').innerHTML = navItems + moreBtn;
     }

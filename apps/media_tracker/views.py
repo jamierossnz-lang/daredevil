@@ -112,6 +112,15 @@ def dashboard(request):
         ctx['upcoming_movies'] = sorted(waiting, key=lambda m: (m['when'] is None, m['when'] or now))[:20]
     ctx['downloading_count'] = downloading if jobs else None
     ctx['missing_count'] = missing if jobs else None
+    # The hero comes with the page (TMDB's list is cached, kept warm by
+    # warm_caches), so its first picture starts loading straight away
+    shows_index = {s['tmdbId']: s['id'] for s in results.get('sonarr', ([],))[0] if s.get('tmdbId')}
+    movies_index = {m['tmdbId']: m['id'] for m in results.get('radarr', ([],))[0] if m.get('tmdbId')}
+    try:
+        ctx['featured'] = _featured(discover_lists().get('featured', []), shows_index, movies_index)
+    except Exception as e:
+        log.info('dashboard featured: %s', e)
+        ctx['featured'] = []
     return render(request, 'dashboard.html', ctx)
 
 
@@ -251,6 +260,7 @@ def _featured(trending, shows_in_library, movies_in_library):
             'title': r.get('name') if is_tv else r.get('title'),
             'overview': r.get('overview') or '',
             'backdrop': f'https://image.tmdb.org/t/p/w1280{r["backdrop_path"]}',
+            'backdrop_small': f'https://image.tmdb.org/t/p/w780{r["backdrop_path"]}',
             'poster': f'https://image.tmdb.org/t/p/w300{r["poster_path"]}' if r.get('poster_path') else None,
             'year': (r.get('first_air_date') or r.get('release_date') or '')[:4],
             'rating': round(r.get('vote_average', 0), 1),

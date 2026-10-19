@@ -86,6 +86,8 @@ def queue_status_stream(request):
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'
     response['X-Accel-Buffering'] = 'no'
+    # Not gzipped: the compressor holds events back until it has enough to send
+    response['Content-Encoding'] = 'identity'
     return response
 
 
@@ -164,6 +166,8 @@ def history_failed(request, app, history_id):
     """'Mark as failed' on a grab — blocklists it and searches for a replacement."""
     try:
         client(_app(app)).history_mark_failed(history_id)
+        from apps.arr.services import invalidate_history
+        invalidate_history(app)
         return JsonResponse({'ok': True, 'message': 'Marked failed — searching for a replacement'})
     except ArrError as e:
         return _fail(e)
@@ -225,10 +229,16 @@ def _history_row(app, r):
 
 
 def _history(app, page_size=50, **params):
-    if app == 'sonarr':
-        data = sonarr().history(page_size=page_size, includeSeries='true', includeEpisode='true', **params)
-    else:
-        data = radarr().history(page_size=page_size, includeMovie='true', **params)
+    from django.core.cache import cache
+    from apps.arr.services import HISTORY_TTL, history_cache_key
+    key = history_cache_key(app, page_size=page_size, **params)
+    data = cache.get(key)
+    if data is None:
+        if app == 'sonarr':
+            data = sonarr().history(page_size=page_size, includeSeries='true', includeEpisode='true', **params)
+        else:
+            data = radarr().history(page_size=page_size, includeMovie='true', **params)
+        cache.set(key, data, HISTORY_TTL)
     return [_history_row(app, r) for r in data.get('records', [])]
 
 

@@ -145,6 +145,7 @@ def movie_detail(request, movie_id):
     movie.update({
         'overview': m.get('overview') or '',
         'fanart': image_url(m.get('images'), 'fanart', size='w1280'),
+        'fanart_small': image_url(m.get('images'), 'fanart', size='w780'),
         'genres': ', '.join(m.get('genres') or []),
         'runtime': m.get('runtime') or None,
         'certification': m.get('certification') or '',

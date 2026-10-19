@@ -105,7 +105,7 @@ def _episode_row(ep, queue_by_ep, now):
         'file_id': ep.get('episodeFileId') or None,
         'quality': ((f.get('quality') or {}).get('quality') or {}).get('name', ''),
         'size': fmt_bytes(f.get('size')) if f else '',
-        'still': image_url(ep.get('images'), 'screenshot', size=None),
+        'still': image_url(ep.get('images'), 'screenshot', size='w300'),
         'state': state,
         'queue': queued,
         'aired': aired,
@@ -165,6 +165,7 @@ def _build_detail(series_id):
     card.update({
         'overview': series.get('overview') or '',
         'fanart': image_url(series.get('images'), 'fanart', size='w1280'),
+        'fanart_small': image_url(series.get('images'), 'fanart', size='w780'),
         'genres': ', '.join(series.get('genres') or []),
         'rating': ratings.get('value') or 0,
         'runtime': series.get('runtime') or None,
