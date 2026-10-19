@@ -71,7 +71,7 @@ def test_tab_buttons_switch_and_remember(page):
     page.get_by_role('button', name=re.compile('Wanted')).click()
     assert page.url.endswith('#wanted')
     page.reload()
-    expect(page.get_by_role('button', name=re.compile('Wanted'))).to_have_class(re.compile('bg-brand-600'))
+    expect(page.get_by_role('button', name=re.compile('Wanted'))).to_have_class(re.compile(r'\bbg-white\b'))
 
 
 def test_search_all_missing(page):

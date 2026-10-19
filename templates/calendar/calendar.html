@@ -4,8 +4,8 @@
 
 {% block header_actions %}
 <button type="button" onclick="window.dispatchEvent(new CustomEvent('dd-subscribe'))"
-        class="flex items-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-calendar-plus"></i><span class="sr-only sm:not-sr-only">Subscribe</span>
+        class="flex items-center gap-1.5 h-11 min-w-[44px] justify-center px-2.5 rounded-full text-brand-400 hover:bg-white/10 text-[15px] font-medium">
+  <i class="fa-solid fa-calendar-plus text-[18px]"></i><span class="sr-only sm:not-sr-only">Subscribe</span>
 </button>
 {% endblock %}
 
@@ -37,7 +37,7 @@
     <button @click="goToday()" class="flex-shrink-0 px-3 py-2 sm:py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 text-sm font-medium">Today</button>
     <div class="flex w-full sm:w-auto rounded-xl bg-surface-800 p-1">
       <template x-for="v in [['month', 'Month', 'fa-calendar-days'], ['agenda', 'List', 'fa-list']]" :key="v[0]">
-        <button @click="setView(v[0])" :class="view === v[0] ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+        <button @click="setView(v[0])" :class="view === v[0] ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
                 class="flex-1 sm:flex-none justify-center px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
           <i class="fa-solid text-xs" :class="v[2]"></i><span x-text="v[1]"></span>
         </button>

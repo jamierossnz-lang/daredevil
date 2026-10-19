@@ -1,115 +1,119 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}Home{% endblock %}
+{% block page_title %}Home{% endblock %}
+{% block large_title %}{% endblock %}
 
 {% block content %}
+<h1 class="sr-only">Home</h1>
+<!-- Featured: this week's trending shows and movies, full bleed under the bar -->
+<section x-data="homeHero()" x-show="state !== 'empty'" aria-roledescription="carousel" aria-label="Trending this week"
+         class="relative -mx-4 lg:-mx-8 mb-6 lg:mb-8 aspect-[4/5] sm:aspect-[16/9] lg:aspect-[21/9] max-h-[78vh] bg-surface-900 overflow-hidden"
+         style="margin-top: calc(-52px - 0.25rem - env(safe-area-inset-top, 0px))"
+         @mouseenter="pause = true" @mouseleave="pause = false" @touchstart.passive="pause = true" @focusin="pause = true">
+  <div x-ref="track" @scroll.debounce.60ms="sync()"
+       class="flex h-full overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <template x-for="(f, i) in items" :key="f.tmdb_id">
+      <div class="relative h-full w-full flex-shrink-0 snap-center" role="group" aria-roledescription="slide" :aria-label="`${i + 1} of ${items.length}: ${f.title}`">
+        <img :src="f.backdrop" alt="" class="absolute inset-0 w-full h-full object-cover" :loading="i ? 'lazy' : 'eager'" :fetchpriority="i ? 'auto' : 'high'">
+        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/20"></div>
+        <div class="absolute inset-x-0 bottom-0 px-5 lg:px-10 pb-12 sm:pb-14">
+          <p class="text-[13px] font-semibold text-white/70 mb-1.5" x-text="`Trending · ${f.tv ? 'TV Show' : 'Movie'}`"></p>
+          <h2 class="text-[32px] sm:text-[40px] lg:text-[52px] font-bold tracking-tight text-white leading-[1.05] line-clamp-2 max-w-3xl" x-text="f.title"></h2>
+          <p class="text-[13px] text-white/70 mt-2">
+            <span x-text="f.year"></span><span x-show="f.rating > 0"> · <i class="fa-solid fa-star text-[10px] text-amber-400"></i> <span x-text="f.rating"></span></span>
+          </p>
+          <p class="hidden sm:block text-[15px] leading-snug text-white/80 mt-2 max-w-xl line-clamp-2" x-text="f.overview"></p>
+          <div class="flex items-center gap-3 mt-4">
+            <button @click="open(f)" class="h-11 px-6 rounded-full bg-white text-black text-[15px] font-semibold flex items-center gap-2 shadow-lg">
+              <i class="fa-solid text-[13px]" :class="f.library_id ? 'fa-play' : 'fa-plus'"></i><span x-text="f.library_id ? 'Open' : 'Add'"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+  <!-- Keeps the bar's back button and bell readable over bright artwork -->
+  <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent pointer-events-none"></div>
+  <!-- Page dots -->
+  <div class="absolute bottom-3 inset-x-0 flex justify-center" x-show="items.length > 1">
+    <template x-for="(f, i) in items" :key="f.tmdb_id">
+      <button @click="go(i)" class="p-1.5" :aria-label="`Show ${f.title}`" :aria-current="i === index ? 'true' : 'false'">
+        <span class="block h-1.5 rounded-full transition-all duration-300" :class="i === index ? 'w-5 bg-white' : 'w-1.5 bg-white/40'"></span>
+      </button>
+    </template>
+  </div>
+</section>
+
 {% if arr_errors %}
 <div class="glass rounded-2xl p-4 border border-red-500/30 mb-6 text-sm text-red-300 space-y-1">
   {% for e in arr_errors %}<p><i class="fa-solid fa-circle-exclamation mr-2"></i>{{ e }}</p>{% endfor %}
 </div>
 {% endif %}
 
-<!-- Stats Row -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-  <a href="{% url 'tv_shows' %}" class="group block glass rounded-2xl p-4 sm:p-5 animate-slide-in hover:border-white/10 transition-colors">
-    <div class="flex items-center justify-between gap-2 mb-3">
-      <span class="text-xs font-semibold uppercase tracking-wide sm:tracking-wider text-gray-500 truncate">TV Shows</span>
-      <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-brand-700/40 flex items-center justify-center"><i class="fa-solid fa-tv text-brand-400 text-sm"></i></div>
-    </div>
-    <p class="text-3xl font-bold text-gradient">{% if show_count is None %}—{% else %}{{ show_count }}{% endif %}</p>
-    <span class="text-xs text-gray-500 group-hover:text-brand-400 transition-colors mt-1 block">{% if sonarr_ready %}View all →{% else %}Connect Sonarr →{% endif %}</span>
+<!-- At a glance -->
+<div class="grid grid-cols-4 gap-2 sm:gap-3 mb-9">
+  <a href="{% url 'tv_shows' %}" class="press rounded-2xl bg-surface-800 px-3 py-3 sm:px-5 sm:py-4 hover:bg-surface-700">
+    <p class="text-[22px] sm:text-[28px] font-bold leading-none text-white tabular-nums">{% if show_count is None %}—{% else %}{{ show_count }}{% endif %}</p>
+    <p class="text-[12px] sm:text-[13px] text-gray-400 mt-1.5 truncate">{% if sonarr_ready %}TV Shows{% else %}Connect Sonarr{% endif %}</p>
   </a>
-
-  <a href="{% url 'movies' %}" class="group block glass rounded-2xl p-4 sm:p-5 animate-slide-in hover:border-white/10 transition-colors" style="animation-delay:0.05s">
-    <div class="flex items-center justify-between gap-2 mb-3">
-      <span class="text-xs font-semibold uppercase tracking-wide sm:tracking-wider text-gray-500 truncate">Movies</span>
-      <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-cyan-700/40 flex items-center justify-center"><i class="fa-solid fa-film text-cyan-400 text-sm"></i></div>
-    </div>
-    <p class="text-3xl font-bold" style="background:linear-gradient(135deg,#00d4ff,#0080ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">{% if movie_count is None %}—{% else %}{{ movie_count }}{% endif %}</p>
-    <span class="text-xs text-gray-500 group-hover:text-cyan-400 transition-colors mt-1 block">{% if radarr_ready %}View all →{% else %}Connect Radarr →{% endif %}</span>
+  <a href="{% url 'movies' %}" class="press rounded-2xl bg-surface-800 px-3 py-3 sm:px-5 sm:py-4 hover:bg-surface-700">
+    <p class="text-[22px] sm:text-[28px] font-bold leading-none text-white tabular-nums">{% if movie_count is None %}—{% else %}{{ movie_count }}{% endif %}</p>
+    <p class="text-[12px] sm:text-[13px] text-gray-400 mt-1.5 truncate">{% if radarr_ready %}Movies{% else %}Connect Radarr{% endif %}</p>
   </a>
-
-  <a href="{% url 'download_queue' %}" class="group block glass rounded-2xl p-4 sm:p-5 animate-slide-in hover:border-white/10 transition-colors" style="animation-delay:0.1s">
-    <div class="flex items-center justify-between gap-2 mb-3">
-      <span class="text-xs font-semibold uppercase tracking-wide sm:tracking-wider text-gray-500 truncate">Downloading</span>
-      <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-yellow-700/40 flex items-center justify-center"><i class="fa-solid fa-arrow-down text-yellow-400 text-sm"></i></div>
-    </div>
-    <p class="text-3xl font-bold text-yellow-400">{% if downloading_count is None %}—{% else %}{{ downloading_count }}{% endif %}</p>
-    <span class="text-xs text-gray-500 group-hover:text-yellow-400 transition-colors mt-1 block">View queue →</span>
+  <a href="{% url 'download_queue' %}" class="press rounded-2xl bg-surface-800 px-3 py-3 sm:px-5 sm:py-4 hover:bg-surface-700">
+    <p class="text-[22px] sm:text-[28px] font-bold leading-none tabular-nums {% if downloading_count %}text-cyan-300{% else %}text-white{% endif %}">{% if downloading_count is None %}—{% else %}{{ downloading_count }}{% endif %}</p>
+    <p class="text-[12px] sm:text-[13px] text-gray-400 mt-1.5 truncate"><span class="sm:hidden">Queue</span><span class="hidden sm:inline">Downloading</span></p>
   </a>
-
-  <a href="{% url 'download_queue' %}#wanted" class="group block glass rounded-2xl p-4 sm:p-5 animate-slide-in hover:border-white/10 transition-colors" style="animation-delay:0.15s">
-    <div class="flex items-center justify-between gap-2 mb-3">
-      <span class="text-xs font-semibold uppercase tracking-wide sm:tracking-wider text-gray-500 truncate">Missing</span>
-      <div class="w-8 h-8 flex-shrink-0 rounded-lg bg-orange-700/40 flex items-center justify-center"><i class="fa-solid fa-circle-exclamation text-orange-400 text-sm"></i></div>
-    </div>
-    <p class="text-3xl font-bold text-orange-400">{% if missing_count is None %}—{% else %}{{ missing_count }}{% endif %}</p>
-    <span class="text-xs text-gray-500 group-hover:text-orange-400 transition-colors mt-1 block">Monitored, not downloaded →</span>
+  <a href="{% url 'download_queue' %}#wanted" class="press rounded-2xl bg-surface-800 px-3 py-3 sm:px-5 sm:py-4 hover:bg-surface-700">
+    <p class="text-[22px] sm:text-[28px] font-bold leading-none tabular-nums {% if missing_count %}text-orange-400{% else %}text-white{% endif %}">{% if missing_count is None %}—{% else %}{{ missing_count }}{% endif %}</p>
+    <p class="text-[12px] sm:text-[13px] text-gray-400 mt-1.5 truncate">Missing</p>
   </a>
 </div>
 
-{% if upcoming_episodes %}
-<section class="mb-8">
-  <div class="flex items-center justify-between gap-3 mb-4">
-    <h2 class="text-base font-semibold text-gray-100 flex items-center gap-2.5 min-w-0">
-      <span class="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center"><i class="fa-solid fa-satellite-dish text-purple-400 text-xs"></i></span>
-      Upcoming Episodes
-    </h2>
-    <a href="{% url 'calendar' %}" class="text-xs text-gray-500 hover:text-purple-400 transition-colors py-2 -my-2">Calendar →</a>
-  </div>
-  <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-    {% for ep in upcoming_episodes %}
-    <a href="{% url 'tv_show_detail' ep.series_id %}" class="flex-shrink-0 w-28 group">
-      <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
-        {% if ep.poster %}
-        <img src="{{ ep.poster }}" alt="{{ ep.show_title }}" loading="lazy" class="w-28 object-cover group-hover:scale-105 transition-transform duration-300" style="aspect-ratio:2/3">
-        {% else %}
-        <div class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3"><i class="fa-solid fa-tv text-2xl text-gray-600"></i></div>
+{% if new_episodes %}
+<section class="mb-9">
+  {% url 'tv_shows' as shows_url %}
+  {% include "_shelf_header.html" with title="Up Next" href=shows_url %}
+  <div class="flex gap-3 overflow-x-auto snap-x scroll-px-4 lg:scroll-px-8 -mx-4 px-4 lg:-mx-8 lg:px-8 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    {% for ep in new_episodes %}
+    <a href="{% url 'tv_show_detail' ep.series_id %}" class="card-hover snap-start flex-shrink-0 w-[80%] sm:w-80">
+      <div class="relative aspect-video rounded-xl overflow-hidden bg-surface-800">
+        {% if ep.fanart or ep.poster %}
+        <img src="{{ ep.fanart|default:ep.poster }}" alt="" loading="lazy" class="w-full h-full object-cover">
         {% endif %}
-        <div class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-mono text-purple-300 font-semibold">{{ ep.code }}</div>
-        <div class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-purple-600/80 rounded text-[10px] text-white font-semibold">{{ ep.air|date:"M j" }}</div>
-        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-          <p class="text-xs font-medium text-white leading-tight truncate">{{ ep.title }}</p>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent"></div>
+        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-semibold backdrop-blur-md
+          {% if ep.state == 'downloaded' %}bg-green-500/25 text-green-300{% elif ep.state == 'downloading' %}bg-cyan-500/25 text-cyan-200{% else %}bg-black/50 text-orange-300{% endif %}">
+          {% if ep.state == 'downloaded' %}<i class="fa-solid fa-check mr-1"></i>Ready{% elif ep.state == 'downloading' %}<i class="fa-solid fa-arrow-down mr-1"></i>Downloading{% else %}<i class="fa-solid fa-circle-exclamation mr-1"></i>Missing{% endif %}
+        </span>
+        <div class="absolute left-3 right-3 bottom-2.5">
+          <p class="text-[15px] font-semibold text-white truncate">{{ ep.show_title }}</p>
+          <p class="text-[12px] text-white/70 truncate">{{ ep.code }}{% if ep.title %} · {{ ep.title }}{% endif %}</p>
         </div>
       </div>
-      <p class="mt-2 text-xs text-gray-400 truncate">{{ ep.show_title }}</p>
-      <p class="text-[11px] text-gray-500 truncate">{{ ep.air|date:"D g:i A" }}</p>
+      <p class="mt-1.5 text-[12px] text-gray-500 truncate">Aired {{ ep.air|date:"D j M" }}</p>
     </a>
     {% endfor %}
   </div>
 </section>
 {% endif %}
 
-{% if new_episodes %}
-<section class="mb-8">
-  <div class="flex items-center justify-between gap-3 mb-4">
-    <h2 class="text-base font-semibold text-gray-100 flex items-center gap-2.5 min-w-0">
-      <span class="w-7 h-7 rounded-lg bg-orange-500/15 flex items-center justify-center"><i class="fa-solid fa-circle-down text-orange-400 text-xs"></i></span>
-      Aired This Week
-    </h2>
-    <a href="{% url 'tv_shows' %}" class="text-xs text-gray-500 hover:text-orange-400 transition-colors">All shows →</a>
-  </div>
-  <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-    {% for ep in new_episodes %}
-    <a href="{% url 'tv_show_detail' ep.series_id %}" class="flex-shrink-0 w-28 group">
-      <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
-        {% if ep.poster %}
-        <img src="{{ ep.poster }}" alt="{{ ep.show_title }}" loading="lazy" class="w-28 object-cover group-hover:scale-105 transition-transform duration-300" style="aspect-ratio:2/3">
-        {% else %}
-        <div class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3"><i class="fa-solid fa-tv text-2xl text-gray-600"></i></div>
+{% if upcoming_episodes %}
+<section class="mb-9">
+  {% url 'calendar' as calendar_url %}
+  {% include "_shelf_header.html" with title="Coming Up" href=calendar_url link_label="Calendar" %}
+  <div class="flex gap-3 overflow-x-auto snap-x scroll-px-4 lg:scroll-px-8 -mx-4 px-4 lg:-mx-8 lg:px-8 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    {% for ep in upcoming_episodes %}
+    <a href="{% url 'tv_show_detail' ep.series_id %}" class="card-hover snap-start flex-shrink-0 w-[62%] sm:w-64">
+      <div class="relative aspect-video rounded-xl overflow-hidden bg-surface-800">
+        {% if ep.fanart or ep.poster %}
+        <img src="{{ ep.fanart|default:ep.poster }}" alt="" loading="lazy" class="w-full h-full object-cover">
         {% endif %}
-        <div class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-mono text-orange-300 font-semibold">{{ ep.code }}</div>
-        <div class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] text-white font-semibold
-          {% if ep.state == 'downloaded' %}bg-green-600/80{% elif ep.state == 'downloading' %}bg-blue-600/80{% else %}bg-orange-600/80{% endif %}"
-          title="{% if ep.state == 'downloaded' %}In library{% elif ep.state == 'downloading' %}Downloading{% else %}Missing{% endif %}">
-          {% if ep.state == 'downloaded' %}<i class="fa-solid fa-check"></i>{% elif ep.state == 'downloading' %}<i class="fa-solid fa-arrow-down animate-pulse"></i>{% else %}<i class="fa-solid fa-circle-exclamation"></i>{% endif %}
-        </div>
-        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-          <p class="text-xs font-medium text-white leading-tight truncate">{{ ep.title }}</p>
-        </div>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+        <p class="absolute left-2.5 bottom-2 text-[12px] font-semibold text-white">{{ ep.code }}</p>
       </div>
-      <p class="mt-2 text-xs text-gray-400 truncate">{{ ep.show_title }}</p>
-      <p class="text-[11px] text-gray-500 truncate">{{ ep.air|date:"M j" }}</p>
+      <p class="mt-1.5 text-[13px] font-medium text-gray-200 truncate">{{ ep.show_title }}</p>
+      <p class="text-[12px] text-gray-500 truncate">{{ ep.air|date:"D j M · g:i A" }}</p>
     </a>
     {% endfor %}
   </div>
@@ -117,95 +121,114 @@
 {% endif %}
 
 {% if upcoming_movies %}
-<section class="mb-8">
-  <div class="flex items-center justify-between gap-3 mb-4">
-    <h2 class="text-base font-semibold text-gray-100 flex items-center gap-2.5 min-w-0">
-      <span class="w-7 h-7 rounded-lg bg-cyan-500/15 flex items-center justify-center"><i class="fa-solid fa-calendar text-cyan-400 text-xs"></i></span>
-      Movies Waiting for Release
-    </h2>
-    <a href="{% url 'download_queue' %}#waiting-movies" class="text-xs text-gray-500 hover:text-cyan-400 transition-colors">All waiting →</a>
-  </div>
-  <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+<section class="mb-9">
+  {% url 'download_queue' as queue_url %}
+  {% include "_shelf_header.html" with title="Movies on the Way" href=queue_url|add:"#waiting-movies" %}
+  <div class="flex gap-3 overflow-x-auto snap-x scroll-px-4 lg:scroll-px-8 -mx-4 px-4 lg:-mx-8 lg:px-8 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     {% for m in upcoming_movies %}
-    <a href="{% url 'movie_detail' m.id %}" class="flex-shrink-0 w-28 group">
-      <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
-        {% if m.poster %}
-        <img src="{{ m.poster }}" alt="{{ m.title }}" loading="lazy" class="w-28 object-cover group-hover:scale-105 transition-transform duration-300" style="aspect-ratio:2/3">
-        {% else %}
-        <div class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3"><i class="fa-solid fa-film text-2xl text-gray-600"></i></div>
-        {% endif %}
-        {% if m.when %}<div class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-cyan-600/80 rounded text-[10px] text-white font-semibold">{{ m.when|date:"M j" }}</div>{% endif %}
+    <a href="{% url 'movie_detail' m.id %}" class="card-hover snap-start flex-shrink-0 w-[31%] sm:w-36">
+      <div class="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-800">
+        {% if m.poster %}<img src="{{ m.poster }}" alt="" loading="lazy" class="w-full h-full object-cover">
+        {% else %}<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-film text-2xl text-gray-600"></i></div>{% endif %}
       </div>
-      <p class="mt-2 text-xs text-gray-400 truncate">{{ m.title }}</p>
-      <p class="text-[11px] text-gray-500 truncate">{{ m.year }}</p>
+      <p class="mt-1.5 text-[13px] font-medium text-gray-200 truncate">{{ m.title }}</p>
+      <p class="text-[12px] text-gray-500 truncate">{% if m.when %}{{ m.when|date:"j M Y" }}{% else %}{{ m.year }}{% endif %}</p>
     </a>
     {% endfor %}
   </div>
 </section>
 {% endif %}
 
-<!-- Discover Sliders (TMDB lists) -->
-<div x-data="discoverSliders()" class="mt-2">
+<!-- Discover shelves (TMDB lists) -->
+<div x-data="discoverSliders()">
   <template x-for="s in sections" :key="s.key">
-    <section class="mb-8">
-      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-4">
-        <h2 class="text-base sm:text-lg font-semibold text-gray-100 flex items-center gap-2 min-w-0">
-          <i class="fa-solid text-base" :class="s.icon"></i><span x-text="s.title"></span>
-        </h2>
-        <div x-show="s.weekly" class="flex rounded-lg bg-surface-800 border border-surface-700/60 p-0.5">
+    <section class="mb-9">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h2 class="text-[22px] font-bold tracking-tight text-white truncate" x-text="s.title"></h2>
+        <div x-show="s.weekly" class="flex-shrink-0 flex rounded-lg bg-surface-800 p-0.5" role="group" :aria-label="`${s.title}: which week`">
           <template x-for="w in [['this', 'This week'], ['last', 'Last week']]" :key="w[0]">
-            <button @click="tabs[s.key] = w[0]"
-                    :class="tabs[s.key] === w[0] ? s.active : 'text-gray-400 hover:text-white'"
-                    class="px-2.5 py-1.5 sm:py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors" x-text="w[1]"></button>
+            <button @click="tabs[s.key] = w[0]" :aria-pressed="String(tabs[s.key] === w[0])"
+                    :class="tabs[s.key] === w[0] ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-white'"
+                    class="px-2.5 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap" x-text="w[1]"></button>
           </template>
         </div>
       </div>
-      <div x-show="loading" class="flex gap-3 overflow-x-auto pb-2">
-        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-28 animate-pulse"><div class="w-28 rounded-xl bg-surface-700" style="aspect-ratio:2/3"></div><div class="mt-2 h-3 bg-surface-700 rounded w-20"></div></div></template>
+      <div x-show="loading" class="flex gap-3 overflow-hidden -mx-4 px-4 lg:-mx-8 lg:px-8 pb-3">
+        <template x-for="i in [1,2,3,4,5,6,7,8]"><div class="flex-shrink-0 w-[31%] sm:w-36"><div class="aspect-[2/3] rounded-xl bg-surface-800 animate-pulse"></div><div class="mt-2 h-3 bg-surface-800 rounded w-3/4"></div></div></template>
       </div>
-      <div x-show="!loading && items(s).length" class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+      <div x-show="!loading && items(s).length" class="flex gap-3 overflow-x-auto snap-x scroll-px-4 lg:scroll-px-8 -mx-4 px-4 lg:-mx-8 lg:px-8 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <template x-for="item in items(s)" :key="item.tmdb_id">
-          <div class="flex-shrink-0 w-28 group cursor-pointer" @click="add(item, s.tv)">
-            <div class="relative rounded-xl overflow-hidden bg-surface-800 poster-glow">
-              <img x-show="item.poster" :src="item.poster" :alt="item.title" loading="lazy" class="w-28 object-cover" style="aspect-ratio:2/3">
-              <div x-show="!item.poster" class="w-28 flex items-center justify-center bg-surface-700" style="aspect-ratio:2/3">
+          <div class="card-hover snap-start flex-shrink-0 w-[31%] sm:w-36 cursor-pointer" @click="add(item, s.tv)"
+               role="button" tabindex="0" @keydown.enter="add(item, s.tv)"
+               :aria-label="added[item.tmdb_id] ? `${item.title} — in your library` : `Add ${item.title}`">
+            <div class="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-800">
+              <img x-show="item.poster" :src="item.poster" alt="" loading="lazy" class="w-full h-full object-cover">
+              <div x-show="!item.poster" class="w-full h-full flex items-center justify-center">
                 <i class="fa-solid text-2xl text-gray-600" :class="s.tv ? 'fa-tv' : 'fa-film'"></i>
               </div>
-              <div x-show="item.rating > 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-yellow-400 font-medium" x-text="`★ ${item.rating}`"></div>
-              <div x-show="!s.weekly && item.year" class="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 rounded text-xs text-gray-300" x-text="item.year"></div>
               <!-- In library / add — always visible, phones have no hover -->
-              <span class="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
-                    :class="added[item.tmdb_id] === 'added' ? 'bg-green-500' : added[item.tmdb_id] === 'exists' ? 'bg-gray-600/90' : s.plus"
-                    :title="added[item.tmdb_id] ? 'In your library' : 'Add'">
+              <span class="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-md shadow-lg"
+                    :class="added[item.tmdb_id] === 'added' ? 'bg-green-500 animate-pop' : added[item.tmdb_id] === 'exists' ? 'bg-black/50' : 'bg-black/50'">
                 <i class="fa-solid text-white text-[11px]" :class="adding[item.tmdb_id] ? 'fa-spinner fa-spin' : added[item.tmdb_id] ? 'fa-check' : 'fa-plus'"></i>
               </span>
             </div>
-            <p class="mt-2 text-xs text-gray-400 truncate" x-text="item.title"></p>
-            <p x-show="s.weekly" class="text-[11px] text-gray-500" x-text="item.year"></p>
+            <p class="mt-1.5 text-[13px] font-medium text-gray-200 truncate" x-text="item.title"></p>
+            <p class="text-[12px] text-gray-500"><span x-text="item.year"></span><span x-show="item.rating > 0"> · ★ <span x-text="item.rating"></span></span></p>
           </div>
         </template>
       </div>
-      <p x-show="!loading && !items(s).length" class="text-sm text-gray-500 py-3" x-text="s.empty"></p>
+      <p x-show="!loading && !items(s).length" class="text-[15px] text-gray-500 py-3" x-text="s.empty"></p>
     </section>
   </template>
 </div>
 
 <script>
+// One request feeds the hero and the shelves
+const ddDiscover = fetch("{% url 'dashboard_discover' %}").then(r => r.ok ? r.json() : {}).catch(() => ({}));
+
+function homeHero() {
+  return {
+    items: [], index: 0, pause: false, state: 'loading',
+    async init() {
+      this.items = (await ddDiscover).featured || [];
+      this.state = this.items.length ? 'ready' : 'empty';
+      // Moves on by itself — not for people who'd rather it didn't, nor while touched
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setInterval(() => {
+          if (!this.pause && !document.hidden && this.items.length > 1) this.go((this.index + 1) % this.items.length);
+        }, 7000);
+      }
+    },
+    sync() {
+      const t = this.$refs.track;
+      this.index = Math.round(t.scrollLeft / t.clientWidth);
+    },
+    go(i) {
+      const t = this.$refs.track;
+      t.scrollTo({ left: i * t.clientWidth, behavior: 'smooth' });
+      this.index = i;
+    },
+    open(f) {
+      if (f.library_id) {
+        window.location.href = f.tv ? `/shows/${f.library_id}/` : `/movies/${f.library_id}/`;
+        return;
+      }
+      openAddModal({
+        kind: f.tv ? 'sonarr' : 'radarr', tmdbId: f.tmdb_id, title: f.title, year: f.year, poster: f.poster,
+        onAdded: (d) => { f.library_id = d.id; },
+      });
+    },
+  };
+}
+
 function discoverSliders() {
-  const brand = { active: 'bg-brand-600 text-white', plus: 'bg-brand-600' };
-  const cyan = { active: 'bg-cyan-700 text-white', plus: 'bg-cyan-600' };
   return {
     sections: [
-      { key: 'tv_new', title: 'New TV Premieres', icon: 'fa-wand-magic-sparkles text-brand-400', tv: true, weekly: true,
-        empty: 'No new premieres found for this period.', ...brand },
-      { key: 'tv_returning', title: 'Returning TV Shows', icon: 'fa-rotate-right text-brand-400', tv: true, weekly: true,
-        empty: 'No returning shows found for this period.', ...brand },
-      { key: 'movies_rent_stream', title: 'New to Rent / Stream', icon: 'fa-circle-play text-cyan-400', tv: false, weekly: true,
-        empty: 'No digital releases found for this period.', ...cyan },
-      { key: 'movies_released', title: 'Movies Released in Cinemas', icon: 'fa-clapperboard text-cyan-400', tv: false, weekly: true,
-        empty: 'No theatrical releases found for this period.', ...cyan },
-      { key: 'movies_announced', title: 'Upcoming & Announced', icon: 'fa-bullhorn text-cyan-400', tv: false, weekly: false,
-        empty: 'No upcoming movies found.', ...cyan },
+      { key: 'tv_new', title: 'New TV Premieres', tv: true, weekly: true, empty: 'No new premieres found for this period.' },
+      { key: 'tv_returning', title: 'Returning Shows', tv: true, weekly: true, empty: 'No returning shows found for this period.' },
+      { key: 'movies_rent_stream', title: 'New to Rent or Stream', tv: false, weekly: true, empty: 'No digital releases found for this period.' },
+      { key: 'movies_released', title: 'In Cinemas', tv: false, weekly: true, empty: 'No theatrical releases found for this period.' },
+      { key: 'movies_announced', title: 'Coming Soon', tv: false, weekly: false, empty: 'No upcoming movies found.' },
     ],
     data:    {},
     loading: true,
@@ -214,13 +237,10 @@ function discoverSliders() {
     tabs: { tv_new: 'this', tv_returning: 'this', movies_rent_stream: 'this', movies_released: 'this' },
 
     async init() {
-      try {
-        const r = await fetch("{% url 'dashboard_discover' %}");
-        if (r.ok) this.data = await r.json();
-      } catch(e) {}
-      // Already in Sonarr/Radarr → show the grey tick straight away
+      this.data = await ddDiscover;
+      // Already in Sonarr/Radarr → a tick straight away
       const marks = {};
-      Object.values(this.data).forEach(list => (list || []).forEach(i => { if (i.library_id) marks[i.tmdb_id] = 'exists'; }));
+      Object.entries(this.data).forEach(([key, list]) => key !== 'featured' && (list || []).forEach(i => { if (i.library_id) marks[i.tmdb_id] = 'exists'; }));
       this.added = marks;
       this.loading = false;
     },
@@ -249,18 +269,18 @@ function discoverSliders() {
 
 <!-- Empty state -->
 {% if show_count == 0 and movie_count == 0 %}
-<div class="flex flex-col items-center justify-center py-24 text-center">
-  <div class="w-20 h-20 rounded-2xl bg-surface-800 flex items-center justify-center mb-6 animate-glow">
-    <i class="fa-solid fa-tornado text-4xl text-brand-500"></i>
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 rounded-[22px] bg-gradient-to-b from-brand-400 to-brand-600 flex items-center justify-center mb-6 shadow-[inset_0_0.5px_0_rgb(255_255_255/0.35)]">
+    <i class="fa-solid fa-tornado text-4xl text-white"></i>
   </div>
-  <h2 class="text-2xl font-bold text-white mb-2">Welcome to Daredevil</h2>
-  <p class="text-gray-500 max-w-md mb-8">Your media library lives in Sonarr and Radarr — Daredevil is the front end. Add a show or movie to get started.</p>
-  <div class="flex gap-4">
-    <a href="{% url 'tmdb_search_tv' %}" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
-      <i class="fa-solid fa-plus"></i> Add TV Show
+  <h2 class="text-[28px] font-bold text-white mb-2">Welcome to Daredevil</h2>
+  <p class="text-[15px] text-gray-400 max-w-md mb-8">Your library lives in Sonarr and Radarr — Daredevil is the front end. Add a show or movie to get started.</p>
+  <div class="flex gap-3">
+    <a href="{% url 'tmdb_search_tv' %}" class="h-11 px-6 rounded-full bg-white text-black text-[15px] font-semibold flex items-center gap-2">
+      <i class="fa-solid fa-plus text-[13px]"></i> Add a Show
     </a>
-    <a href="{% url 'tmdb_search_movie' %}" class="px-5 py-2.5 bg-surface-700 hover:bg-surface-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2">
-      <i class="fa-solid fa-plus"></i> Add Movie
+    <a href="{% url 'tmdb_search_movie' %}" class="h-11 px-6 rounded-full bg-surface-700 text-white text-[15px] font-semibold flex items-center gap-2">
+      <i class="fa-solid fa-plus text-[13px]"></i> Add a Movie
     </a>
   </div>
 </div>

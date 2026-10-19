@@ -36,6 +36,11 @@ def card_menu(page, movie_id):
     return c
 
 
+def more_actions(page):
+    """Open the movie page's "…" menu (Reset, Refresh, Radarr, Remove)."""
+    page.get_by_role('button', name='More actions').click()
+
+
 def visible_ids(page):
     return set(page.eval_on_selector_all('#posterGrid > [data-id]', 'cs => cs.filter(c => c.offsetParent).map(c => Number(c.dataset.id))'))
 
@@ -135,7 +140,8 @@ def test_reset_and_redownload(page, movies):
         pytest.skip('no downloaded movie')
     open_page(page, f'/movies/{target["id"]}/')
     caught = intercept(page, '**/movies/moviefiles/*/delete/')
-    page.get_by_role('button', name=re.compile('Reset')).click()
+    more_actions(page)
+    page.get_by_role('menuitem', name=re.compile('Reset')).click()
     page.wait_for_timeout(500)
     assert caught.last()['json'] == {'movie_id': target['id'], 'search': True}
     assert not caught.last()['path'].startswith('/movies/moviefiles/0/')
@@ -143,12 +149,14 @@ def test_reset_and_redownload(page, movies):
 
 def test_refresh_and_remove(page, movie):
     open_page(page, f'/movies/{movie["id"]}/')
-    page.get_by_role('button', name=re.compile('Refresh')).click()   # real, harmless
+    more_actions(page)
+    page.get_by_role('menuitem', name=re.compile('Refresh')).click()   # real, harmless
     expect(toast(page, 'Radarr is refreshing')).to_be_visible()
     remove = intercept(page, f'**/movies/{movie["id"]}/delete/')
     page.dialog_answers = [True, False]
+    more_actions(page)
     with page.expect_navigation(url=url('/movies/')):
-        page.get_by_role('button', name='Remove').click()
+        page.get_by_role('menuitem', name='Remove').click()
     assert remove.last()['json'] == {'delete_files': False}
 
 

@@ -26,7 +26,7 @@
     <div class="flex gap-1.5 min-w-max">
       <template x-for="t in tabs" :key="t.key">
         <button @click="setTab(t.key)"
-                :class="tab === t.key ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
+                :class="tab === t.key ? 'bg-white text-black' : 'bg-surface-800 text-gray-300 hover:bg-surface-700'"
                 class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors">
           <i class="fa-solid" :class="t.icon"></i>
           <span x-text="t.label"></span>
@@ -90,15 +90,15 @@
 
           <div class="flex-shrink-0 flex flex-col sm:flex-row items-end sm:items-start gap-1.5">
             <button x-show="it.in_qbt && it.phase !== 'paused'" @click="act(it, 'pause')" title="Pause in qBittorrent"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-pause text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-pause text-xs"></i></button>
             <button x-show="it.in_qbt && it.phase === 'paused'" @click="act(it, 'resume')" title="Resume in qBittorrent"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-play text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-play text-xs"></i></button>
             <button x-show="it.phase === 'delayed'" @click="act(it, 'grab')" title="Grab now — skip the delay"
-                    class="w-8 h-8 rounded-lg bg-brand-600 hover:bg-brand-500 text-white flex items-center justify-center"><i class="fa-solid fa-bolt text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-brand-600 hover:bg-brand-500 text-white flex items-center justify-center"><i class="fa-solid fa-bolt text-xs"></i></button>
             <button @click="act(it, 'retry')" title="Retry — blocklist this release and search for a different one"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-yellow-900/40 text-gray-300 hover:text-yellow-300 flex items-center justify-center"><i class="fa-solid fa-rotate-right text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-yellow-900/40 text-gray-300 hover:text-yellow-300 flex items-center justify-center"><i class="fa-solid fa-rotate-right text-xs"></i></button>
             <button @click="act(it, 'remove')" title="Remove from the queue and qBittorrent"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-red-900/40 text-gray-300 hover:text-red-400 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-red-900/40 text-gray-300 hover:text-red-400 flex items-center justify-center"><i class="fa-solid fa-xmark text-xs"></i></button>
           </div>
         </div>
       </template>

@@ -33,6 +33,11 @@ def show(shows):
     return max(shows, key=lambda s: (s['files'], s['wanted']))
 
 
+def more_actions(page):
+    """Open the show page's "…" menu (Search missing, Refresh, Sonarr, Remove)."""
+    page.get_by_role('button', name='More actions').click()
+
+
 def card(page, show_id):
     return page.locator(f'#posterGrid > [data-id="{show_id}"]')
 
@@ -81,7 +86,7 @@ def test_status_filter(page, shows, status, check):
 def test_library_tabs(page, shows):
     open_page(page, '/shows/')
     page.click('#libTabs [data-tab="recent"]')
-    expect(page.locator('#libTabs [data-tab="recent"]')).to_have_class(re.compile('bg-brand'))
+    expect(page.locator('#libTabs [data-tab="recent"]')).to_have_attribute('aria-pressed', 'true')
     page.click('#libTabs [data-tab="watching"]')
     page.wait_for_timeout(2500)  # asks Plex
     shown = page.eval_on_selector_all('#posterGrid > [data-id]', 'cs => cs.filter(c => c.offsetParent).length')
@@ -243,6 +248,7 @@ def test_change_quality_profile(page, show):
 def test_refresh_asks_sonarr_to_rescan(page, show):
     """Real, and harmless: Sonarr refreshes metadata and rescans the folder."""
     open_page(page, f'/shows/{show["id"]}/')
+    more_actions(page)
     page.click('button[title^="Refresh metadata"]')
     expect(toast(page, 'Sonarr is refreshing')).to_be_visible()
 
@@ -295,6 +301,7 @@ def test_remove_show_from_its_page(page, show):
     caught = intercept(page, f'**/shows/{show["id"]}/delete/')
     page.dialog_answers = [True, True]
     with page.expect_navigation(url=url('/shows/')):
+        more_actions(page)
         page.click('button[onclick="removeSeries()"]')
     assert caught.last()['json'] == {'delete_files': True}
 
@@ -350,9 +357,12 @@ def test_add_a_show_then_remove_it(page):
         expect(add).to_contain_text('In library')
         open_page(page, f'/shows/{added["id"]}/')
         expect(page.locator('h1').first).to_contain_text('Detectorists')
-    finally:
+        # Remove it the way a person would
         page.dialog_answers = [True, False]   # remove, keep files (there are none)
-        open_page(page, f'/shows/{added["id"]}/')
+        more_actions(page)
         with page.expect_navigation(url=url('/shows/')):
             page.click('button[onclick="removeSeries()"]')
-    assert not page.locator(f'#posterGrid > [data-id="{added["id"]}"]').count()
+        assert not page.locator(f'#posterGrid > [data-id="{added["id"]}"]').count()
+    finally:
+        # Whatever happened above, never leave the test show in Sonarr
+        api_post(page, f'/shows/{added["id"]}/delete/', {'delete_files': False})

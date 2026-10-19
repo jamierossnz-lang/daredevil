@@ -29,7 +29,7 @@
   <div class="flex gap-1.5 mb-3 overflow-x-auto scrollbar-thin -mx-1 px-1 pb-1">
     <template x-for="g in groups" :key="g.key">
       <button @click="group = g.key; selected = []"
-              :class="group === g.key ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
+              :class="group === g.key ? 'bg-white text-black' : 'bg-surface-800 text-gray-300 hover:bg-surface-700'"
               class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-xs font-medium transition-colors">
         <i class="fa-solid" :class="g.icon"></i><span x-text="g.label"></span>
         <span class="opacity-70" x-text="count(g.key)"></span>
@@ -113,15 +113,15 @@
           <span class="hidden md:block text-xs text-gray-400 text-right tabular-nums" x-text="t.ratio.toFixed(2)"></span>
           <div class="flex items-center justify-end gap-1 mt-2 md:mt-0">
             <button x-show="t.group === 'paused'" @click="act('start', [t.hash])" title="Start"
-                    class="w-8 h-8 rounded-lg bg-green-900/40 hover:bg-green-900/80 text-green-400 flex items-center justify-center"><i class="fa-solid fa-play text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-green-900/40 hover:bg-green-900/80 text-green-400 flex items-center justify-center"><i class="fa-solid fa-play text-xs"></i></button>
             <button x-show="t.group !== 'paused'" @click="act('stop', [t.hash])" title="Pause"
-                    class="w-8 h-8 rounded-lg bg-yellow-900/40 hover:bg-yellow-900/80 text-yellow-400 flex items-center justify-center"><i class="fa-solid fa-pause text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-yellow-900/40 hover:bg-yellow-900/80 text-yellow-400 flex items-center justify-center"><i class="fa-solid fa-pause text-xs"></i></button>
             <button x-show="t.group === 'error' || t.group === 'stalled'" @click="act('reannounce', [t.hash])" title="Ask trackers for more peers"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-tower-broadcast text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-tower-broadcast text-xs"></i></button>
             <button x-show="t.group === 'error'" @click="act('recheck', [t.hash])" title="Re-check the downloaded data"
-                    class="w-8 h-8 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-rotate text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-rotate text-xs"></i></button>
             <button @click="askRemove([t.hash])" title="Remove"
-                    class="w-8 h-8 rounded-lg bg-red-900/40 hover:bg-red-900/80 text-red-400 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+                    class="w-11 h-11 sm:w-8 sm:h-8 rounded-full sm:rounded-lg bg-red-900/40 hover:bg-red-900/80 text-red-400 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
           </div>
         </div>
       </template>

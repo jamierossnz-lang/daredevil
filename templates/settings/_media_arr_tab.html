@@ -169,7 +169,7 @@
                 <div class="flex gap-1.5 mt-1">
                   <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="plex.refresh.map_from" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200">
                   <button type="button" @click="openFolderPicker({ source: kind, path: plex.refresh.map_from || '/', title: `Library folder as ${kind === 'sonarr' ? 'Sonarr' : 'Radarr'} sees it`, onPick: p => plex.refresh.map_from = p })"
-                          class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                          class="min-w-[44px] px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open text-xs"></i></button>
                 </div></label>
               <label class="block"><span class="text-[11px] text-gray-500">Same folder as Plex sees it</span>
                 <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="plex.refresh.map_to" class="mt-1 w-full bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200"></label>
@@ -266,7 +266,7 @@
                   <span class="text-xs text-gray-500" x-text="`${f.free} free`"></span>
                   <span x-show="f.unmapped" class="text-[11px] text-yellow-400/80" x-text="`${f.unmapped} unmatched folder${f.unmapped === 1 ? '' : 's'}`" title="Folders here that aren't linked to anything in {{ label }}"></span>
                   <span x-show="!f.local_ok" class="text-[11px] text-yellow-400/80" title="Add a mapping under 'How Daredevil sees these folders'"><i class="fa-solid fa-eye-slash mr-1"></i>Daredevil can't see it</span>
-                  <button @click="deleteRoot(f)" class="text-gray-500 hover:text-red-400" title="Remove from {{ label }} (nothing is deleted)"><i class="fa-solid fa-trash text-xs"></i></button>
+                  <button @click="deleteRoot(f)" class="w-11 h-11 -m-2.5 rounded-full flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-white/10" title="Remove from {{ label }} (nothing is deleted)"><i class="fa-solid fa-trash text-xs"></i></button>
                 </div>
               </template>
               <p x-show="!(data.root_folders || []).length" class="text-xs text-yellow-400/80">No root folder yet — {{ label }} can't add {% if kind == 'sonarr' %}shows{% else %}movies{% endif %} until it has one.</p>
@@ -295,14 +295,14 @@
                 <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
                   <div class="flex gap-1.5 flex-1 min-w-[10rem]">
                     <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="m.remote" placeholder="{{ label }} path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
-                    <button type="button" @click="pickMapping(m, 'remote')" title="Browse {{ label }}'s folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                    <button type="button" @click="pickMapping(m, 'remote')" title="Browse {{ label }}'s folders" class="min-w-[44px] px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
                   </div>
                   <i class="fa-solid fa-arrow-right text-gray-600 text-xs hidden sm:block"></i>
                   <div class="flex gap-1.5 flex-1 min-w-[10rem]">
                     <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="m.local" placeholder="Daredevil path" class="flex-1 min-w-0 bg-surface-700 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-200 placeholder-gray-600">
-                    <button type="button" @click="pickMapping(m, 'local')" title="Browse Daredevil's folders" class="px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
+                    <button type="button" @click="pickMapping(m, 'local')" title="Browse Daredevil's folders" class="min-w-[44px] px-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-gray-300"><i class="fa-solid fa-folder-open text-xs"></i></button>
                   </div>
-                  <button @click="mappingRows.splice(i, 1)" class="px-2 text-gray-500 hover:text-red-400" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+                  <button @click="mappingRows.splice(i, 1)" class="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-red-400" title="Remove" aria-label="Remove this pair"><i class="fa-solid fa-xmark"></i></button>
                 </div>
               </template>
             </div>
@@ -381,7 +381,7 @@
           <div>
             <div class="flex gap-1.5 overflow-x-auto scrollbar-thin pb-1 mb-4">
               <template x-for="p in quality.profiles" :key="p.id">
-                <button @click="selectProfile(p.id)" :class="profile.id === p.id ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
+                <button @click="selectProfile(p.id)" :class="profile.id === p.id ? 'bg-white text-black' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
                         class="flex-shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium" x-text="p.name"></button>
               </template>
             </div>

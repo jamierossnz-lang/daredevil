@@ -1,0 +1,5 @@
+{# A shelf's heading, Apple TV style: title, and a "See All" link (title, href, link_label) #}
+<div class="flex items-baseline justify-between gap-3 mb-3">
+  <h2 class="text-[22px] font-bold tracking-tight text-white truncate">{{ title }}</h2>
+  {% if href %}<a href="{{ href }}" class="flex-shrink-0 text-[15px] text-brand-400 hover:text-brand-300 py-3 -my-3 px-2 -mx-2">{{ link_label|default:"See All" }}</a>{% endif %}
+</div>

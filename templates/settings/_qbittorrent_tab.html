@@ -52,13 +52,13 @@
           <label class="block"><span class="text-xs text-gray-500">Default download folder</span>
             <div class="flex gap-2 mt-1">
               <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="prefs.save_path" class="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
-              <button type="button" @click="pickInto('save_path', 'Default download folder')" class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open"></i></button>
+              <button type="button" @click="pickInto('save_path', 'Default download folder')" class="min-w-[44px] px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open"></i></button>
             </div></label>
           <label class="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" x-model="prefs.temp_path_enabled" class="accent-brand-500"> Keep incomplete downloads in a separate folder</label>
           <label class="block" x-show="prefs.temp_path_enabled"><span class="text-xs text-gray-500">Incomplete downloads folder</span>
             <div class="flex gap-2 mt-1">
               <input type="text" autocapitalize="none" autocorrect="off" spellcheck="false" x-model="prefs.temp_path" class="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded-xl px-3 py-2 text-sm text-gray-200 font-mono">
-              <button type="button" @click="pickInto('temp_path', 'Incomplete downloads folder')" class="px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open"></i></button>
+              <button type="button" @click="pickInto('temp_path', 'Incomplete downloads folder')" class="min-w-[44px] px-3 rounded-xl bg-surface-700 hover:bg-surface-600 text-gray-300" title="Browse"><i class="fa-solid fa-folder-open"></i></button>
             </div></label>
           <button @click="savePrefs(['save_path', 'temp_path_enabled', 'temp_path'])" :disabled="!!(busy.prefs)" class="px-4 py-2 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50">
             <i class="fa-solid fa-floppy-disk mr-1.5"></i>Save folders
@@ -109,7 +109,7 @@
         <h2 class="text-sm font-semibold text-gray-200 mb-3">Preferences</h2>
         <div class="flex gap-1.5 mb-4 overflow-x-auto scrollbar-thin">
           <template x-for="t in [['speed','Speed','fa-gauge-high'],['network','Connection','fa-network-wired'],['bittorrent','BitTorrent','fa-magnet'],['seeding','Seeding','fa-seedling'],['queue','Queue','fa-list-ol']]" :key="t[0]">
-            <button @click="sub = t[0]" :class="sub === t[0] ? 'bg-brand-600 text-white' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
+            <button @click="sub = t[0]" :class="sub === t[0] ? 'bg-white text-black' : 'bg-surface-800 text-gray-400 hover:bg-surface-700'"
                     class="flex-shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium"><i class="fa-solid mr-1" :class="t[2]"></i><span x-text="t[1]"></span></button>
           </template>
         </div>

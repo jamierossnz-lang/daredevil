@@ -17,18 +17,18 @@
 <div x-data="{ tab: 'tasks' }">
   <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit mb-6">
     <button @click="tab = 'tasks'"
-            :class="tab === 'tasks' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            :class="tab === 'tasks' ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
             class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
       <i class="fa-solid fa-bolt"></i> Tasks
     </button>
     <button @click="tab = 'schedules'"
-            :class="tab === 'schedules' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            :class="tab === 'schedules' ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
             class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
       <i class="fa-solid fa-calendar-days"></i> Schedules
       <span class="px-1.5 py-0.5 rounded-full bg-black/30 text-xs">{{ all_schedules|length }}</span>
     </button>
     <button @click="tab = 'history'"
-            :class="tab === 'history' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
+            :class="tab === 'history' ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
             class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
       <i class="fa-solid fa-clock-rotate-left"></i> History
     </button>

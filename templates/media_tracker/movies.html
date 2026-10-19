@@ -4,8 +4,8 @@
 
 {% block header_actions %}
 <a id="addMovieBtn" href="{% url 'tmdb_search_movie' %}{% if q %}?q={{ q|urlencode }}{% endif %}"
-   class="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-plus"></i>
+   class="flex items-center gap-1.5 h-11 min-w-[44px] justify-center px-2.5 rounded-full text-brand-400 hover:bg-white/10 text-[15px] font-medium">
+  <i class="fa-solid fa-plus text-[19px]"></i>
   <span class="sr-only sm:not-sr-only" id="addMovieLabel">{% if q %}Search to add{% else %}Add Movie{% endif %}</span>
 </a>
 {% endblock %}

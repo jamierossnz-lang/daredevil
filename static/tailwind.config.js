@@ -5,7 +5,11 @@
  *  - in the browser by the Tailwind Play CDN, the fallback base.html uses when
  *    that file hasn't been built (bare-metal runs, or the repo bind-mounted
  *    into a dev container).
- * Brand colours are CSS variables so App Settings → Appearance can switch theme.
+ *
+ * The look follows Apple's TV app: true black, neutral greys (Apple's dark
+ * system greys, not Tailwind's blue-tinted ones) and one accent colour.
+ * Accent ("brand") colours are CSS variables so App Settings → Appearance can
+ * switch theme.
  */
 const ddTailwindConfig = {
   content: ['./templates/**/*.html', './apps/**/*.py'],
@@ -24,22 +28,44 @@ const ddTailwindConfig = {
           800: 'rgb(var(--b800) / <alpha-value>)',
           900: 'rgb(var(--b900) / <alpha-value>)',
         },
+        // Fills and backgrounds, lightest to darkest: 800 is a grouped cell
+        // (secondarySystemBackground), 700 / 600 are controls on top of it.
         surface: {
-          50:  '#e8e8f4',
-          100: '#c5c5e8',
-          200: '#9d9dcc',
-          300: '#7777b0',
-          400: '#55559a',
-          500: '#333370',
-          600: '#25255a',
-          700: '#181840',
-          800: '#0e0e2e',
-          900: '#07071a',
-          950: '#030310',
+          50:  '#f2f2f7',
+          100: '#d1d1d6',
+          200: '#aeaeb2',
+          300: '#8e8e93',
+          400: '#636366',
+          500: '#48484a',
+          600: '#3a3a3c',
+          700: '#2c2c2e',
+          800: '#1c1c1e',
+          900: '#0e0e10',
+          950: '#000000',
+        },
+        // Text: 100–300 primary, 400 secondary, 500 tertiary — each readable
+        // (4.5:1+) on black and on surface-800 cells
+        gray: {
+          50:  '#f5f5f7',
+          100: '#f2f2f7',
+          200: '#e5e5ea',
+          300: '#c7c7cc',
+          400: '#a1a1a6',
+          500: '#8e8e93',
+          600: '#737378',
+          700: '#48484a',
+          800: '#2c2c2e',
+          900: '#1c1c1e',
+          950: '#0e0e10',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        // SF Pro on Apple devices, Segoe UI on Windows, Roboto on Android
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+      },
+      transitionTimingFunction: {
+        // Close to the system spring: quick out, gentle settle
+        spring: 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
     },
   },

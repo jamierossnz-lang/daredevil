@@ -146,28 +146,33 @@
 </div>
 
 <!-- ── "Added" banner — stays on the page, links to the new item ─────────── -->
-<div x-data="ddBannerHost()" @dd-banner.window="show($event.detail)" x-show="visible" x-cloak
-     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-3"
-     x-transition:leave="transition ease-in duration-150" x-transition:leave-end="opacity-0 -translate-y-3"
+<div x-data="ddBannerHost()" @dd-banner.window="show($event.detail)" x-show="visible" x-cloak role="status" aria-live="polite"
+     x-transition:enter="transition ease-spring duration-500" x-transition:enter-start="opacity-0 -translate-y-6 scale-95"
+     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+     x-transition:leave="transition ease-in duration-200" x-transition:leave-end="opacity-0 -translate-y-4 scale-95"
      @mouseenter="hold()" @mouseleave="release()"
-     class="fixed top-3 inset-x-3 sm:inset-x-auto sm:right-5 sm:w-[27rem] z-[75]"
+     class="fixed top-2 inset-x-2 sm:inset-x-auto sm:right-5 sm:top-4 sm:w-[25rem] z-[75]"
      style="margin-top: env(safe-area-inset-top, 0px)">
-  <div class="glass rounded-2xl p-3 flex items-center gap-3 shadow-2xl border border-white/10">
-    <template x-if="b.poster"><img :src="b.poster" class="w-10 h-14 rounded-md object-cover flex-shrink-0 bg-surface-700" alt=""></template>
-    <template x-if="!b.poster">
-      <div class="w-10 h-14 rounded-md bg-surface-700 flex items-center justify-center flex-shrink-0">
-        <i class="fa-solid" :class="b.kind === 'sonarr' ? 'fa-tv text-blue-400' : 'fa-film text-purple-400'"></i>
-      </div>
-    </template>
-    <div class="flex-1 min-w-0">
-      <p class="text-[10px] font-semibold uppercase tracking-wider" :class="b.kind === 'sonarr' ? 'text-blue-400' : 'text-purple-400'" x-text="b.heading"></p>
-      <p class="text-sm font-semibold text-white truncate" x-text="b.title"></p>
-      <p class="text-[11px] text-gray-400 leading-snug" x-text="b.message"></p>
+  <div class="material-thick rounded-[22px] p-2.5 pr-1.5 flex items-center gap-3 shadow-2xl shadow-black/60 ring-1 ring-white/10">
+    <div class="relative flex-shrink-0">
+      <template x-if="b.poster"><img :src="b.poster" class="w-11 h-16 rounded-lg object-cover bg-surface-700" alt=""></template>
+      <template x-if="!b.poster">
+        <div class="w-11 h-16 rounded-lg bg-surface-700 flex items-center justify-center">
+          <i class="fa-solid text-gray-300" :class="b.kind === 'sonarr' ? 'fa-tv' : 'fa-film'"></i>
+        </div>
+      </template>
+      <!-- The moment it lands: a tick pops onto the poster -->
+      <span x-show="visible" class="animate-pop absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-green-500 ring-2 ring-black flex items-center justify-center">
+        <i class="fa-solid fa-check text-white text-[11px]"></i>
+      </span>
     </div>
-    <a x-show="b.url" :href="b.url" class="flex-shrink-0 px-3 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold">
-      Open <i class="fa-solid fa-arrow-right ml-0.5"></i>
-    </a>
-    <button @click="visible = false" class="flex-shrink-0 w-7 h-7 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-surface-700" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+    <div class="flex-1 min-w-0">
+      <p class="text-[12px] font-semibold text-gray-400" x-text="b.heading"></p>
+      <p class="text-[15px] font-semibold text-white truncate" x-text="b.title"></p>
+      <p class="text-[13px] text-gray-400 leading-snug line-clamp-2" x-text="b.message"></p>
+    </div>
+    <a x-show="b.url" :href="b.url" class="flex-shrink-0 h-9 px-4 rounded-full bg-white text-black text-[13px] font-semibold flex items-center">Open</a>
+    <button @click="visible = false" class="flex-shrink-0 w-11 h-11 rounded-full text-gray-400 hover:text-white hover:bg-white/10" aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
   </div>
 </div>
 
@@ -279,18 +284,20 @@
     return d;
   };
 
+  // A small glass pill above the tab bar — like an iOS HUD. Errors stay longer
+  // and are announced straight away to screen readers.
   window.ddToast = function (msg, level) {
-    const colors = {
-      ok: 'text-green-400 border-green-500/30', error: 'text-red-400 border-red-500/30', info: 'text-brand-300 border-brand-500/30',
-    };
+    const tints = { ok: 'text-green-400', error: 'text-red-400', info: 'text-brand-300' };
     const icons = { ok: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info' };
     const lv = level || 'ok';
     const el = document.createElement('div');
-    el.className = `fixed bottom-24 lg:bottom-6 right-4 left-4 sm:left-auto z-[70] flex items-center gap-2 px-4 py-3 glass rounded-xl text-sm border animate-slide-in shadow-lg ${colors[lv] || colors.ok}`;
-    el.innerHTML = `<i class="fa-solid ${icons[lv] || icons.ok}"></i><span></span>`;
+    el.setAttribute('role', lv === 'error' ? 'alert' : 'status');
+    el.className = 'fixed inset-x-0 mx-auto w-fit max-w-[calc(100%-2rem)] bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-8 lg:mr-8 lg:ml-auto z-[70] '
+      + 'flex items-center gap-2.5 pl-4 pr-5 py-3 material-thick rounded-full ring-1 ring-white/10 shadow-2xl shadow-black/50 text-[14px] font-medium text-white animate-slide-in';
+    el.innerHTML = `<i class="fa-solid ${icons[lv] || icons.ok} ${tints[lv] || tints.ok}"></i><span></span>`;
     el.querySelector('span').textContent = msg;
     document.body.appendChild(el);
-    setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, lv === 'error' ? 6000 : 3000);
+    setTimeout(() => { el.style.transition = 'opacity .3s, transform .3s'; el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 300); }, lv === 'error' ? 6000 : 3000);
   };
 
   window.openAddModal = (cfg) => window.dispatchEvent(new CustomEvent('dd-add', { detail: cfg }));
@@ -312,7 +319,10 @@
       title: ds.title, year: ds.year, poster: ds.poster, defaults,
       onAdded: (d) => {
         el.classList.add('opacity-60');
-        el.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i>In library';
+        // Round icon buttons get a tick; labelled ones say so
+        const iconOnly = !el.textContent.trim();
+        el.innerHTML = iconOnly ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-solid fa-circle-check mr-1"></i>In library';
+        el.classList.add('animate-pop');
         el.onclick = () => { window.location.href = d.url; };
         el.dispatchEvent(new CustomEvent('dd-added', { detail: d, bubbles: true }));
       },

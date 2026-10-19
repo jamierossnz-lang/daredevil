@@ -11,7 +11,7 @@
             grid-template-areas: "sel mon num info status" ". . . acts acts";
             column-gap: .5rem; row-gap: .5rem; align-items: start; }
   .ep-act { display: inline-flex; align-items: center; gap: .375rem; height: 2.25rem; padding: 0 .75rem;
-            border-radius: .5rem; font-size: .75rem; font-weight: 500; background: #0e0e2e;
+            border-radius: .5rem; font-size: .75rem; font-weight: 500; background: #2c2c2e;
             transition: all .15s; }
   @media (min-width: 640px) {
     .ep-row { display: flex; align-items: center; gap: .75rem; }
@@ -25,117 +25,118 @@
 </style>
 {% endblock %}
 
-{% block header_actions %}
-<button onclick="openDownloadModal()" aria-label="Download"
-        class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-download"></i>
-  <span class="sr-only sm:not-sr-only">Download</span>
-</button>
-{% endblock %}
+{% block large_title %}{% endblock %}
 
 {% block content %}
-<!-- Hero -->
-<div class="relative rounded-2xl overflow-hidden mb-6" style="min-height:220px;">
-  {% if show.fanart %}
-  <img src="{{ show.fanart }}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-20">
-  {% endif %}
-  <div class="absolute inset-0 bg-gradient-to-r from-surface-950/98 via-surface-950/80 to-surface-950/30"></div>
-  <div class="relative flex gap-5 p-5 lg:p-7">
-    {% if show.poster %}
-    <img src="{{ show.poster }}" alt="{{ show.title }}"
-         class="hidden sm:block w-28 lg:w-36 rounded-xl shadow-2xl flex-shrink-0 ring-2 ring-brand-600/30 self-start">
-    {% endif %}
-    <div class="flex-1 min-w-0 pt-1">
-      <div class="flex flex-wrap items-start gap-2 mb-1">
-        <h1 class="text-2xl lg:text-3xl font-bold text-white leading-tight">{{ show.title }}</h1>
-        <span class="mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
-          {% if show.status == 'continuing' %}bg-green-500/20 text-green-400
-          {% elif show.status == 'upcoming' %}bg-yellow-500/20 text-yellow-400
-          {% else %}bg-gray-500/20 text-gray-400{% endif %}">{{ show.status|title }}</span>
-      </div>
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500 mb-2">
-        {% if show.year %}<span>{{ show.year }}</span>{% endif %}
-        {% if show.network %}<span class="text-gray-700">·</span><span>{{ show.network }}</span>{% endif %}
-        {% if show.genres %}<span class="text-gray-700">·</span><span class="text-brand-400">{{ show.genres }}</span>{% endif %}
-        {% if show.runtime %}<span class="text-gray-700">·</span><span>{{ show.runtime }}m</span>{% endif %}
-        {% if show.certification %}<span class="text-gray-700">·</span><span>{{ show.certification }}</span>{% endif %}
-      </div>
-      {% if show.overview %}
-      <p class="text-sm text-gray-300 line-clamp-3 max-w-2xl mb-3">{{ show.overview }}</p>
-      {% endif %}
-      <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 mb-4">
-        <span><i class="fa-solid fa-layer-group text-brand-500 mr-1.5"></i>{{ show.season_count }} season{{ show.season_count|pluralize }}</span>
-        <span><i class="fa-solid fa-file-video text-brand-500 mr-1.5"></i>{{ show.files }} / {{ show.wanted }} episodes on disk</span>
-        <span><i class="fa-solid fa-hard-drive text-brand-500 mr-1.5"></i>{{ show.size }}</span>
-        {% if show.rating %}<span class="text-yellow-400"><i class="fa-solid fa-star mr-1"></i>{{ show.rating|floatformat:1 }}</span>{% endif %}
-        {% if show.next_airing %}<span class="text-purple-400"><i class="fa-solid fa-satellite-dish mr-1"></i>Next: {{ show.next_airing|date:"D j M, g:i A" }}</span>{% endif %}
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <button onclick="setSeriesMonitored({{ show.monitored|yesno:'false,true' }})"
-                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
-                       {% if show.monitored %}bg-brand-500/20 text-brand-300 border border-brand-500/30{% else %}bg-surface-700 text-gray-400 hover:text-brand-300{% endif %}"
-                title="Master switch — Sonarr only downloads anything for a monitored series">
-          <i class="fa-{% if show.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
-          {% if show.monitored %}Monitored{% else %}Not monitored{% endif %}
-        </button>
-
-        <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
-          <i class="fa-solid fa-eye text-gray-500 text-xs"></i>
-          <select id="monitorPreset" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Which episodes Sonarr should monitor">
-            <option value="">Monitor episodes…</option>
-            {% for val, label in monitor_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
-          </select>
+<!-- Hero: the show's artwork full bleed, fading into the page -->
+<section class="relative -mx-4 lg:-mx-8 mb-5" style="margin-top: calc(-52px - 0.25rem - env(safe-area-inset-top, 0px))">
+  <div class="relative aspect-square sm:aspect-[16/9] lg:aspect-[21/9] max-h-[74vh] min-h-[360px] overflow-hidden bg-surface-900">
+    {% if show.fanart %}<img src="{{ show.fanart }}" alt="" fetchpriority="high" class="absolute inset-0 w-full h-full object-cover">
+    {% elif show.poster %}<img src="{{ show.poster }}" alt="" class="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-60">{% endif %}
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
+    <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent"></div>
+    <div class="absolute inset-x-0 bottom-0 px-5 lg:px-10 pb-5 flex items-end gap-6">
+      {% if show.poster %}<img src="{{ show.poster }}" alt="" class="hidden lg:block w-40 rounded-xl shadow-2xl flex-shrink-0">{% endif %}
+      <div class="min-w-0">
+        <p class="text-[13px] font-semibold text-white/70 mb-1">TV Show{% if show.network %} · {{ show.network }}{% endif %}</p>
+        <h1 data-large-title class="text-[34px] sm:text-[44px] lg:text-[52px] font-bold tracking-tight text-white leading-[1.05]">{{ show.title }}</h1>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[13px] text-white/75">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full {% if show.status == 'continuing' %}bg-green-400{% elif show.status == 'upcoming' %}bg-yellow-400{% else %}bg-gray-500{% endif %}"></span>{{ show.status|title }}
+          </span>
+          {% if show.year %}<span>· {{ show.year }}</span>{% endif %}
+          {% if show.genres %}<span class="truncate max-w-[16rem]">· {{ show.genres }}</span>{% endif %}
+          {% if show.runtime %}<span>· {{ show.runtime }} min</span>{% endif %}
+          {% if show.certification %}<span class="px-1.5 py-px rounded-[4px] border border-white/40 text-[11px] font-semibold leading-tight">{{ show.certification }}</span>{% endif %}
+          {% if show.rating %}<span class="text-white/75"><i class="fa-solid fa-star text-[10px] text-amber-400"></i> {{ show.rating|floatformat:1 }}</span>{% endif %}
         </div>
-
-        <div class="flex items-center gap-1 bg-surface-800 rounded-lg border border-surface-600 pl-2">
-          <i class="fa-solid fa-sliders text-gray-500 text-xs"></i>
-          <select id="qualityProfile" class="bg-transparent text-xs text-gray-300 py-2 sm:py-1.5 pr-1 focus:outline-none" title="Quality profile">
-            {% for p in quality_profiles %}
-            <option value="{{ p.id }}" {% if p.id == show.quality_profile_id %}selected{% endif %}>{{ p.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <button onclick="toggleFav()" id="favBtn"
-                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium transition-colors
-                       {% if show.favourite %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30{% else %}bg-surface-700 text-gray-400 hover:text-yellow-400{% endif %}">
-          <i class="fa-{% if show.favourite %}solid{% else %}regular{% endif %} fa-star"></i>
-          <span class="sr-only sm:not-sr-only">{% if show.favourite %}Favourited{% else %}Favourite{% endif %}</span>
-        </button>
-
-        <button onclick="downloadScope('monitored')" title="Search for every monitored episode that's missing"
-                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-magnifying-glass"></i><span class="sr-only sm:not-sr-only">Search missing</span>
-        </button>
-        <button onclick="refreshSeries()" title="Refresh metadata from TheTVDB and rescan files on disk"
-                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-rotate"></i><span class="sr-only sm:not-sr-only">Refresh &amp; scan</span>
-        </button>
-        <a href="{{ sonarr_link }}" target="_blank" rel="noreferrer"
-           class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i><span class="sr-only sm:not-sr-only">Sonarr</span>
-        </a>
-        <button onclick="removeSeries()"
-                class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[36px] sm:min-h-0 justify-center rounded-lg text-xs font-medium bg-red-900/20 hover:bg-red-900/40 text-red-500 hover:text-red-400 border border-red-800/20 transition-colors">
-          <i class="fa-solid fa-trash"></i><span class="sr-only sm:not-sr-only">Remove</span>
-        </button>
       </div>
-      {% if show.path %}<p class="text-[11px] text-gray-600 font-mono mt-3 truncate" title="Path inside Sonarr">{{ show.path }}</p>{% endif %}
     </div>
   </div>
-</div>
+
+  <div class="px-5 lg:px-10 pt-1">
+    <!-- Actions: the one primary action in white, the rest as glass circles -->
+    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2.5 mt-3">
+      <button onclick="openDownloadModal()" class="h-11 px-6 rounded-full bg-white text-black text-[15px] font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-arrow-down text-[13px]"></i>Download
+      </button>
+      <button onclick="setSeriesMonitored({{ show.monitored|yesno:'false,true' }})"
+              aria-label="{% if show.monitored %}Monitored — stop monitoring{% else %}Not monitored — monitor this show{% endif %}"
+              title="Master switch — Sonarr only downloads anything for a monitored series"
+              class="w-11 h-11 rounded-full flex items-center justify-center {% if show.monitored %}bg-brand-500 text-white{% else %}bg-white/15 text-white hover:bg-white/25{% endif %}">
+        <i class="fa-{% if show.monitored %}solid{% else %}regular{% endif %} fa-bookmark"></i>
+      </button>
+      <button onclick="toggleFav()" id="favBtn" aria-label="{% if show.favourite %}Favourited — unfavourite{% else %}Favourite{% endif %}"
+              class="w-11 h-11 rounded-full flex items-center justify-center {% if show.favourite %}bg-amber-400 text-black{% else %}bg-white/15 text-white hover:bg-white/25{% endif %}">
+        <i class="fa-{% if show.favourite %}solid{% else %}regular{% endif %} fa-star"></i>
+      </button>
+      <!-- Less frequent actions, in a menu like the TV app's "…" -->
+      <div x-data="{ open: false }" class="relative" @keydown.escape="open = false" @click.outside="open = false">
+        <button @click="open = !open" :aria-expanded="String(open)" aria-label="More actions" aria-haspopup="menu"
+                class="w-11 h-11 rounded-full flex items-center justify-center bg-white/15 text-white hover:bg-white/25">
+          <i class="fa-solid fa-ellipsis"></i>
+        </button>
+        <div x-show="open" x-cloak role="menu"
+             x-transition:enter="transition ease-spring duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-100" x-transition:leave-end="opacity-0 scale-95"
+             class="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 z-30 w-60 origin-top-left sm:origin-top-right material-thick rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden text-[15px] ios-list">
+          <button role="menuitem" onclick="downloadScope('monitored')" @click="open = false" title="Search for every monitored episode that's missing"
+                  class="ios-row w-full flex items-center px-4 min-h-[44px] text-white hover:bg-white/10"><span class="ios-row-body flex-1 flex items-center self-stretch">Search missing<i class="fa-solid fa-magnifying-glass ml-auto text-gray-400"></i></span></button>
+          <button role="menuitem" onclick="refreshSeries()" @click="open = false" title="Refresh metadata from TheTVDB and rescan files on disk"
+                  class="ios-row w-full flex items-center px-4 min-h-[44px] text-white hover:bg-white/10"><span class="ios-row-body flex-1 flex items-center self-stretch">Refresh &amp; scan<i class="fa-solid fa-rotate ml-auto text-gray-400"></i></span></button>
+          <a role="menuitem" href="{{ sonarr_link }}" target="_blank" rel="noreferrer"
+             class="ios-row w-full flex items-center px-4 min-h-[44px] text-white hover:bg-white/10"><span class="ios-row-body flex-1 flex items-center self-stretch">Open in Sonarr<i class="fa-solid fa-arrow-up-right-from-square ml-auto text-gray-400"></i></span></a>
+          <button role="menuitem" onclick="removeSeries()" @click="open = false"
+                  class="ios-row w-full flex items-center px-4 min-h-[44px] text-red-400 hover:bg-white/10"><span class="ios-row-body flex-1 flex items-center self-stretch">Remove from Sonarr<i class="fa-solid fa-trash ml-auto"></i></span></button>
+        </div>
+      </div>
+    </div>
+
+    {% if show.overview %}
+    <p x-data="{ more: false }" @click="more = !more" :class="more ? '' : 'line-clamp-3'"
+       class="text-[15px] leading-relaxed text-gray-300 max-w-3xl mt-4 cursor-pointer">{{ show.overview }}</p>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-400 mt-3">
+      <span>{{ show.season_count }} season{{ show.season_count|pluralize }}</span>
+      <span>{{ show.files }} of {{ show.wanted }} episodes on disk</span>
+      <span>{{ show.size }}</span>
+      {% if show.next_airing %}<span class="text-gray-200">Next episode {{ show.next_airing|date:"D j M, g:i A" }}</span>{% endif %}
+    </div>
+
+    <!-- Settings: which episodes are monitored, and at what quality -->
+    <div class="flex flex-wrap items-center gap-2 mt-4">
+      <label class="flex items-center gap-2 h-11 sm:h-9 pl-3.5 pr-1.5 rounded-full bg-surface-800 text-[15px] sm:text-[13px] text-gray-400">
+        <i class="fa-solid fa-eye text-[12px]"></i>
+        <select id="monitorPreset" class="self-stretch bg-transparent text-gray-100 pr-1 focus:outline-none" title="Which episodes Sonarr should monitor">
+          <option value="">Monitor…</option>
+          {% for val, label in monitor_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="flex items-center gap-2 h-11 sm:h-9 pl-3.5 pr-1.5 rounded-full bg-surface-800 text-[15px] sm:text-[13px] text-gray-400">
+        <i class="fa-solid fa-sliders text-[12px]"></i>
+        <select id="qualityProfile" class="self-stretch bg-transparent text-gray-100 pr-1 focus:outline-none" title="Quality profile">
+          {% for p in quality_profiles %}
+          <option value="{{ p.id }}" {% if p.id == show.quality_profile_id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    {% if show.path %}<p class="text-[11px] text-gray-600 font-mono mt-3 truncate" title="Path inside Sonarr">{{ show.path }}</p>{% endif %}
+  </div>
+</section>
 
 <!-- Seasons -->
 {% if seasons %}
 <div x-data="{ active: {{ seasons.0.number }} }">
-  <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-4 scrollbar-thin pb-1">
-    <div class="flex gap-1.5 min-w-max sm:min-w-0 sm:flex-wrap">
+  <h2 class="text-[22px] font-bold tracking-tight text-white mb-3">Episodes</h2>
+  <div class="overflow-x-auto -mx-4 px-4 lg:-mx-8 lg:px-8 mb-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div class="flex gap-2 min-w-max">
       {% for season in seasons %}
-      <button @click="active = {{ season.number }}"
-              :class="active === {{ season.number }} ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 scale-105' : 'bg-surface-800 text-gray-400 hover:bg-surface-700 hover:text-gray-200'"
-              class="flex-shrink-0 flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150">
-        <span>{% if season.number == 0 %}Specials{% else %}S{{ season.number }}{% endif %}</span>
+      <button @click="active = {{ season.number }}" :aria-pressed="String(active === {{ season.number }})"
+              :class="active === {{ season.number }} ? 'bg-white text-black' : 'bg-surface-800 text-gray-300 hover:bg-surface-700'"
+              class="flex-shrink-0 flex items-center gap-2 h-9 px-4 rounded-full text-[14px] font-semibold">
+        <span>{% if season.number == 0 %}Specials{% else %}Season {{ season.number }}{% endif %}</span>
         <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
           {% if season.complete %}bg-green-400{% elif season.downloading %}bg-blue-400{% elif season.missing %}bg-orange-400{% elif season.files %}bg-yellow-400{% else %}bg-surface-600{% endif %}"></span>
       </button>

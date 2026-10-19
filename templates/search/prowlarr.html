@@ -29,8 +29,8 @@
 
 {% block header_actions %}
 <a href="{% url 'app_settings' %}#prowlarr" title="Indexers"
-   class="hidden sm:flex items-center gap-2 px-3 py-2 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-list-check text-xs"></i> Indexers
+   class="hidden sm:flex items-center gap-1.5 h-11 px-2.5 rounded-full text-brand-400 hover:bg-white/10 text-[15px] font-medium">
+  <i class="fa-solid fa-list-check text-[13px]"></i> Indexers
 </a>
 {% endblock %}
 
@@ -65,7 +65,7 @@
         <div class="flex rounded-xl bg-surface-800 border border-surface-600 p-1">
           <template x-for="t in types" :key="t.key">
             <button type="button" @click="setType(t.key)"
-                    :class="type === t.key ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                    :class="type === t.key ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
                     class="px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
               <i class="fa-solid mr-1.5" :class="t.key === 'tvsearch' ? 'fa-tv' : 'fa-film'"></i><span x-text="t.label"></span>
             </button>

@@ -53,8 +53,8 @@ class TMDBClient:
     def discover_movie(self, ttl=LIST_TTL, refresh=False, **params):
         return self._get('/discover/movie', ttl=ttl, refresh=refresh, **params)
 
-    def trending(self, media_type, window='week', page=1):
-        return self._get(f'/trending/{media_type}/{window}', ttl=LIST_TTL, page=page)
+    def trending(self, media_type, window='week', page=1, refresh=False):
+        return self._get(f'/trending/{media_type}/{window}', ttl=LIST_TTL, refresh=refresh, page=page)
 
     def popular(self, media_type, page=1):
         return self._get(f'/{media_type}/popular', ttl=LIST_TTL, page=page)

@@ -4,12 +4,12 @@
 
 {% block header_actions %}
 <a href="{{ sonarr_url }}" target="_blank" rel="noreferrer" title="Open Sonarr"
-   class="hidden sm:flex items-center gap-2 px-3 py-2 bg-surface-700 hover:bg-surface-600 text-gray-300 rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i> Sonarr
+   class="hidden sm:flex items-center gap-1.5 h-11 px-2.5 rounded-full text-brand-400 hover:bg-white/10 text-[15px] font-medium">
+  <i class="fa-solid fa-arrow-up-right-from-square text-[13px]"></i> Sonarr
 </a>
 <a id="addShowBtn" href="{% url 'tmdb_search_tv' %}{% if q %}?q={{ q|urlencode }}{% endif %}"
-   class="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">
-  <i class="fa-solid fa-plus"></i>
+   class="flex items-center gap-1.5 h-11 min-w-[44px] justify-center px-2.5 rounded-full text-brand-400 hover:bg-white/10 text-[15px] font-medium">
+  <i class="fa-solid fa-plus text-[19px]"></i>
   <span class="sr-only sm:not-sr-only" id="addShowLabel">{% if q %}Search to add{% else %}Add Show{% endif %}</span>
 </a>
 {% endblock %}

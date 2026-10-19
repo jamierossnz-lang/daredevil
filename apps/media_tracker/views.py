@@ -34,6 +34,8 @@ def _episode_tile(ep, queued_ids):
         'series_id': ep.get('seriesId'),
         'show_title': series.get('title') or '',
         'poster': image_url(series.get('images'), 'poster'),
+        # Wide artwork for the landscape "Up Next" cards
+        'fanart': image_url(series.get('images'), 'fanart', size='w780'),
         'code': f'S{ep.get("seasonNumber", 0):02d}E{ep.get("episodeNumber", 0):02d}',
         'title': ep.get('title') or '',
         'air': timezone.localtime(air) if air else None,
@@ -172,6 +174,8 @@ def _discover_spec(today):
             'with_release_type': '3',
             'sort_by': 'popularity.desc',
         }),
+        # The Home page hero: what everyone's watching this week
+        ('featured', tmdb.trending, None, {'media_type': 'all'}),
         # Upcoming / announced movies (next 6 months, by popularity)
         ('movies_announced', tmdb.discover_movie, False, {
             'primary_release_date.gte': today.isoformat(),
@@ -213,8 +217,10 @@ def dashboard_discover(request):
         f_movies = pool.submit(in_thread, library_index, 'radarr')
         lists, shows_in_library, movies_in_library = f_lists.result(), f_shows.result(), f_movies.result()
 
-    result = {}
+    result = {'featured': _featured(lists.get('featured', []), shows_in_library, movies_in_library)}
     for key, _method, is_tv, _params in _discover_spec(date.today()):
+        if is_tv is None:
+            continue
         in_library = shows_in_library if is_tv else movies_in_library
         result[key] = [{
             'tmdb_id': r.get('id'),
@@ -225,6 +231,32 @@ def dashboard_discover(request):
             'library_id': in_library.get(r.get('id')),
         } for r in lists.get(key, [])[:20]]
     return JsonResponse(result)
+
+
+FEATURED_COUNT = 6
+
+
+def _featured(trending, shows_in_library, movies_in_library):
+    """The hero carousel: this week's trending shows and movies with a
+    backdrop to show, ones not in the library first."""
+    items = []
+    for r in trending:
+        kind = r.get('media_type')
+        if kind not in ('tv', 'movie') or not r.get('backdrop_path'):
+            continue
+        is_tv = kind == 'tv'
+        library_id = (shows_in_library if is_tv else movies_in_library).get(r.get('id'))
+        items.append({
+            'tmdb_id': r.get('id'), 'tv': is_tv, 'library_id': library_id,
+            'title': r.get('name') if is_tv else r.get('title'),
+            'overview': r.get('overview') or '',
+            'backdrop': f'https://image.tmdb.org/t/p/w1280{r["backdrop_path"]}',
+            'poster': f'https://image.tmdb.org/t/p/w300{r["poster_path"]}' if r.get('poster_path') else None,
+            'year': (r.get('first_air_date') or r.get('release_date') or '')[:4],
+            'rating': round(r.get('vote_average', 0), 1),
+        })
+    items.sort(key=lambda i: i['library_id'] is not None)
+    return items[:FEATURED_COUNT]
 
 
 # ── App Settings + Restart ───────────────────────────────────────────────────

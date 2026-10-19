@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Streaming{% endblock %}
-{% block page_title %}Browse Streaming{% endblock %}
+{% block page_title %}Streaming{% endblock %}
 
 {% block content %}
 
@@ -26,12 +26,12 @@
   <div class="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit">
     <a href="?provider={{ provider_key }}&type=movie&genre=&sort={{ sort }}"
        class="px-4 py-2 rounded-lg text-sm font-medium transition-all
-              {% if media_type == 'movie' %}bg-cyan-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+              {% if media_type == 'movie' %}bg-surface-500 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid fa-film mr-1.5"></i>Movies
     </a>
     <a href="?provider={{ provider_key }}&type=tv&genre=&sort={{ sort }}"
        class="px-4 py-2 rounded-lg text-sm font-medium transition-all
-              {% if media_type == 'tv' %}bg-brand-600 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+              {% if media_type == 'tv' %}bg-surface-500 text-white shadow{% else %}text-gray-400 hover:text-gray-200{% endif %}">
       <i class="fa-solid fa-tv mr-1.5"></i>TV Shows
     </a>
   </div>
@@ -55,7 +55,7 @@
       {% for g in genres %}
       <a href="?provider={{ provider_key }}&type={{ media_type }}&genre={{ g.id }}&sort={{ sort }}"
          class="px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all
-                {% if genre_id|stringformat:'s' == g.id|stringformat:'s' %}bg-brand-600 text-white
+                {% if genre_id|stringformat:'s' == g.id|stringformat:'s' %}bg-white text-black
                 {% else %}bg-surface-800 text-gray-400 hover:text-white hover:bg-surface-700{% endif %}">
         {{ g.name }}
       </a>
@@ -117,8 +117,9 @@ function toggleStreamInfo(posterEl) {
 /* ── Add helpers ── */
 function markAdded(btn) {
   btn.disabled = true;
-  btn.className = `${ADD_BTN} bg-green-500/20 text-green-400 border border-green-500/30`;
-  btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> In library';
+  btn.className = `${ROUND_BTN} bg-green-500 animate-pop`;
+  btn.setAttribute('aria-label', 'In your library');
+  btn.innerHTML = '<i class="fa-solid fa-check"></i>';
 }
 
 function addMovieFromStream(tmdbId, title, btn) {
@@ -130,7 +131,8 @@ function addShowFromStream(tmdbId, title, btn) {
 }
 
 /* ── Card renderer (first page and infinite scroll) ── */
-const ADD_BTN = 'block w-full text-center py-2 sm:py-1.5 rounded-lg text-[11px] font-medium transition-colors';
+// The round button on each poster — add, or a tick for what's already in the library
+const ROUND_BTN = 'absolute bottom-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] shadow-lg';
 
 function _esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -154,30 +156,29 @@ function buildStreamCard(item) {
     <div class="stream-overview hidden absolute inset-0 bg-black/90 p-2 flex-col justify-end overflow-y-auto">
       <p class="text-[11px] text-gray-200 leading-snug">${_esc(item.overview)}</p>
     </div>
-    <div class="stream-info-hint absolute bottom-1 right-1 text-[9px] bg-black/60 px-1.5 py-0.5 rounded-full text-gray-400 pointer-events-none">
-      <i class="fa-solid fa-circle-info"></i>
+    <div class="stream-info-hint absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-[11px] text-white/80 pointer-events-none">
+      <i class="fa-solid fa-info"></i>
     </div>` : '';
 
   let addBtn;
   if (item.already_added) {
-    addBtn = `<a href="/${item.media === 'tv' ? 'shows' : 'movies'}/${item.library_id}/" class="${ADD_BTN} bg-green-500/20 text-green-400 border border-green-500/30"><i class="fa-solid fa-circle-check"></i> In library</a>`;
-  } else if (item.media === 'movie') {
-    addBtn = `<button onclick="addMovieFromStream(${item.id},${_jsAttr(item.title)},this)" class="${ADD_BTN} bg-cyan-600 hover:bg-cyan-500 text-white"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+    addBtn = `<a href="/${item.media === 'tv' ? 'shows' : 'movies'}/${item.library_id}/" aria-label="${_esc(item.title)} — in your library" class="${ROUND_BTN} bg-black/50 backdrop-blur-md"><i class="fa-solid fa-check"></i></a>`;
   } else {
-    addBtn = `<button onclick="addShowFromStream(${item.id},${_jsAttr(item.title)},this)" class="${ADD_BTN} bg-brand-600 hover:bg-brand-500 text-white"><i class="fa-solid fa-plus mr-0.5"></i>Add</button>`;
+    const fn = item.media === 'movie' ? 'addMovieFromStream' : 'addShowFromStream';
+    addBtn = `<button onclick="${fn}(${item.id},${_jsAttr(item.title)},this)" aria-label="Add ${_esc(item.title)}" class="${ROUND_BTN} bg-black/50 backdrop-blur-md hover:bg-brand-500"><i class="fa-solid fa-plus"></i></button>`;
   }
 
   const rating = item.vote_average > 0 ? ` · ★ ${item.vote_average.toFixed(1)}` : '';
 
-  return `<div class="stream-card glass rounded-xl overflow-hidden card-hover flex flex-col">
-    <div class="stream-poster relative overflow-hidden cursor-pointer" onclick="toggleStreamInfo(this)">
-      ${poster}${infoOverlay}
+  return `<div class="stream-card card-hover flex flex-col">
+    <div class="relative rounded-xl overflow-hidden bg-surface-800">
+      <div class="stream-poster relative cursor-pointer" onclick="toggleStreamInfo(this)">
+        ${poster}${infoOverlay}
+      </div>
+      ${addBtn}
     </div>
-    <div class="p-2 flex flex-col flex-1">
-      <p class="text-xs font-medium text-gray-200 truncate mb-0.5 leading-tight">${_esc(item.title)}</p>
-      <p class="text-[11px] text-gray-500 mb-2">${_esc(item.year)}${rating}</p>
-      <div class="mt-auto">${addBtn}</div>
-    </div>
+    <p class="mt-1.5 text-[13px] font-medium text-gray-200 truncate">${_esc(item.title)}</p>
+    <p class="text-[12px] text-gray-500">${_esc(item.year)}${rating}</p>
   </div>`;
 }
 

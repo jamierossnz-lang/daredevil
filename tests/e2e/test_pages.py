@@ -4,7 +4,7 @@ import pytest
 from conftest import expect, open_page, url
 
 PAGES = [
-    ('/', 'Dashboard'),
+    ('/', 'Home'),
     ('/shows/', 'TV Shows'),
     ('/shows/search/?q=office', None),
     ('/movies/', 'Movies'),

@@ -8,15 +8,15 @@
   <!-- Filter chips — one swipeable row on phones -->
   <div class="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap [scrollbar-width:none]">
     <a href="?"
-       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium border transition-all
-              {% if not event_filter %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 hover:text-gray-200{% endif %}">
+       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 h-9 px-4 rounded-full text-[13px] font-semibold border
+              {% if not event_filter %}bg-white text-black border-white{% else %}bg-surface-800 border-surface-800 text-gray-300 hover:bg-surface-700{% endif %}">
       <i class="fa-solid fa-list"></i> All
       <span class="px-1.5 py-0.5 rounded-full bg-black/20 text-[10px] tabular-nums">{{ total_count }}</span>
     </a>
     {% for chip in type_chips %}{% if chip.count or not chip.legacy or event_filter == chip.value %}
     <a href="?type={{ chip.value }}"
-       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium border transition-all
-              {% if event_filter == chip.value %}bg-brand-600/25 border-brand-500/50 text-brand-300{% else %}bg-surface-800 border-surface-700/50 text-gray-400 hover:text-gray-200{% endif %}">
+       class="flex-shrink-0 whitespace-nowrap flex items-center gap-2 h-9 px-4 rounded-full text-[13px] font-semibold border
+              {% if event_filter == chip.value %}bg-white text-black border-white{% else %}bg-surface-800 border-surface-800 text-gray-300 hover:bg-surface-700{% endif %}">
       <i class="fa-solid {{ chip.icon }}"></i> {{ chip.label }}
       <span class="px-1.5 py-0.5 rounded-full bg-black/20 text-[10px] tabular-nums">{{ chip.count }}</span>
     </a>

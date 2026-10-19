@@ -23,7 +23,7 @@
       <p class="text-[11px] text-gray-500 whitespace-nowrap">{{ r.when|date:"M j, g:i A" }}</p>
       {% if r.event == 'grabbed' %}
       <button onclick="markFailed('{{ r.app }}', {{ r.id }}, this)" title="Bad release? Mark it failed — it's blocklisted and a replacement is searched for"
-              class="mt-1 px-2 py-1 bg-surface-700 hover:bg-red-900/40 text-gray-400 hover:text-red-300 rounded-lg text-[11px]">
+              class="mt-1 px-3 min-h-[44px] sm:min-h-0 sm:py-1 bg-surface-700 hover:bg-red-900/40 text-gray-300 hover:text-red-300 rounded-full sm:rounded-lg text-[13px] sm:text-[11px]">
         <i class="fa-solid fa-ban mr-1"></i>Mark failed
       </button>
       {% endif %}

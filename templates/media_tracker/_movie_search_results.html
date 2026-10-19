@@ -29,7 +29,7 @@
         {% else %}
         <button onclick="addFromCard(this)" data-kind="radarr" data-tmdb-id="{{ movie.tmdb_id|default:'' }}"
                 data-title="{{ movie.title }}" data-year="{{ movie.year }}" data-poster="{{ movie.poster|default:'' }}"
-                class="w-full px-3 py-2 sm:py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition-colors">
+                class="w-full h-11 sm:h-9 px-3 bg-brand-600 hover:bg-brand-500 text-white rounded-full text-[15px] sm:text-[13px] font-semibold">
           <i class="fa-solid fa-plus mr-1"></i>Add Movie
         </button>
         {% endif %}

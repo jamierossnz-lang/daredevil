@@ -1,16 +1,16 @@
 {# Library tabs for TV Shows / Movies — include with noun="shows"|"movies" and watching_url (TV only) #}
 <div id="libTabs" class="flex gap-1.5 mb-4 overflow-x-auto scrollbar-thin -mx-1 px-1 pb-1">
-  <button type="button" data-tab="all" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="all" class="lib-tab flex-shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold">
     <i class="fa-solid fa-layer-group text-xs"></i>All
   </button>
-  <button type="button" data-tab="recent" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="recent" class="lib-tab flex-shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold">
     <i class="fa-solid fa-clock text-xs"></i>Recently added
   </button>
-  <button type="button" data-tab="foryou" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="foryou" class="lib-tab flex-shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold">
     <i class="fa-solid fa-heart text-xs"></i>From For You<span class="lib-count text-[11px] opacity-70"></span>
   </button>
   {% if watching_url %}
-  <button type="button" data-tab="watching" class="lib-tab flex-shrink-0 flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl text-sm font-medium transition-colors">
+  <button type="button" data-tab="watching" class="lib-tab flex-shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-semibold">
     <i class="fa-solid fa-circle-play text-xs"></i>Watching<span class="lib-count text-[11px] opacity-70"></span>
   </button>
   {% endif %}
@@ -101,10 +101,11 @@ function initLibraryFilter({ matches, noun, watchingUrl }) {
     }
     tabsEl?.querySelectorAll('.lib-tab').forEach(b => {
       const active = b.dataset.tab === tab;
-      b.classList.toggle('bg-brand-600', active);
-      b.classList.toggle('text-white', active);
+      b.classList.toggle('bg-white', active);
+      b.classList.toggle('text-black', active);
       b.classList.toggle('bg-surface-800', !active);
-      b.classList.toggle('text-gray-400', !active);
+      b.classList.toggle('text-gray-300', !active);
+      b.setAttribute('aria-pressed', String(active));
     });
     const params = new URLSearchParams();
     if (q) params.set('q', q);

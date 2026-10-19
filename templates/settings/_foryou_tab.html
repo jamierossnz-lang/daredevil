@@ -27,7 +27,7 @@
       <div class="flex flex-wrap gap-2">
         <template x-for="n in deckSizes" :key="n">
           <button type="button" @click="form.deck_size = n"
-                  :class="form.deck_size === n ? 'bg-brand-600 text-white border-brand-500' : 'bg-surface-800 text-gray-300 border-surface-600 hover:border-brand-500/60'"
+                  :class="form.deck_size === n ? 'bg-white text-black border-white' : 'bg-surface-800 text-gray-300 border-surface-700 hover:bg-surface-700'"
                   class="min-w-[3.25rem] px-3 py-2 rounded-xl border text-sm font-medium" x-text="n"></button>
         </template>
       </div>
@@ -39,7 +39,7 @@
       <div class="flex rounded-xl bg-surface-800 p-1">
         <template x-for="n in [1, 2, 3, 4]" :key="n">
           <button type="button" @click="form.min_matches = n"
-                  :class="form.min_matches === n ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                  :class="form.min_matches === n ? 'bg-surface-500 text-white shadow' : 'text-gray-400 hover:text-gray-200'"
                   class="flex-1 py-2 rounded-lg text-sm font-medium" x-text="n === 1 ? 'Any 1' : `${n}+ titles`"></button>
         </template>
       </div>
