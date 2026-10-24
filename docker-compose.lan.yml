@@ -1,0 +1,15 @@
+# LAN-only servers — the stack without the Cloudflare Tunnel.
+#
+# Layered on top of docker-compose.yml by adding this line to that server's
+# .env (Compose reads it from there, so every plain `docker compose` command
+# picks it up):
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.lan.yml
+#
+# Nothing else changes: the app is reached at http://<server-ip>:8000 on the
+# local network only, and no CLOUDFLARE_TUNNEL_TOKEN is needed.
+services:
+  # Moved into a profile nothing enables, so `up -d` never creates it. Start
+  # it on purpose with `docker compose --profile tunnel up -d cloudflared`.
+  cloudflared:
+    profiles: ["tunnel"]

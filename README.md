@@ -302,6 +302,30 @@ docker-compose up -d
 
 ---
 
+### Another server, LAN only (no Cloudflare Tunnel)
+
+A second, independent install: its own database, library and downloads, only reachable on the local network. Install it as above (Unraid or any Linux box with Docker), with these differences in `.env`:
+
+```env
+# Leave the tunnel out — layers docker-compose.lan.yml on top of the main file
+COMPOSE_FILE=docker-compose.yml:docker-compose.lan.yml
+
+# The address you'll type in the browser, e.g. 192.168.1.20 / its hostname
+ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.20,newserver
+CSRF_TRUSTED_ORIGINS=http://192.168.1.20:8000,http://newserver:8000
+
+# Plain HTTP on the LAN — Secure cookies would never be sent and login would fail
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+
+# Leave blank
+CLOUDFLARE_TUNNEL_TOKEN=
+```
+
+Don't edit `docker-compose.yml` itself, so `git pull` keeps working. Check the tunnel is gone with `docker compose config --services` (no `cloudflared` in the list). "Sign in with Google" needs HTTPS, so leave the `GOOGLE_OAUTH_*` lines out; use the superuser login. To reach it away from home, use a VPN into the LAN (e.g. Tailscale or WireGuard) and add that address to `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` too.
+
+---
+
 ### macOS / Linux
 
 ```bash
