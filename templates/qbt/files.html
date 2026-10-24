@@ -219,8 +219,8 @@
       </button>
 
       <div class="flex items-center gap-1">
-        {# One root element per entry — Alpine's x-for renders only the first root,
-           which used to hide every page-number button. Keyed by index: "…" can repeat. #}
+        {% comment %}One root element per entry — Alpine's x-for renders only the first root,
+           which used to hide every page-number button. Keyed by index: "…" can repeat.{% endcomment %}
         <template x-for="(p, i) in pageRange" :key="i">
           <span class="flex">
             <span x-show="p === '...'" class="px-2 text-xs text-gray-600 self-center">…</span>

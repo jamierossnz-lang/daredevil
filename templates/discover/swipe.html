@@ -135,8 +135,8 @@
           </div>
         </template>
         <template x-if="!trailerLoading && trailerKey">
-          {# YouTube refuses embeds without a Referer ("Error 153"), and Django's
-             default Referrer-Policy (same-origin) strips it from cross-origin requests #}
+          {% comment %}YouTube refuses embeds without a Referer ("Error 153"), and Django's
+             default Referrer-Policy (same-origin) strips it from cross-origin requests{% endcomment %}
           <iframe class="w-full h-full" :src="`https://www.youtube.com/embed/${trailerKey}?autoplay=1&playsinline=1`"
                   referrerpolicy="strict-origin-when-cross-origin"
                   frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
