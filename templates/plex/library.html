@@ -94,7 +94,7 @@
       <i class="fa-solid fa-trash-can mr-1.5 text-xs"></i>Clean Up
       {% if candidates %}
       <span class="ml-1 text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">
-        {% with total=0 %}{% for c in candidates %}{{ c.items|length|add:total }}{% endfor %}{% endwith %}
+        {{ cleanup_count }}
       </span>
       {% endif %}
     </button>
@@ -301,7 +301,7 @@
               {% if lbl.color == 'purple' %}bg-purple-500/20 text-purple-300
               {% elif lbl.color == 'cyan' %}bg-cyan-500/20 text-cyan-300
               {% else %}bg-brand-500/20 text-brand-300{% endif %}">
-              <i class="fa-solid {% if lbl.color == 'purple' %}fa-tv{% elif lbl.color == 'cyan' %}fa-film{% else %}fa-folder{% endif %} text-[10px]"></i>
+              <i class="fa-solid {{ lbl.icon|default:'fa-folder' }} text-[10px]"></i>
               {{ lbl.label }}
             </span>
             {% endfor %}
@@ -327,8 +327,25 @@
           <span>{{ drive.total_display }} total</span>
         </div>
 
-        <!-- Path -->
-        <p class="text-[10px] text-gray-700 mt-2 font-mono truncate" title="{{ drive.path }}">{{ drive.path }}</p>
+        {% if drive.disks %}
+        <!-- Each Unraid data disk -->
+        <div class="mt-3 pt-3 border-t border-white/5 space-y-2">
+          {% for disk in drive.disks %}
+          <div class="flex items-center gap-3 text-[11px]">
+            <span class="w-14 flex-shrink-0 text-gray-400">{{ disk.name }}</span>
+            <div class="flex-1 h-1.5 rounded-full bg-surface-700/60 overflow-hidden">
+              <div class="h-full rounded-full {% if disk.warning %}bg-red-500{% elif disk.caution %}bg-yellow-500{% else %}bg-brand-500{% endif %}"
+                   style="width: {{ disk.pct }}%"></div>
+            </div>
+            <span class="w-9 flex-shrink-0 text-right tabular-nums {% if disk.warning %}text-red-400{% elif disk.caution %}text-yellow-400{% else %}text-gray-500{% endif %}">{{ disk.pct }}%</span>
+            <span class="w-24 flex-shrink-0 text-right tabular-nums whitespace-nowrap text-gray-500">{{ disk.free_display }} free</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Path, or "4 data disks" / "Pool" on Unraid -->
+        <p class="text-[10px] text-gray-700 mt-2 {% if drive.path|first == '/' %}font-mono{% endif %} truncate" title="{{ drive.subtitle }}">{{ drive.subtitle }}</p>
       </div>
       {% endfor %}
     </div>
@@ -349,19 +366,21 @@
 
       <!-- Category header -->
       <button @click="open = !open"
-              class="w-full flex items-center justify-between mb-2 group">
-        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-          <i class="fa-solid {{ category.icon }}
-            {% if category.color == 'green' %}text-green-500
-            {% elif category.color == 'yellow' %}text-yellow-500
-            {% elif category.color == 'cyan' %}text-cyan-500
-            {% elif category.color == 'orange' %}text-orange-500
-            {% elif category.color == 'red' %}text-red-500
-            {% else %}text-gray-500{% endif %}"></i>
-          {{ category.label }}
-          <span class="text-gray-600 font-normal normal-case tracking-normal">— {{ category.description }}</span>
-        </h3>
-        <div class="flex items-center gap-3 flex-shrink-0">
+              class="w-full flex items-start sm:items-center justify-between gap-3 mb-2 text-left group">
+        <div class="min-w-0">
+          <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid {{ category.icon }}
+              {% if category.color == 'green' %}text-green-500
+              {% elif category.color == 'yellow' %}text-yellow-500
+              {% elif category.color == 'cyan' %}text-cyan-500
+              {% elif category.color == 'orange' %}text-orange-500
+              {% elif category.color == 'red' %}text-red-500
+              {% else %}text-gray-500{% endif %}"></i>
+            {{ category.label }}
+          </h3>
+          <p class="text-xs text-gray-600 mt-0.5">{{ category.description }}</p>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0 pt-0.5 sm:pt-0">
           <span class="text-xs text-gray-600">
             {{ category.items|length }} item{{ category.items|length|pluralize }}
             {% if category.total_display %}· <span class="text-gray-500">{{ category.total_display }}</span>{% endif %}
@@ -374,10 +393,12 @@
       <div x-show="open" class="glass rounded-2xl overflow-hidden">
         <div class="divide-y divide-surface-700/30">
           {% for item in category.items %}
-          <div class="flex items-center gap-4 px-4 py-3 hover:bg-surface-700/20 transition-colors"
+          {# Phones: poster + title on one line, the buttons full width underneath #}
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-4 py-3 hover:bg-surface-700/20 transition-colors"
                id="cleanup-{{ item.rating_key }}"
                x-data="{ state: 'idle' }">
 
+            <div class="flex items-center gap-4 flex-1 min-w-0">
             <!-- Poster -->
             <div class="flex-shrink-0 w-10 h-14 rounded overflow-hidden bg-surface-700">
               {% if item.thumb %}
@@ -413,25 +434,26 @@
                 {% endif %}
               </div>
             </div>
+            </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-2 flex-shrink-0">
+            <div class="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
               <template x-if="state === 'idle'">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
                   {% if item.type == 'show' %}
                   <button @click="$dispatch('open-episode-picker', {ratingKey: '{{ item.rating_key }}', title: '{{ item.title|escapejs }}'})"
-                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
-                    <i class="fa-solid fa-trash-can text-[10px]"></i> Delete Episodes
+                          class="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
+                    <i class="fa-solid fa-trash-can text-xs sm:text-[10px]"></i> Delete Episodes
                   </button>
                   {% else %}
                   <button @click="doDelete('{{ item.rating_key }}', '{{ item.title|escapejs }}', '{{ item.type }}', '{{ item.size_display|escapejs }}')"
-                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
-                    <i class="fa-solid fa-trash-can text-[10px]"></i> Delete from Plex
+                          class="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20 transition-colors">
+                    <i class="fa-solid fa-trash-can text-xs sm:text-[10px]"></i> <span>Delete<span class="hidden sm:inline"> from Plex</span></span>
                   </button>
                   {% endif %}
                   <button @click="doIgnore('{{ item.rating_key }}', '{{ item.title|escapejs }}')"
-                          class="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-gray-400 hover:bg-surface-600 hover:text-gray-200 border border-surface-600 transition-colors">
-                    <i class="fa-solid fa-eye-slash text-[10px]"></i> Dismiss
+                          class="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium bg-surface-700 text-gray-400 hover:bg-surface-600 hover:text-gray-200 border border-surface-600 transition-colors">
+                    <i class="fa-solid fa-eye-slash text-xs sm:text-[10px]"></i> Dismiss
                   </button>
                 </div>
               </template>

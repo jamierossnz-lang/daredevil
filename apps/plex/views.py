@@ -182,6 +182,7 @@ def library(request):
         'configured': True,
         **data,
         'candidates': candidates,
+        'cleanup_count': sum(len(c['items']) for c in candidates),
         'plex_web_url': _plex_web_url(request),
     })
 

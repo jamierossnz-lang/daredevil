@@ -217,6 +217,9 @@ DOWNLOADS_DIR=/mnt/user/data/torrents
 MOVIES_DIR=/mnt/user/media/movies
 TV_DIR=/mnt/user/media/tv
 
+# Storage shows the whole array and every pool (read-only), not just the cache
+UNRAID_STATUS_DIR=/var/local/emhttp
+
 # Unraid default UID/GID (nobody/users)
 PUID=99
 PGID=100

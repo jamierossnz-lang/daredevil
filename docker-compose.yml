@@ -262,6 +262,9 @@ services:
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
+      # Unraid's live drive list (disks.ini), so Storage shows the array and
+      # every pool — set UNRAID_STATUS_DIR=/var/local/emhttp in .env on Unraid
+      - ${UNRAID_STATUS_DIR:-./data/unraid}:/unraid:ro
 
   # ── Celery worker ──────────────────────────────────────────────────────────
   worker:
@@ -290,6 +293,9 @@ services:
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
+      # Unraid's live drive list (disks.ini), so Storage shows the array and
+      # every pool — set UNRAID_STATUS_DIR=/var/local/emhttp in .env on Unraid
+      - ${UNRAID_STATUS_DIR:-./data/unraid}:/unraid:ro
 
   # ── Celery beat scheduler ──────────────────────────────────────────────────
   beat:
