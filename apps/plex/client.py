@@ -9,8 +9,12 @@ log = logging.getLogger('daredevil.plex')
 
 def plex_credentials():
     """(url, token) — read from .env on use, so a change on App Settings
-    reaches every worker straight away."""
-    return env_file.setting('PLEX_URL'), env_file.setting('PLEX_TOKEN')
+    reaches every worker straight away. A URL typed without http:// gets it
+    added — plexapi can't connect to a bare 192.168.1.10:32400."""
+    url = env_file.setting('PLEX_URL').strip()
+    if url and '://' not in url:
+        url = f'http://{url}'
+    return url, env_file.setting('PLEX_TOKEN').strip()
 
 
 _server = {'key': None, 'plex': None}
