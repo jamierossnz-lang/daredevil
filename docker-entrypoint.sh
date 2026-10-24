@@ -22,8 +22,17 @@ except Exception as e:
   echo "PostgreSQL is ready."
 fi
 
-echo "Running migrations..."
-python manage.py migrate --noinput
+# Celery worker and beat leave migrations to web and wait for them: all three
+# migrating at once on a fresh database fails with "relation already exists".
+if [ "${1:-}" = "celery" ]; then
+  echo "Waiting for web to apply migrations..."
+  until python manage.py migrate --check >/dev/null 2>&1; do
+    sleep 3
+  done
+else
+  echo "Running migrations..."
+  python manage.py migrate --noinput
+fi
 
 # Only the web server needs schedules seeded and static files collected.
 # Celery worker and beat skip these to start faster.

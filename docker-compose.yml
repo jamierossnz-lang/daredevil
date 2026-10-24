@@ -22,11 +22,16 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-daredevil}
     volumes:
       - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    # Checked over TCP: on the very first start Postgres runs a temporary
+    # setup server that only listens on its Unix socket, so a socket check
+    # passes before anything on the network can connect (db-init then got
+    # "connection refused" on a slow disk).
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U daredevil -d daredevil"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U daredevil -d daredevil"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 120s
 
   # ── Databases for Sonarr / Radarr / Prowlarr ───────────────────────────────
   # One-shot: creates each app's main and log database in the Postgres above
@@ -44,6 +49,12 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # Retry for up to 2 minutes rather than failing on the first refusal
+        tries=0
+        until pg_isready -q; do
+          tries=$$((tries + 1)); [ $$tries -ge 60 ] && echo "Postgres never came up" && exit 1
+          sleep 2
+        done
         for name in sonarr-main sonarr-log radarr-main radarr-log prowlarr-main prowlarr-log; do
           psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$$name'" | grep -q 1 \
             || psql -d postgres -c "CREATE DATABASE \"$$name\"" || exit 1
