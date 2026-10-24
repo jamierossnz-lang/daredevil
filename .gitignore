@@ -59,3 +59,6 @@ Thumbs.db
 
 # Local database dumps
 backups/
+
+# Claude Code skills/settings installed locally (third-party skill packs)
+.claude/
