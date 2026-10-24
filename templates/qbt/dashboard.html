@@ -238,7 +238,11 @@ function torrentManager() {
       // qBittorrent needs a moment before its state reflects the change
       setTimeout(() => this.fetch(), 600);
     },
-    askRemove(hashes) { this.removing = [...hashes]; this.deleteFiles = false; },
+    // A half-finished download is useless on its own, so its files go too unless unticked
+    askRemove(hashes) {
+      this.removing = [...hashes];
+      this.deleteFiles = hashes.every(h => (this.byHash(h)?.progress ?? 100) < 100);
+    },
     async confirmRemove() {
       const hashes = this.removing;
       this.removing = null;
