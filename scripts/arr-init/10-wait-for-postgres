@@ -1,0 +1,47 @@
+#!/usr/bin/with-contenv bash
+# Runs inside the Sonarr, Radarr and Prowlarr containers before the app starts
+# (mounted at /custom-cont-init.d, a linuxserver.io hook).
+#
+# After a reboot Docker starts every container at once and ignores
+# depends_on, so the apps can reach Postgres while it's still starting up.
+# They then stop at "waiting for user intervention" without exiting, so the
+# restart policy never brings them back. This waits until Postgres actually
+# accepts logins.
+#
+# An open port isn't enough: during startup and crash recovery Postgres takes
+# the connection and then refuses it. So this sends a real startup message and
+# reads the first byte of the reply: 'R' (asking for a password) means it's
+# accepting connections, 'E' means it isn't yet.
+
+prefix=$(printenv | sed -n 's/^\([A-Z]*\)__POSTGRES__HOST=.*/\1/p' | head -n1)
+if [ -z "$prefix" ]; then
+    exit 0  # not set up for Postgres, nothing to wait for
+fi
+host_var="${prefix}__POSTGRES__HOST"
+port_var="${prefix}__POSTGRES__PORT"
+user_var="${prefix}__POSTGRES__USER"
+host=${!host_var}
+port=${!port_var:-5432}
+user=${!user_var:-postgres}
+
+pg_accepting() {
+    # Startup message: length, protocol 3.0, then user/database pairs and a final NUL
+    local len=$((4 + 4 + 5 + ${#user} + 1 + 9 + 9 + 1))
+    local reply
+    exec 3<>"/dev/tcp/$host/$port" || return 1
+    printf "\\x$(printf %02x $((len >> 24 & 255)))\\x$(printf %02x $((len >> 16 & 255)))\\x$(printf %02x $((len >> 8 & 255)))\\x$(printf %02x $((len & 255)))" >&3
+    printf '\x00\x03\x00\x00user\0%s\0database\0postgres\0\0' "$user" >&3
+    IFS= read -r -n1 -t5 reply <&3
+    exec 3>&- 3<&-
+    [ "$reply" = R ]
+}
+
+for _ in $(seq 1 150); do
+    if pg_accepting 2>/dev/null; then
+        echo "[wait-for-postgres] $host:$port is accepting connections"
+        exit 0
+    fi
+    echo "[wait-for-postgres] waiting for Postgres at $host:$port..."
+    sleep 2
+done
+echo "[wait-for-postgres] Postgres still not ready after 5 minutes, starting anyway"

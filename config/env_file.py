@@ -7,7 +7,9 @@ handled by one gunicorn worker would otherwise go unseen by the other worker
 and by Celery until a restart.
 """
 import logging
+import os
 import re
+from pathlib import Path
 
 from django.conf import settings
 from dotenv import dotenv_values
@@ -16,6 +18,10 @@ log = logging.getLogger('daredevil.settings')
 
 
 def _path():
+    # Docker Compose mounts the project folder and points DAREDEVIL_ENV_FILE
+    # at the .env inside it
+    if os.environ.get('DAREDEVIL_ENV_FILE'):
+        return Path(os.environ['DAREDEVIL_ENV_FILE'])
     return settings.BASE_DIR / '.env'
 
 

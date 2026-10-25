@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 # work unchanged. Previously override=True let a bind-mounted .env silently
 # clobber correct container env vars with .env.example's bare-metal defaults
 # (e.g. REDIS_URL=redis://localhost:6379/0), breaking Celery's broker
-# connection for any service with .env mounted.
-load_dotenv()
+# connection for any service with .env mounted. In Docker, DAREDEVIL_ENV_FILE
+# names the mounted .env (see config/env_file.py); otherwise it's found by search.
+load_dotenv(os.environ.get('DAREDEVIL_ENV_FILE') or None)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -275,6 +276,13 @@ LOGGING = {
         'daredevil': {
             'handlers': ['console'],
             'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Django only prints 500 tracebacks to the console when DEBUG is on;
+        # without this a production 500 leaves nothing in `docker compose logs`.
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },

@@ -114,6 +114,8 @@ services:
       - "${PROWLARR_PORT:-9696}:9696"
     volumes:
       - ${DATA_DIR:-./data}/prowlarr:/config
+      # Waits for Postgres before the app starts (see the script)
+      - ./scripts/arr-init:/custom-cont-init.d:ro
 
   # ── FlareSolverr ───────────────────────────────────────────────────────────
   # Gets Prowlarr past Cloudflare's "checking your browser" page on indexers
@@ -156,6 +158,8 @@ services:
       - "${SONARR_PORT:-8989}:8989"
     volumes:
       - ${DATA_DIR:-./data}/sonarr:/config
+      # Waits for Postgres before the app starts (see the script)
+      - ./scripts/arr-init:/custom-cont-init.d:ro
       # /downloads matches qbittorrent's own container path, so the paths
       # qBittorrent reports for finished torrents resolve inside this
       # container as-is — no remote path mapping needed.
@@ -190,6 +194,8 @@ services:
       - "${RADARR_PORT:-7878}:7878"
     volumes:
       - ${DATA_DIR:-./data}/radarr:/config
+      # Waits for Postgres before the app starts (see the script)
+      - ./scripts/arr-init:/custom-cont-init.d:ro
       - ${DOWNLOADS_DIR:-./downloads}:/downloads
       - ${MOVIES_DIR:-./movies}:/movies
 
@@ -244,6 +250,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DAREDEVIL_ENV_FILE=/srv/daredevil/.env
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
       - DB_HOST=db
@@ -258,7 +265,10 @@ services:
       qbittorrent:
         condition: service_started
     volumes:
-      - ./.env:/app/.env
+      # The folder, not the file: a single-file mount pins the original copy,
+      # so an editor that saves by replacing .env (e.g. sed -i) left the app
+      # with "Stale file handle" until it was recreated
+      - .:/srv/daredevil
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
@@ -275,6 +285,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DAREDEVIL_ENV_FILE=/srv/daredevil/.env
       - QBITTORRENT_HOST=qbittorrent
       - QBITTORRENT_PORT=8080
       - DB_HOST=db
@@ -289,7 +300,10 @@ services:
       qbittorrent:
         condition: service_started
     volumes:
-      - ./.env:/app/.env
+      # The folder, not the file: a single-file mount pins the original copy,
+      # so an editor that saves by replacing .env (e.g. sed -i) left the app
+      # with "Stale file handle" until it was recreated
+      - .:/srv/daredevil
       - ${DOWNLOADS_DIR:-./downloads}:/media/downloads
       - ${MOVIES_DIR:-./movies}:/media/movies
       - ${TV_DIR:-./tv}:/media/tv
@@ -306,6 +320,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DAREDEVIL_ENV_FILE=/srv/daredevil/.env
       - DB_HOST=db
       - DB_NAME=daredevil
       - DB_USER=daredevil
@@ -316,4 +331,7 @@ services:
       redis:
         condition: service_started
     volumes:
-      - ./.env:/app/.env
+      # The folder, not the file: a single-file mount pins the original copy,
+      # so an editor that saves by replacing .env (e.g. sed -i) left the app
+      # with "Stale file handle" until it was recreated
+      - .:/srv/daredevil
