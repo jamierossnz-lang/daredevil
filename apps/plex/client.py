@@ -86,6 +86,19 @@ def _fmt_bytes(b):
     return f'{b:.1f} TB'
 
 
+def _listed(item):
+    """
+    The converters below only ever see items from a library listing, which
+    leaves out any field that isn't set (lastViewedAt on anything unwatched,
+    a missing year or poster). plexapi takes a missing field as "not loaded
+    yet" and fetches the whole item again — one Plex request per unwatched
+    movie and show on every warm_caches run, which kept tower's CPU busy
+    around the clock. The listing already has everything they read.
+    """
+    item._autoReload = False
+    return item
+
+
 def _base_dict(item, thumb_path=None):
     size = _file_size(item)
     return {
@@ -105,12 +118,14 @@ def _base_dict(item, thumb_path=None):
 
 
 def movie_to_dict(m):
+    _listed(m)
     d = _base_dict(m)
     d['type'] = 'movie'
     return d
 
 
 def show_to_dict(s):
+    _listed(s)
     total = s.leafCount or 0
     watched = s.viewedLeafCount or 0
     d = _base_dict(s)
@@ -125,6 +140,7 @@ def show_to_dict(s):
 
 def season_to_dict(s):
     """Convert a season item (from recentlyAdded) to a show-like dict."""
+    _listed(s)
     return {
         'title': s.parentTitle or s.title,
         'subtitle': s.title,  # e.g. "Season 1"
@@ -145,6 +161,7 @@ def season_to_dict(s):
 
 
 def episode_to_dict(e):
+    _listed(e)
     return {
         'title': e.grandparentTitle or e.title,
         'subtitle': f'S{(e.parentIndex or 0):02d}E{(e.index or 0):02d} · {e.title}',
