@@ -145,7 +145,7 @@ docker compose logs -f qbittorrent  # qBittorrent logs
 docker compose logs -f sonarr       # Sonarr logs (also radarr, prowlarr)
 docker compose logs -f plex         # Plex logs
 docker compose restart web          # restart after .env change
-docker compose pull                 # update all third-party images
+bash scripts/update-images.sh       # back up, update third-party images, recreate what changed
 docker compose build                # rebuild Daredevil after code change
 docker compose up -d                # apply changes
 docker compose down                 # stop all containers
@@ -512,6 +512,21 @@ docker compose exec -T db psql -U daredevil -d postgres -c 'DROP DATABASE "sonar
 gunzip -c /mnt/user/Backups/daredevil/sonarr_YYYYMMDD_HHMM.sql.gz | docker compose exec -T db psql -U daredevil sonarr-main
 docker compose start sonarr
 ```
+
+---
+
+## Keeping the containers up to date
+
+`docker compose up -d` never re-pulls an image it already has, so Plex, Sonarr, Radarr, Prowlarr, qBittorrent and the rest stay on the version first downloaded — security fixes included — until someone runs `docker compose pull`.
+
+`scripts/update-images.sh` runs `backup-db.sh`, pulls every third-party image, recreates the containers whose image changed and deletes the old images. A container stopped by hand stays stopped. On Unraid, schedule it weekly with the User Scripts plugin at a time nobody is watching (recreating Plex stops playback), e.g. custom schedule `30 5 * * 1` for Mondays at 5:30:
+
+```bash
+#!/bin/bash
+/mnt/user/appdata/daredevil/scripts/update-images.sh
+```
+
+The images are `:latest`, so a new major version (a Sonarr 5, say) can arrive this way and migrate its database. To go back, set that service's `image:` to the previous version's tag and restore the backup taken just before.
 
 ---
 

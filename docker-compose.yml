@@ -227,7 +227,11 @@ services:
   # Get the token from the Cloudflare Zero Trust dashboard: Networks ->
   # Tunnels -> Create a tunnel -> Docker connector.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned rather than :latest — `up -d` never re-pulls a tag it already
+    # has, so a cached :latest stays on whatever version was first pulled.
+    # Keep it at 2026.10.3 or later: older versions trust the compromised
+    # eMudhra (emSign) certificates (Cloudflare advisory, Oct 2026).
+    image: cloudflare/cloudflared:2026.10.4
     restart: unless-stopped
     command: tunnel run
     environment:
