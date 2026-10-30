@@ -526,6 +526,8 @@ docker compose start sonarr
 /mnt/user/appdata/daredevil/scripts/update-images.sh
 ```
 
+If a run fails, a *Container update failed* notification shows up in Daredevil (and on ntfy, if it's set up). On Unraid the usual cause is DNS: if the server's own DNS points at itself (`::1` or `127.0.0.1`), set real DNS servers under **Settings → Network Settings**. Editing `/etc/resolv.conf` doesn't last, because Unraid rebuilds `/etc` on every boot.
+
 The images are `:latest`, so a new major version (a Sonarr 5, say) can arrive this way and migrate its database. To go back, set that service's `image:` to the previous version's tag and restore the backup taken just before.
 
 ---

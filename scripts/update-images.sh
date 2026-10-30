@@ -17,11 +17,26 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
 
+# A failed run only shows in the User Scripts log, so the containers would
+# quietly fall behind again. Post it to Daredevil's notifications (and ntfy,
+# if set up) instead. Sent from the web container because Docker gives it
+# working DNS even when the host's own lookups fail — on Unraid that's the
+# usual reason a pull fails.
+step='backing up the databases'
+notify_failure() {
+    docker compose exec -T -e MSG="Stopped while $step on $(hostname). See the User Scripts log." web \
+        python manage.py shell -c "import os; from apps.notifications.notify import send; send('Container update failed', os.environ['MSG'], priority='high', tags=['warning'])" \
+        || true
+}
+trap notify_failure ERR
+
 bash scripts/backup-db.sh
 
+step='pulling the new images'
 # A failed pull stops here with nothing recreated; the next run tries again
 docker compose pull --ignore-buildable
 
+step='recreating the containers'
 running="$(docker compose ps --services --status running)"
 if [ -n "$running" ]; then
     # Service names have no spaces, so word splitting gives one per argument
@@ -29,4 +44,5 @@ if [ -n "$running" ]; then
     docker compose up -d $running
 fi
 
+step='deleting the old images'
 docker image prune -f
