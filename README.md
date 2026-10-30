@@ -548,6 +548,7 @@ Updates close holes Plex has fixed; they can't tell you someone already got in. 
 - a program running from a temp folder, from Plex's `/config`, or from a deleted file
 - any other program that isn't Plex's own and is still running at the next check
 - programs in `/dev/shm`, or a crontab saved in Plex's `/config`
+- a value in Plex's hidden `TranscoderH264Options` setting, or a file in its `Codecs` folder that isn't one of Plex's codecs (the October 2026 attack got in by making the transcoder write a library there, which Plex then loaded)
 
 It alerts once per new set of findings, and again after a reboot. On Unraid, schedule it with User Scripts on custom schedule `*/15 * * * *`:
 

@@ -13,6 +13,10 @@
 #     next check (one-off commands come and go)
 #   - programs in /dev/shm, or a crontab saved to /config, which the image
 #     would re-install on every start
+#   - how that attack got in: it set Plex's hidden TranscoderH264Options to
+#     make the transcoder write a library into Plex's Codecs folder, which
+#     Plex then loaded. So a value in that setting, or a file in Codecs
+#     that isn't one of Plex's codecs, raises the alarm too.
 #
 # Everything is read from the host, so nothing inside the container has to be
 # trusted. Sends one urgent notification per new set of findings, through
@@ -94,6 +98,24 @@ done < <(find "/proc/$init_pid/root/dev/shm" -mindepth 1 \( -type f -perm /111 -
 if [ -n "$config_dir" ] && [ -n "$(ls -A "$config_dir/crontabs" 2>/dev/null)" ]; then
     findings+=("crontab saved in $config_dir/crontabs")
 fi
+
+pms_dir="$config_dir/Library/Application Support/Plex Media Server"
+# Raw transcoder options: nothing in Plex's settings screens sets these
+while IFS= read -r pref; do
+    findings+=("Plex setting $pref")
+done < <(grep -oE 'TranscoderH264Options[A-Za-z]*="[^"]+"' "$pms_dir/Preferences.xml" 2>/dev/null)
+
+# Codecs holds what Plex downloads: lib*_decoder.so / lib*_encoder.so in a
+# versioned folder, and the EasyAudioEncoder
+while IFS= read -r rel; do
+    case "$rel" in
+        .device-id|EasyAudioEncoder-*-linux-*.zip) ;;
+        EasyAudioEncoder-*-linux-*/EasyAudioEncoder/EasyAudioEncoder) ;;
+        EasyAudioEncoder-*-linux-*/EasyAudioEncoder/eae-license.txt) ;;
+        *-linux-*/lib*_decoder.so|*-linux-*/lib*_encoder.so) ;;
+        *) findings+=("unexpected file in Plex's Codecs folder: $rel") ;;
+    esac
+done < <(cd "$pms_dir/Codecs" 2>/dev/null && find . -mindepth 1 ! -type d | sed 's|^\./||')
 
 if [ "${#findings[@]}" -eq 0 ]; then
     echo "Plex looks clean"
