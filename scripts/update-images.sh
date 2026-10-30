@@ -9,7 +9,8 @@
 # the containers whose image changed, and deletes the images they leave
 # behind. A container that has been stopped by hand stays stopped.
 #
-# Run manually:  bash scripts/update-images.sh
+# Run manually:  bash scripts/update-images.sh         (every service)
+#                bash scripts/update-images.sh plex    (only those named)
 # On Unraid:     schedule weekly via the User Scripts plugin (see README →
 #                Keeping the containers up to date).
 set -euo pipefail
@@ -30,14 +31,22 @@ notify_failure() {
 }
 trap notify_failure ERR
 
-bash scripts/backup-db.sh
+# Only Postgres and the apps that keep their data in it need a backup first,
+# so a Plex-only run can't be held up by a failing one
+needs_backup=$(( $# == 0 ))
+for service in "$@"; do
+    case "$service" in db|sonarr|radarr|prowlarr) needs_backup=1 ;; esac
+done
+if [ "$needs_backup" = 1 ]; then
+    bash scripts/backup-db.sh
+fi
 
 step='pulling the new images'
 # A failed pull stops here with nothing recreated; the next run tries again
-docker compose pull --ignore-buildable
+docker compose pull --ignore-buildable "$@"
 
 step='recreating the containers'
-running="$(docker compose ps --services --status running)"
+running="$(docker compose ps --services --status running "$@")"
 if [ -n "$running" ]; then
     # Service names have no spaces, so word splitting gives one per argument
     # shellcheck disable=SC2086

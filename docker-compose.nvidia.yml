@@ -1,0 +1,16 @@
+# Servers with an NVIDIA card — lets Plex transcode on it instead of the CPU.
+# Needs Plex Pass, and the NVIDIA driver on the host (on Unraid: the "Nvidia
+# Driver" plugin from Apps, then stop and start Docker).
+#
+# Layered on top of docker-compose.yml by adding it to COMPOSE_FILE in that
+# server's .env (a LAN-only server lists docker-compose.lan.yml as well):
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.nvidia.yml
+#
+# Then pick the card in Plex → Settings → Transcoder.
+services:
+  plex:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility

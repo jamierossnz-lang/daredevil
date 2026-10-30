@@ -273,6 +273,14 @@ docker-compose exec web python manage.py createsuperuser
 
 > **Port note:** Unraid's own WebUI runs on port 8080, so qBittorrent is mapped to **8081** in this stack to avoid the conflict.
 
+**Optional: Plex transcoding on an NVIDIA card** (needs Plex Pass). Install the **Nvidia Driver** plugin from Apps, then stop and start Docker under Settings → Docker. Add this line to `.env` (on a LAN-only server, list `docker-compose.lan.yml` too):
+
+```env
+COMPOSE_FILE=docker-compose.yml:docker-compose.nvidia.yml
+```
+
+Run `docker compose up -d plex`, then pick the card in Plex → Settings → Transcoder.
+
 **Updating:**
 
 ```bash
@@ -525,6 +533,8 @@ docker compose start sonarr
 #!/bin/bash
 /mnt/user/appdata/daredevil/scripts/update-images.sh
 ```
+
+If Plex's Remote Access is on, Plex is open to the internet, so update it daily as well: a second User Script running `/mnt/user/appdata/daredevil/scripts/update-images.sh plex` on e.g. custom schedule `0 5 * * *`. Naming services limits the run to them, and skips the database backup unless one of them is `db`, `sonarr`, `radarr` or `prowlarr`.
 
 If a run fails, a *Container update failed* notification shows up in Daredevil (and on ntfy, if it's set up). On Unraid the usual cause is DNS: if the server's own DNS points at itself (`::1` or `127.0.0.1`), set real DNS servers under **Settings → Network Settings**. Editing `/etc/resolv.conf` doesn't last, because Unraid rebuilds `/etc` on every boot.
 
