@@ -536,9 +536,27 @@ docker compose start sonarr
 
 If Plex's Remote Access is on, Plex is open to the internet, so update it daily as well: a second User Script running `/mnt/user/appdata/daredevil/scripts/update-images.sh plex` on e.g. custom schedule `0 5 * * *`. Naming services limits the run to them, and skips the database backup unless one of them is `db`, `sonarr`, `radarr` or `prowlarr`.
 
-If a run fails, a *Container update failed* notification shows up in Daredevil (and on ntfy, if it's set up). On Unraid the usual cause is DNS: if the server's own DNS points at itself (`::1` or `127.0.0.1`), set real DNS servers under **Settings → Network Settings**. Editing `/etc/resolv.conf` doesn't last, because Unraid rebuilds `/etc` on every boot.
+If a run fails, a *Container update failed* notification shows up in Daredevil (and on ntfy, if it's set up). On Unraid the usual cause is DNS: `cat /etc/resolv.conf` should list a `nameserver`. If it's empty or points at the server itself (`::1` or `127.0.0.1`), set DNS servers under **Settings → Network Settings**, and if the server is wired, turn its Wi-Fi off there: a Wi-Fi link that keeps dropping rewrites the file each time. Editing `/etc/resolv.conf` by hand doesn't last, because Unraid rebuilds `/etc` on every boot.
 
 The images are `:latest`, so a new major version (a Sonarr 5, say) can arrive this way and migrate its database. To go back, set that service's `image:` to the previous version's tag and restore the backup taken just before.
+
+### Plex break-in alarm
+
+Updates close holes Plex has fixed; they can't tell you someone already got in. `scripts/check-plex.sh` looks at the Plex container from the host and sends an urgent *Plex may be compromised* notification (Daredevil, and ntfy if set up) when it finds:
+
+- files added outside the few places the image changes at start, e.g. a program in `/tmp` or `/var/tmp`, or a crontab
+- a program running from a temp folder, from Plex's `/config`, or from a deleted file
+- any other program that isn't Plex's own and is still running at the next check
+- programs in `/dev/shm`, or a crontab saved in Plex's `/config`
+
+It alerts once per new set of findings, and again after a reboot. On Unraid, schedule it with User Scripts on custom schedule `*/15 * * * *`:
+
+```bash
+#!/bin/bash
+/mnt/user/appdata/daredevil/scripts/check-plex.sh
+```
+
+Run it by hand to see what it found. If an alarm is for something you recognise (say a file you created while troubleshooting), recreating the container clears it: `docker compose up -d --force-recreate plex`.
 
 ---
 
@@ -560,7 +578,7 @@ daredevil/
 ├── config/             # Django settings, URLs, Celery config, .env read/write
 ├── templates/          # Django templates (Tailwind, built in Docker; Alpine.js + htmx from CDNs)
 ├── tests/e2e/          # End-to-end tests (Playwright) — see Tests below
-├── scripts/            # backup-db.sh
+├── scripts/            # backups, image updates, Plex break-in alarm (run on the host)
 ├── manage.py
 ├── requirements.txt
 └── start.sh            # Dev launcher (macOS/Linux)

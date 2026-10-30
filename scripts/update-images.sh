@@ -17,17 +17,13 @@ set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
+. scripts/notify.sh
 
 # A failed run only shows in the User Scripts log, so the containers would
-# quietly fall behind again. Post it to Daredevil's notifications (and ntfy,
-# if set up) instead. Sent from the web container because Docker gives it
-# working DNS even when the host's own lookups fail — on Unraid that's the
-# usual reason a pull fails.
+# quietly fall behind again. Say so in Daredevil instead.
 step='backing up the databases'
 notify_failure() {
-    docker compose exec -T -e MSG="Stopped while $step on $(hostname). See the User Scripts log." web \
-        python manage.py shell -c "import os; from apps.notifications.notify import send; send('Container update failed', os.environ['MSG'], priority='high', tags=['warning'])" \
-        || true
+    notify 'Container update failed' "Stopped while $step on $(hostname). See the User Scripts log." high warning
 }
 trap notify_failure ERR
 
