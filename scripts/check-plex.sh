@@ -44,10 +44,13 @@ init_pid="$(docker inspect -f '{{.State.Pid}}' "$cid")"
 config_dir="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/config"}}{{.Source}}{{end}}{{end}}' "$cid")"
 findings=()
 
-# Files: what the image changes at start, plus what the NVIDIA runtime mounts
-# in (only root can write to /usr and /etc in there; Plex runs as abc)
-expected='^(/run|/app|/data|/defaults|/etc/(passwd|group)-?|/etc/s6-overlay)(/|$)'
-nvidia='^/(usr|etc)/.*(nvidia|libcuda|libnvcuvid|libnvoptix)[^/]*$|^/etc/ld\.so\.cache$|^/usr/lib/firmware/nvidia(/|$)'
+# Files: what the image changes at start (including adding abc to the
+# graphics card's group), plus what the NVIDIA runtime adds: its libraries,
+# their library-path files and cache, and one symlink. Only root can write
+# to any of these in there; Plex runs as abc.
+expected='^(/run|/app|/data|/defaults|/etc/(passwd|group|gshadow)-?|/etc/s6-overlay)(/|$)'
+nvidia='^/(usr|etc)/.*(nvidia|libcuda|libnvcuvid|libnvoptix)[^/]*$|^/usr/lib/firmware/nvidia(/|$)'
+nvidia+='|^/etc/ld\.so\.conf\.d/[^/]*nvcr[^/]*\.conf$|^/etc/ld\.so\.cache$|^/var/cache/ldconfig/aux-cache$|^/usr/lib64/libGLX_indirect\.so\.0$'
 diff_lines="$(docker diff "$cid")"
 while IFS= read -r line; do
     kind="${line:0:1}" path="${line:2}"
