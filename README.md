@@ -534,7 +534,7 @@ docker compose start sonarr
 /mnt/user/appdata/daredevil/scripts/update-images.sh
 ```
 
-If Plex's Remote Access is on, Plex is open to the internet, so update it daily as well: a second User Script running `/mnt/user/appdata/daredevil/scripts/update-images.sh plex` on e.g. custom schedule `0 5 * * *`. Naming services limits the run to them, and skips the database backup unless one of them is `db`, `sonarr`, `radarr` or `prowlarr`.
+If Plex's Remote Access is on, Plex is open to the internet, so update it daily as well: a second User Script running `/mnt/user/appdata/daredevil/scripts/update-images.sh plex` on e.g. custom schedule `0 5 * * *`. Naming services limits the run to them, and skips the database backup unless one of them is `db`, `sonarr`, `radarr` or `prowlarr`. If two runs overlap, the later one waits for the first to finish (on Linux; macOS has no `flock`).
 
 If a run fails, a *Container update failed* notification shows up in Daredevil (and on ntfy, if it's set up). On Unraid the usual cause is DNS: `cat /etc/resolv.conf` should list a `nameserver`. If it's empty or points at the server itself (`::1` or `127.0.0.1`), set DNS servers under **Settings → Network Settings**, and if the server is wired, turn its Wi-Fi off there: a Wi-Fi link that keeps dropping rewrites the file each time. Editing `/etc/resolv.conf` by hand doesn't last, because Unraid rebuilds `/etc` on every boot.
 

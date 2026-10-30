@@ -21,12 +21,21 @@ cd "$APP_DIR"
 
 # A failed run only shows in the User Scripts log, so the containers would
 # quietly fall behind again. Say so in Daredevil instead.
-step='backing up the databases'
+step='waiting for another update to finish'
 notify_failure() {
     notify 'Container update failed' "Stopped while $step on $(hostname). See the User Scripts log." high warning
 }
 trap notify_failure ERR
 
+# One run at a time: the daily Plex run and the weekly full one overlap when
+# a pull is slow, and two at once trip over each other. The later run waits,
+# for up to an hour. macOS has no flock, so there it just runs.
+if command -v flock >/dev/null; then
+    exec 9>/tmp/daredevil-update-images.lock
+    flock -w 3600 9
+fi
+
+step='backing up the databases'
 # Only Postgres and the apps that keep their data in it need a backup first,
 # so a Plex-only run can't be held up by a failing one
 needs_backup=$(( $# == 0 ))
